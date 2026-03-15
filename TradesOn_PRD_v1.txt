@@ -1,0 +1,878 @@
+TradesOn Platform
+Product Requirements Document
+Version 1.0  |  Draft for Engineering Review
+Delivery Target: Web Application (MVP) → Native App (Beta)
+Delivery Tier Legend
+ 
+Web App (MVP)
+ 
+Native App (Beta)
+ 
+Both Tiers
+
+1. Document Overview
+This Product Requirements Document (PRD) defines the full functional scope of the TradesOn Platform — a marketplace connecting homeowners, property managers, and realtors with licensed and non-licensed trade service providers. It serves as the primary reference for engineering, design, and QA teams to build toward a Technical Design Document (TDD).
+
+This PRD is structured to support a phased delivery model:
+	•	Phase 1 — Web Application (MVP): A fully responsive web app that delivers core functionality without requiring native mobile development. Prioritizes speed to market and enables early user validation.
+	•	Phase 2 — Native Mobile App (Beta): Expands into a native iOS/Android experience with capabilities not feasible in the browser, such as live GPS tracking, push notifications, and offline mode.
+
+Field
+Value
+Product Name
+TradesOn Platform
+Document Version
+1.0 — Draft
+Status
+In Review — Engineering Team
+Primary Audience
+Engineering, Design, QA, Product
+Delivery Model
+Web App MVP → Native App Beta
+Last Updated
+2025
+
+1.1 Product Vision
+TradesOn is an AI-powered home services marketplace that eliminates the friction of finding, vetting, and hiring trade professionals. The platform serves multiple user roles — homeowners, property managers, realtors, and tradespeople — with role-specific workflows, AI-assisted job intake, automated compliance verification, and integrated payments.
+1.2 User Roles
+The platform serves five distinct user types, each with a tailored experience:
+	•	Homeowner — Creates and manages home repair/service jobs; hires tradespeople.
+	•	Property Manager — Manages multiple properties; assigns and oversees jobs at scale.
+	•	Realtor — Coordinates service work for buyer/seller transactions; may be managed under a Brokerage account.
+	•	Licensed Tradesperson — Verified professional with state credentials; browses and bids on jobs.
+	•	Non-Licensed Tradesperson — General service provider; undergoes identity and document verification.
+	•	Platform Admin — Internal staff managing compliance, user governance, and platform health.
+1.3 Delivery Tier Strategy
+Given current team capacity, the platform will launch as a web application first. The table below summarizes the feature adaptation approach between tiers.
+
+Feature Area
+Web App (MVP)
+Native App (Beta)
+Authentication
+Email/password + session cookies
+Biometric login (Face ID / fingerprint)
+Document Upload
+File input via browser
+Camera capture + file picker
+GPS / Routing
+Google Maps embed (iframe)
+Native maps SDK with live location
+Push Notifications
+Browser push notifications (limited)
+Full native push (APNs / FCM)
+Job Photos
+Browser file upload
+In-app camera with annotation
+Availability / Calendar
+Date picker UI component
+Native calendar integration
+Payments
+Stripe.js web SDK
+Stripe native SDK + Apple/Google Pay
+Offline Mode
+Not supported
+Read-only offline access to active jobs
+Live Tracking
+Polling-based map refresh (5s)
+WebSocket real-time native map
+
+2. Functional Requirements
+(MVP)Function 1 — Authentication  & Account Management
+Handles user registration, login, and session management. All roles access the platform through a shared authentication gateway that routes users to their role-specific experience post-login.
+Workflow
+	•	User lands on the Login Page and enters credentials (email + password).
+	•	If the user does not have an account, they are directed to the Account Creation flow.
+	•	Upon successful registration, the user proceeds to Role Selection (Screen 3) which routes them to the appropriate onboarding flow.
+	•	Returning users are authenticated and directed to their role-specific dashboard.
+
+Web App (MVP): Use JWT-based session tokens stored in httpOnly cookies. OAuth (Google) sign-in can be added in a follow-on sprint.
+Native App (Beta): Add biometric authentication (Face ID / Touch ID) at the native layer. Deep link handling for magic link emails.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-01
+Login
+Email + password fields; 'Forgot Password' link; redirect to Account Creation; form validation with inline error states.
+S-02
+Account Creation
+Name, email, password fields; user role selection (dropdown or card selector); terms acceptance; email verification trigger on submit.
+
+Function 2 — Onboarding (POC) & Identity Verification (API - MVP)
+Each user role has a distinct onboarding flow that collects role-appropriate information, payment details, and identity documentation. Tradesperson onboarding includes AI-assisted document verification via a Compliance Agent.
+Workflow — Tradesperson Onboarding (Licensed & Non-Licensed)
+	•	The provider begins registration and selects their trade role.
+	•	Completes a Trades Profile: personal details, trade categories, and service radius (drawn on an interactive map).
+	•	Uploads required documents: government-issued ID, professional license (licensed only), and proof of insurance.
+	•	Compliance Agent activates and begins automated verification:
+	•	ID Verification API validates identity.
+	•	License Verification checks professional credentials against state databases.
+	•	Insurance Validation confirms coverage type, limits, and policy expiration.
+	•	If any document fails verification, the provider is notified and prompted to resubmit corrected documentation.
+	•	Upon successful verification, a Verified Badge is assigned and access to the Job Board is granted.
+
+Web App (MVP): Service radius drawn via Google Maps JavaScript API embedded in the browser. Document upload uses standard file input (accept='.pdf,.jpg,.png'). Async verification status shown via polling.
+Native App (Beta): Service radius drawn via native map SDK gestures. Camera capture for document upload. Push notification when verification is complete.
+
+Workflow — Customer Roles (Homeowner, Property Manager, Realtor)
+	•	User selects their role on the User Type Selection screen.
+	•	Completes role-specific profile form.
+	•	Sets up a payment method via the integrated payment processor (Stripe).
+	•	Completes identity verification (Stripe Identity or equivalent).
+	•	Account activated and user is redirected to their role-specific dashboard.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-03
+User Type Selection
+Card-based selection UI for role: Homeowner, Property Manager, Realtor, Licensed Trade, Non-Licensed Trade. Routes user to the appropriate onboarding form.
+S-04
+Property Manager Onboarding
+Profile form; payment method setup (Stripe); identity verification flow; property portfolio details (number of units, locations).
+S-05
+Realtor Onboarding
+Profile form; NAR/MLS license number; payment setup; identity verification; optional brokerage association.
+S-06
+Homeowner Onboarding
+Profile form; home address(es); payment method setup; identity verification.
+S-07
+Licensed Trade Onboarding
+Profile form; trade category multi-select; license number + document upload; insurance document upload; service radius map; availability calendar setup; identity verification.
+S-08
+Non-Licensed Trade Onboarding
+Profile form; trade category multi-select; ID upload; insurance upload (if applicable); service radius map; availability calendar setup; identity verification.
+
+Function 3 — Brokerage Management (MVP)
+Enables real estate brokerages to provision a centralized account structure, manage realtor seats, configure billing, and administer user permissions at scale.
+Workflow
+	•	Admin selects 'Realtor Brokerage' account type and enters brokerage details: name, license number, address, and estimated seat count.
+	•	Creates the primary admin account with full credentials and contact information.
+	•	Sets admin permissions: user management, billing access, analytics access.
+	•	Selects a brokerage plan (seat-based or usage-based) from available options.
+	•	Configures centralized billing method and invoicing preferences.
+	•	Reviews and confirms all brokerage information before provisioning.
+	•	Platform provisions the account hierarchy — brokerage account with nested realtor seats.
+	•	Admin accesses the Admin Dashboard to begin adding realtors and managing the brokerage.
+
+Web App (MVP): All brokerage management surfaces are web-first. Role-based access control (RBAC) enforced at API layer. Billing via Stripe Connect or billing portal.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-09
+Brokerage Setup
+Brokerage selection form; fields for name, license number, physical address, estimated realtor count.
+S-10
+Admin Permissions
+Toggle-based permission matrix: user management, billing access, analytics, job visibility. Confirmation required before applying.
+S-11
+Plan Selection
+Side-by-side plan comparison (seat-based vs. usage-based); estimated cost calculator; selection CTA.
+S-12
+Billing Configuration
+Payment method entry; invoice delivery preferences (email, PDF); billing contact; tax information.
+S-13
+Review & Confirm
+Summary of all brokerage setup details with edit links per section; final submit action.
+S-14
+User Management
+Account hierarchy tree view; add/remove realtors; assign seat licenses; bulk invite via CSV upload.
+S-15
+Brokerage Admin Dashboard
+Overview of active realtors, open jobs, billing summary, and recent activity feed.
+S-16
+Brokerage Billing
+Invoice history; current plan details; payment method management; upgrade/downgrade options.
+
+Function 4 — Admin Portal (MVP)
+An internal-facing control center for platform administrators to review compliance submissions, monitor account health, resolve disputes, and track platform-level metrics.
+4.1 Governance & Compliance Review
+Admins review verification submissions from tradespeople and make approval decisions.
+	•	Review submitted documents: government ID, professional license, insurance certificate.
+	•	Cross-reference license numbers against state databases.
+	•	Validate insurance policy coverage, limits, and expiration dates.
+	•	Add internal admin notes to the review record.
+	•	Make a decision:
+	•	Approve → Account is activated and Verified Badge is assigned.
+	•	Reject → User is notified with a reason; account remains inactive.
+	•	Request More Documents → User is notified with specific instructions.
+
+4.2 Account Monitoring & Flag Detection
+The system automatically surfaces accounts that require admin attention based on behavioral and status signals:
+	•	Open payment disputes or failed chargebacks.
+	•	Consistently poor service reviews (below threshold).
+	•	Expired insurance certificates.
+	•	Suspicious activity patterns (e.g., multiple failed logins, unusual job volume).
+
+4.3 Admin Resolutions
+Admins have a structured set of resolution actions available for flagged accounts:
+	•	Send a formal warning with required acknowledgment.
+	•	Request a written explanation from the user.
+	•	Issue a temporary account suspension with a defined reinstatement date.
+	•	Issue a permanent account deactivation with documented reason.
+
+4.4 Audit Log
+All admin actions are immutably logged to support accountability, audits, and dispute resolution. Each log entry captures: action type, acting admin user, target account, timestamp, and documented reason.
+
+4.5 Platform Metrics Dashboard
+Aggregated platform health metrics available in real time to admins. Core metrics include:
+	•	Total Registered Users (by role)
+	•	Monthly Active Users (MAU) — overall and by role
+	•	Active Jobs — open, in-progress, and completed
+	•	Gross Revenue and Net Revenue (after platform fee)
+	•	Operational Expenses
+
+4.6 Funnel & Behavioral Metrics
+Funnel and behavioral tracking to support growth decisions:
+	•	Customer acquisition funnel: visit → sign-up → onboarded → first job created.
+	•	Tradesperson acquisition funnel: sign-up → verified → first bid submitted → first job won.
+	•	Supply/demand ratio monitoring by ZIP code and trade category.
+	•	Activation rate tracking with automated email triggers for inactive users.
+	•	Dynamic tradesperson recruitment pausing when supply exceeds demand in a region.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-17
+Compliance Review
+Document viewer (ID, license, insurance); cross-reference status indicators; admin notes field; Approve / Reject / Request More actions.
+S-18
+Account Monitoring
+Flagged accounts list with flag type and severity; filter by flag category; link to account profile and job history.
+S-19
+Admin Resolutions
+Resolution action panel per flagged account; action history log; escalation path; status tracker.
+S-20
+Audit Log
+Timestamped, searchable log of all admin actions; filterable by admin user, account, action type, and date range; export to CSV.
+S-21
+Core Metrics Dashboard
+KPI cards: Total Users, MAU, Active Jobs, Revenue, Expenses; trend charts; date range filter.
+S-22
+Funnel Tracking
+Conversion funnel visualizations for customer and tradesperson acquisition paths; stage drop-off rates.
+S-23
+Behavioral Metrics
+Activation rate chart; supply/demand heat map by region; automated email trigger log; recruitment pause controls.
+
+Function 5 — Role-Specific Dashboards (MVP)
+Each user role accesses a personalized dashboard that surfaces the most relevant data and actions for their workflow.
+Tradesperson Dashboard
+	•	Active and upcoming job assignments with status indicators.
+	•	Pending quotes submitted awaiting customer selection.
+	•	Earnings summary: current period, pending payout, lifetime.
+	•	Verification status and document expiration alerts.
+	•	Availability calendar quick-access.
+
+Realtor Dashboard
+	•	Client portfolio overview with active jobs per client.
+	•	Job status tracker across all managed properties.
+	•	Quote history and payment records.
+	•	Brokerage assignment and plan details (if applicable).
+
+Web App (MVP): Dashboards are built as responsive single-page views. Data loaded via REST API with client-side state management (React Query or equivalent).
+Native App (Beta): Dashboard widgets support native refresh gestures. Push notifications surface job status changes without requiring app open.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-24
+Tradesperson Dashboard
+Job list (active, pending, completed); earnings summary; quote activity; availability calendar shortcut; verification status badge.
+S-25
+Realtor Dashboard
+Client list with active jobs; job status summary cards; payment history; brokerage plan info; quick-create job CTA.
+
+Function 6 — Job Creation (AI Intake) (POC)
+The AI Intake system allows customers to describe a home service need via photo, voice, or text. An AI Intake Agent processes the input, classifies the job, scores urgency/severity, generates a preliminary cost estimate, and drafts a job summary for user confirmation.
+Workflow
+	•	User initiates a new job by selecting 'Create New Job.'
+	•	User submits input via one or more channels: photo upload, voice recording, or free-text description.
+	•	Create a uniform form structure:Room
+	•	Type of Trade needed: Plumbing, electrical, etc.
+	•	Severity
+	•	Description Box
+	•	User selects the trade classification from a structured category list.
+	•	Enforce required inputs to validate that all required inputs are present.
+	•	MVP - NLP and computer vision models analyze the input to extract issue details.
+	•	MVP - Severity and urgency scoring is calculated; additional inputs are requested if confidence is insufficient.
+	•	MVP - A preliminary cost range is generated based on trade type, severity, and regional pricing data.
+	•	MVP - The AI drafts a structured job summary (issue description, trade category, severity, cost range).
+	•	The user reviews the summary, edits if needed, and approves.
+	•	Approved jobs are routed to the Job Board.
+
+Web App (MVP): Photo upload via standard file input. Voice input via browser MediaRecorder API (limited cross-browser support — fallback to text). AI processing status shown via animated loading state. Inline editing of AI-generated summary fields.
+Native App (Beta): Native camera and microphone access with real-time capture. AI processing in background with push notification on completion. Richer voice-to-text with on-device processing.
+
+MVP - AI Agent Validation Logic
+	•	Flag jobs where photo quality is insufficient (blurry, dark, or irrelevant subject) and prompt for re-upload.
+	•	Flag jobs where the described issue does not align with the selected trade category and surface a correction prompt.
+	•	Request additional detail if severity cannot be confidently scored from the initial input.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-26
+Job Input Form
+Trade category selector; issue type picker; text description field; photo attachment (multi-image); optional voice input; form validation.
+S-27
+MVP - AI Analysis View
+Processing animation; AI-generated job summary preview; severity/urgency score display; preliminary cost range; flags for missing or low-quality inputs.
+S-28
+User Confirmation
+Editable summary fields; cost range confirmation; 'Approve & Post to Job Board' CTA; 'Edit Job' CTA.
+
+Function 7 — Job Board & Quoting (P)C)
+Approved jobs are posted to a filterable Job Board where verified tradespeople can discover, review, and submit quotes. Customers review all submitted quotes and select the best fit. Jobs expire if no quote is accepted within a defined window.
+Workflow
+	•	Approved job is entered into the Job Board routing system with a status of 'Open.'
+	•	Tradespeople filter the board by distance (5 / 10 / 25 miles) and sort by newest, closest, or soonest-expiring.
+	•	A tradesperson reviews the full job summary and submits a quote (price + message).
+	•	Multiple tradespeople can submit quotes simultaneously (unlimited quote system).
+	•	Customer receives notification of new quotes and reviews them in a comparison view.
+	•	Customer selects one quote or allows the job to expire.
+	•	Quote Accepted → Job assigned; move to Scheduling.
+	•	Job Expired or All Quotes Declined → Customer must resubmit or cancel the job.
+
+Job Expiration Rules
+Open Design Decision: Expiration window to be defined (recommended starting point: 72 hours from posting). Expired jobs are archived and not re-posted automatically — customer must take explicit action.
+
+Web App (MVP): Job Board rendered as a paginated list with filter sidebar. Quote submission via modal form. Customer quote comparison via side-by-side card layout.
+Native App (Beta): Job Board supports swipe gestures for quick actions (save, skip). Native notifications for new quotes. Map view toggle for geospatial job browsing.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-29
+Job Board (Tradesperson View)
+Filterable list of open jobs; filters: distance radius, trade category, posted date; sort: newest / closest / expiring soon; job card with summary, distance, and time remaining.
+S-30
+Job Detail & Drilldown
+Full job summary; AI-generated severity score and cost range; customer location (approximate); photo attachments; 'Submit Quote' CTA.
+S-31
+Quote Submission
+Price input field; cover message text area; estimated completion time; service guarantee statement; submission confirmation.
+S-32
+Quote Review (Customer View)
+All submitted quotes displayed as comparable cards: price, message, tradesperson profile link, rating, distance; 'Accept Quote' CTA per card; job expiration countdown.
+
+Function 8 — Scheduling (POC)
+Once a quote is accepted, the platform facilitates scheduling coordination between the customer and the tradesperson. Pre-authorization of payment is captured before the appointment is confirmed.
+Workflow
+	•	Job acceptance triggers the scheduling flow; tradesperson's available time slots are surfaced to the customer.
+	•	Customer selects 2–3 preferred time slots.
+	•	Customer submits their time slot preferences.
+	•	Tradesperson reviews options and selects the time that works best.
+	•	Appointment is confirmed and both parties receive notification.
+	•	Platform requests a payment pre-authorization (hold) for the quoted amount via Stripe.
+	•	Customer authorizes the payment hold; funds are reserved but not captured.
+
+Web App (MVP): Date/time picker built with a standard UI library (e.g., React Datepicker). Availability shown as a calendar grid. Confirmation sent via email. Payment pre-auth via Stripe PaymentIntents.
+Native App (Beta): Native calendar integration for availability import. In-app scheduling confirmation with one-tap accept. Push notification for appointment confirmation.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-33
+Tradesperson Availability Manager
+Calendar interface for tradespeople to set and update weekly availability; recurring availability blocks; exception dates (unavailable days).
+S-34
+Customer Time Slot Selection
+Calendar view showing tradesperson's available windows; customer selects up to 3 preferred slots; confirmation submit.
+S-35
+Pre-Job Checklist (Tradesperson)
+Auto-generated checklist based on job type and AI summary; checklist items to complete before arriving onsite; downloadable/printable.
+S-36
+Day-Of Job Route View
+Map with optimized route to job location; ETA display; contact customer button; 'Mark En Route' CTA.
+
+Function 9 — Job Execution (POC)
+Covers the end-to-end execution lifecycle: tradesperson traveling to the site, performing the work, handling scope changes, and completing the job for customer approval.
+Workflow
+	•	Job status updates to 'En Route' and live location tracking activates.
+	•	Real-time map and ETA are displayed to the customer.
+	•	On arrival, tradesperson marks 'Onsite' — live tracking ends and work begins.
+	•	Tradesperson conducts an initial inspection to assess actual scope vs. quoted scope.
+	•	If additional work is required:
+	•	Tradesperson submits an additional work scope with description, photos, and revised pricing.
+	•	Customer receives a notification and can accept or decline.
+	•	If declined, work proceeds under the original quote (no job cancellation).
+	•	If accepted, the total quoted amount is updated and logged.
+	•	Work proceeds ('In Progress' status).
+	•	Tradesperson marks work as 'Complete' and submits completion documentation.
+	•	Customer reviews the work and approves; payment capture is triggered.
+
+Web App (MVP): Live tracking uses Google Maps JavaScript API with 5-second polling refresh. Scope change approval is a web form modal. All quote adjustments logged in a visible history table.
+Native App (Beta): Live tracking via native Maps SDK with WebSocket real-time updates. In-app approval flow for scope changes with one-tap accept/decline. Photo capture from device camera for completion documentation.
+
+Scope Change Rules
+	•	Additional work requests are non-blocking — the job continues under the original scope if declined.
+	•	All quote adjustments (additions and declines) are logged chronologically in the Quote History Log.
+	•	Customers cannot cancel a job mid-execution due to a scope change request.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-37
+Live Tracking View (Customer)
+Real-time map showing tradesperson location; ETA countdown; 'En Route' status badge; contact button; auto-dismisses on arrival.
+S-38
+Onsite Adjustment Panel
+Additional work description field; photo attachment; manual price input; scope change history log; 'Submit for Approval' CTA.
+S-39
+Scope Change Approval (Customer)
+New scope summary with photos; original quote vs. updated total; 'Accept' and 'Decline' actions; non-blocking — original work continues either way.
+
+Function 10 — Job Completion & Invoicing (POC)
+After the customer approves the completed work, the platform generates a detailed invoice, processes payment, and closes the job record.
+Workflow
+	•	Tradesperson marks the job as 'Complete' in the platform.
+	•	Tradesperson uploads completion photos and adds notes summarizing work performed.
+	•	System calculates invoice line items: labor, materials, and any approved scope additions.
+	•	A PDF invoice is automatically generated and delivered to the customer via email and SMS with a payment link.
+	•	Customer reviews and approves the invoice in-app.
+	•	Payment is captured from the pre-authorized hold (Stripe). Platform fee is applied.
+	•	Job status updates to 'Closed.' Both parties can leave a review.
+
+Web App (MVP): PDF invoice generated server-side (e.g., using a PDF library). Payment capture via Stripe PaymentIntents confirm call. Invoice delivered via Twilio SMS + SendGrid email.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-40
+Completion Submission (Tradesperson)
+Job completion declaration form; completion photo upload (required, minimum 1 photo); completion notes text area; 'Mark Complete' CTA.
+S-41
+Completion Documentation
+Photo gallery viewer; completion notes display; work summary timeline; option to add additional notes before submitting invoice.
+S-42
+Invoice Line Items
+Labor, materials, and additional work line items with quantities and unit costs; auto-calculated subtotal, platform fee, and total.
+S-43
+PDF Invoice Preview
+Rendered invoice preview; download button; re-send to customer action; line item edit (pre-submission only).
+S-44
+Customer Invoice Approval
+Invoice summary with itemized breakdown; 'Approve & Pay' CTA; option to flag a dispute; payment confirmation screen post-capture.
+
+Function 11 — Payments & Payouts (MVP)
+Manages all payment flows on the platform: customer payment methods, tradesperson payout configuration, pre-authorization, capture, and job cancellation handling.
+Platform Payment Model
+	•	Customers are charged via pre-authorized Stripe PaymentIntents — funds are held at quote acceptance and captured upon job approval.
+	•	Tradespeople receive payouts via Stripe Connect (or equivalent) on a configurable schedule (daily, weekly).
+	•	A platform fee is applied to each completed transaction (percentage TBD by business).
+	•	Disputed charges are surfaced in the Admin Portal for resolution.
+
+Web App (MVP): Stripe.js Elements for PCI-compliant card input. Stripe Connect for tradesperson payout onboarding. Stripe Customer Portal for self-service billing management.
+Native App (Beta): Stripe native iOS/Android SDK. Apple Pay and Google Pay support. Biometric-authorized payment confirmation.
+
+Cancellation Policy
+Job cancellation rules are designed to protect both parties. Open Design Decision: Specific fee structure TBD (e.g., free cancellation before tradesperson accepts; partial fee if cancelled after scheduling; tradesperson cancellation penalties). Cancellation can be initiated by either party and is handled within the platform.
+
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-45
+Customer Payment Method
+Card entry (Stripe Elements); saved payment methods management; default method selection; billing address.
+S-46
+Tradesperson Payout Setup
+Stripe Connect onboarding (bank account / debit card); payout schedule selection; payout history and balance view.
+S-47
+Job Cancellation
+Cancellation initiation with required reason; cancellation policy summary; fee disclosure (if applicable); confirmation.
+
+Function 12 — Customer Support (MVP)
+Provides in-platform communication channels for users to report issues, provide feedback, and track the status of support requests.
+Screen Inventory
+Screen #
+Screen Name
+Description / Key Requirements
+S-48
+Support Contact Form
+Issue category selector; free-text description; optional screenshot attachment; contact preference (email / in-app); submit CTA.
+S-49
+Support Ticket Tracker
+List of open and resolved tickets; status badges (Open, In Progress, Resolved); ticket detail view with message thread; ability to add follow-up messages.
+
+3. Open Design Decisions & Risks
+The following items require resolution by the product and engineering leads before development begins. These are flagged as open to prevent blockers during sprint planning.
+
+#
+Open Item
+Impact
+Recommended Action
+OD-01
+Job expiration window duration
+Affects job board UX and tradesperson urgency
+Recommend 72-hour default; validate with user research
+OD-02
+Platform fee percentage
+Directly impacts revenue model and pricing strategy
+Define in business model before payment dev begins
+OD-03
+Cancellation fee structure
+Legal and UX implications; affects trust between parties
+Draft policy and review with legal counsel
+OD-04
+AI model provider selection
+Cost, latency, and accuracy tradeoffs for intake agent
+Benchmark GPT-4o vs. Gemini Pro on sample job inputs
+OD-05
+Tradesperson payout schedule
+Cash flow expectations and Stripe fee optimization
+Survey initial tradesperson cohort for preference
+OD-06
+Insurance verification API partner
+Required for automated compliance; critical path for launch
+Evaluate Verisk, ACORD, or manual review fallback for MVP
+OD-07
+License verification data source
+State-by-state variability; may require manual fallback
+Map supported states for MVP; define manual review SLA
+OD-08
+Browser push notification strategy
+Limited reliability on iOS Safari in web app tier
+Test PWA push support; consider email fallback for MVP
+
+4. Master Screen Index
+Complete reference list of all screens defined in this PRD, cross-referenced by function and delivery tier.
+
+Screen
+Screen Name
+Function
+Web MVP
+App Beta
+S-01
+Login
+Auth
+Yes
+Yes + Biometric
+S-02
+Account Creation
+Auth
+Yes
+Yes
+S-03
+User Type Selection
+Onboarding
+Yes
+Yes
+S-04
+Property Manager Onboarding
+Onboarding
+Yes
+Yes
+S-05
+Realtor Onboarding
+Onboarding
+Yes
+Yes
+S-06
+Homeowner Onboarding
+Onboarding
+Yes
+Yes
+S-07
+Licensed Trade Onboarding
+Onboarding
+Yes
+Camera capture
+S-08
+Non-Licensed Trade Onboarding
+Onboarding
+Yes
+Camera capture
+S-09
+Brokerage Setup Form
+Brokerage Mgmt
+Yes
+Yes
+S-10
+Admin Permissions
+Brokerage Mgmt
+Yes
+Yes
+S-11
+Plan Selection
+Brokerage Mgmt
+Yes
+Yes
+S-12
+Billing Configuration
+Brokerage Mgmt
+Yes
+Yes
+S-13
+Review & Confirm
+Brokerage Mgmt
+Yes
+Yes
+S-14
+User Management
+Brokerage Mgmt
+Yes
+Yes
+S-15
+Brokerage Admin Dashboard
+Brokerage Mgmt
+Yes
+Yes
+S-16
+Brokerage Billing
+Brokerage Mgmt
+Yes
+Yes
+S-17
+Compliance Review
+Admin Portal
+Yes
+N/A
+S-18
+Account Monitoring
+Admin Portal
+Yes
+N/A
+S-19
+Admin Resolutions
+Admin Portal
+Yes
+N/A
+S-20
+Audit Log
+Admin Portal
+Yes
+N/A
+S-21
+Core Metrics Dashboard
+Admin Portal
+Yes
+N/A
+S-22
+Funnel Tracking
+Admin Portal
+Yes
+N/A
+S-23
+Behavioral Metrics
+Admin Portal
+Yes
+N/A
+S-24
+Tradesperson Dashboard
+Dashboards
+Yes
+Yes
+S-25
+Realtor Dashboard
+Dashboards
+Yes
+Yes
+S-26
+Job Input Form
+Job Creation
+Yes
+Native camera
+S-27
+AI Analysis View
+Job Creation
+Yes
+Yes
+S-28
+User Confirmation
+Job Creation
+Yes
+Yes
+S-29
+Job Board (Tradesperson)
+Job Board
+Yes
+Map view added
+S-30
+Job Detail & Drilldown
+Job Board
+Yes
+Yes
+S-31
+Quote Submission
+Job Board
+Yes
+Yes
+S-32
+Quote Review (Customer)
+Job Board
+Yes
+Yes
+S-33
+Availability Manager
+Scheduling
+Yes
+Calendar sync
+S-34
+Time Slot Selection
+Scheduling
+Yes
+Yes
+S-35
+Pre-Job Checklist
+Scheduling
+Yes
+Yes
+S-36
+Day-Of Route View
+Scheduling
+Maps embed
+Native maps
+S-37
+Live Tracking (Customer)
+Job Execution
+Polling refresh
+Real-time
+S-38
+Onsite Adjustment Panel
+Job Execution
+Yes
+Yes
+S-39
+Scope Change Approval
+Job Execution
+Yes
+Push notification
+S-40
+Completion Submission
+Completion
+Yes
+Camera capture
+S-41
+Completion Documentation
+Completion
+Yes
+Yes
+S-42
+Invoice Line Items
+Completion
+Yes
+Yes
+S-43
+PDF Invoice Preview
+Completion
+Yes
+Yes
+S-44
+Customer Invoice Approval
+Completion
+Yes
+Yes
+S-45
+Customer Payment Method
+Payments
+Stripe.js
+Native SDK
+S-46
+Tradesperson Payout Setup
+Payments
+Stripe Connect
+Native SDK
+S-47
+Job Cancellation
+Payments
+Yes
+Yes
+S-48
+Support Contact Form
+Support
+Yes
+Yes
+S-49
+Support Ticket Tracker
+Support
+Yes
+Yes
+
+5. Recommended Technology Stack
+The following stack recommendations are provided to inform the Technical Design Document. All selections should be validated by the engineering lead against team expertise and existing tooling.
+
+Layer
+Web MVP
+Native App Beta
+Notes
+Frontend
+React + Tailwind CSS
+React Native / Flutter
+Shared design system recommended
+Backend / API
+Node.js (Express) or Next.js API Routes
+Same backend
+REST API with JWT auth
+Database
+PostgreSQL (Supabase)
+Same backend
+Aligns with existing HomeDeetz stack
+Authentication
+Supabase Auth / Clerk
+Same + biometric layer
+JWT + refresh tokens
+AI / NLP
+OpenAI GPT-4o or Gemini Pro
+Same backend
+Benchmark for accuracy/cost
+Payments
+Stripe (PaymentIntents + Connect)
+Stripe native SDK
+PCI-compliant
+Maps
+Google Maps JavaScript API
+Google Maps SDK
+Consistent across tiers
+Document Storage
+Supabase Storage / S3
+Same backend
+Signed URL access control
+Email / SMS
+SendGrid + Twilio
+Same backend
+Transactional comms
+PDF Generation
+Puppeteer / PDFKit (server-side)
+Same backend
+For invoice generation
+Real-time
+Server-Sent Events / polling (5s)
+WebSocket / Firebase RTDB
+For live tracking
+
+Note: This stack table is intended as a starting point for the TDD author. Final selections require sign-off from the engineering lead.
+
+6. Next Steps
+
+Action
+Owner / Notes
+Resolve all Open Design Decisions (Section 3)
+Product Lead — target resolution before sprint 1
+Produce Technical Design Document from this PRD
+Engineering Lead — reference Section 4 screen index + Section 5 stack
+Design system / component library setup
+Design Lead — prioritize S-01 through S-08 for MVP wire-framing
+Define API contract for AI Intake Agent
+Engineering + AI Lead — aligns with Functions 6 and 7
+Stripe account setup (Connect + PaymentIntents)
+Engineering — required before any payment screen dev begins
+Select and contract compliance verification APIs
+Product + Legal — blocks tradesperson onboarding launch
+Define job expiration and cancellation policy
+Product + Legal — required for Function 7 and Function 11
+Validate web app PWA push notification support
+Engineering — test on iOS Safari and Chrome Android
+
