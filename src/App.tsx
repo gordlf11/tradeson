@@ -8,6 +8,7 @@ import Signup from './pages/Signup';
 // Onboarding Pages  
 import RoleSelection from './pages/RoleSelection';
 import Onboarding from './pages/OnboardingEnhanced';
+import OnboardingClientSelection from './pages/OnboardingClientSelection';
 
 // Main App Pages
 import JobCreation from './pages/JobCreation';
@@ -58,9 +59,9 @@ function App() {
         {/* Onboarding Routes */}
         <Route path="/onboarding" element={<RoleSelection />} />
         <Route path="/role-selection" element={<RoleSelection />} />
-        <Route path="/onboarding/homeowner" element={<Onboarding />} />
-        <Route path="/onboarding/property-manager" element={<Onboarding />} />
-        <Route path="/onboarding/realtor" element={<Onboarding />} />
+        <Route path="/onboarding/homeowner" element={<OnboardingClientSelection />} />
+        <Route path="/onboarding/property-manager" element={<OnboardingClientSelection />} />
+        <Route path="/onboarding/realtor" element={<OnboardingClientSelection />} />
         <Route path="/onboarding/licensed-trade" element={<Onboarding />} />
         <Route path="/onboarding/non-licensed-trade" element={<Onboarding />} />
         

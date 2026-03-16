@@ -117,8 +117,8 @@ export default function Scheduling() {
                   onClick={() => setSelectedDate(date)}
                   style={{
                     padding: '8px 16px',
-                    background: selectedDate === date ? 'var(--primary)' : 'var(--bg-surface-elevated)',
-                    border: 'none',
+                    background: selectedDate === date ? 'var(--primary)' : 'var(--bg-surface)',
+                    border: selectedDate === date ? '2px solid var(--primary)' : '1px solid var(--border)',
                     borderRadius: 'var(--radius-full)',
                     color: selectedDate === date ? 'white' : 'var(--text-primary)',
                     fontSize: '0.875rem',
@@ -150,15 +150,16 @@ export default function Scheduling() {
                     style={{
                       padding: 'var(--space-3)',
                       background: isSelected ? 'var(--primary)' : 
-                                 !slot.available ? 'var(--bg-base)' : 'var(--bg-surface-elevated)',
+                                 !slot.available ? 'var(--bg-base)' : 'var(--bg-surface)',
                       border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
-                      borderRadius: 'var(--radius-sm)',
+                      borderRadius: 'var(--radius-md)',
                       color: isSelected ? 'white' : 
                              !slot.available ? 'var(--text-tertiary)' : 'var(--text-primary)',
                       fontSize: '0.875rem',
                       cursor: slot.available ? 'pointer' : 'not-allowed',
                       transition: 'all 0.2s ease',
-                      opacity: slot.available ? 1 : 0.5
+                      opacity: slot.available ? 1 : 0.5,
+                      boxShadow: isSelected ? 'var(--shadow-md)' : 'none'
                     }}
                   >
                     <Clock size={14} style={{ display: 'block', margin: '0 auto 4px' }} />
@@ -173,7 +174,8 @@ export default function Scheduling() {
                 marginTop: 'var(--space-4)',
                 padding: 'var(--space-3)',
                 background: 'var(--primary-light)',
-                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--primary)',
+                borderRadius: 'var(--radius-md)',
                 fontSize: '0.875rem'
               }}>
                 <strong>Selected times:</strong> {selectedSlots.length}/3
@@ -244,7 +246,7 @@ export default function Scheduling() {
               <div style={{
                 width: '48px',
                 height: '48px',
-                background: 'linear-gradient(135deg, var(--success), #25d893)',
+                background: 'var(--success)',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
@@ -283,7 +285,8 @@ export default function Scheduling() {
             <h3 style={{ margin: '0 0 var(--space-3) 0' }}>Service Route</h3>
             <div style={{
               height: '300px',
-              background: 'linear-gradient(135deg, var(--bg-surface-elevated), var(--bg-base))',
+              background: 'var(--bg-base)',
+              border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               display: 'flex',
               flexDirection: 'column',

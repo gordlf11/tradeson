@@ -88,15 +88,15 @@ export default function RoleSelection() {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
-      background: 'linear-gradient(180deg, var(--bg-base) 0%, #1a1d24 100%)',
+      background: 'var(--bg-base)',
       padding: 'var(--space-4)'
     }}>
       {/* Header */}
       <div className="text-center mb-8 animate-slideDown">
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+        <h1 style={{ fontSize: '1.75rem', marginBottom: '0.5rem', color: 'var(--text-primary)', fontWeight: '700' }}>
           Choose Your Role
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
           Select how you'll be using TradesOn
         </p>
       </div>
@@ -118,10 +118,11 @@ export default function RoleSelection() {
             style={{
               animationDelay: `${index * 0.05}s`,
               cursor: 'pointer',
-              border: selectedRole === role.id ? `2px solid ${role.color}` : '1px solid var(--border)',
-              background: selectedRole === role.id ? `linear-gradient(135deg, ${role.color}15, transparent)` : 'var(--bg-surface)',
+              border: selectedRole === role.id ? `2px solid var(--primary)` : '1px solid var(--border)',
+              background: selectedRole === role.id ? 'var(--primary-light)' : 'var(--bg-surface)',
               position: 'relative',
-              transition: 'all 0.3s ease'
+              transition: 'all 0.3s ease',
+              boxShadow: selectedRole === role.id ? 'var(--shadow-md)' : 'var(--shadow-sm)'
             }}
             onClick={() => setSelectedRole(role.id)}
           >
@@ -130,7 +131,7 @@ export default function RoleSelection() {
               <div style={{
                 width: '56px',
                 height: '56px',
-                background: selectedRole === role.id ? role.color : 'var(--bg-surface-elevated)',
+                background: selectedRole === role.id ? 'var(--primary)' : 'var(--bg-base)',
                 borderRadius: 'var(--radius-full)',
                 display: 'flex',
                 alignItems: 'center',

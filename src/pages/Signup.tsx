@@ -53,28 +53,27 @@ export default function Signup() {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
-      background: 'linear-gradient(180deg, var(--bg-base) 0%, #1a1d24 100%)'
+      background: 'var(--bg-base)',
+      padding: 'var(--space-4)'
     }}>
       {/* Logo Section */}
       <div className="text-center mb-6">
         <div style={{
-          width: '64px',
-          height: '64px',
-          background: 'linear-gradient(135deg, var(--primary) 0%, #357ABD 100%)',
+          width: '72px',
+          height: '72px',
+          background: 'var(--primary)',
           borderRadius: 'var(--radius-lg)',
           margin: '0 auto var(--space-3)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 8px 24px rgba(74, 144, 226, 0.25)'
+          justifyContent: 'center'
         }}>
-          <Briefcase size={32} color="white" />
+          <Briefcase size={36} color="white" />
         </div>
         <h1 style={{
           fontSize: '1.75rem',
-          background: 'linear-gradient(135deg, var(--primary) 0%, var(--success) 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
+          color: 'var(--text-primary)',
+          fontWeight: '700'
         }}>
           Create Account
         </h1>

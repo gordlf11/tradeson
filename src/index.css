@@ -1,26 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  /* Colors - Premium Dark Mode Theme */
-  --bg-base: #0f1115;
-  --bg-surface: #1a1d24;
-  --bg-surface-elevated: #252932;
-  --bg-overlay: rgba(15, 17, 21, 0.7);
+  /* Colors - Light Theme based on Figma */
+  --bg-base: #F5F7FA;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #FFFFFF;
+  --bg-overlay: rgba(245, 247, 250, 0.9);
   
-  --primary: #4A90E2;
-  --primary-hover: #357ABD;
-  --primary-light: rgba(74, 144, 226, 0.15);
+  --primary: #007AFF;
+  --primary-hover: #0051D5;
+  --primary-light: rgba(0, 122, 255, 0.08);
   
-  --success: #2EED98;
-  --warning: #F5A623;
-  --danger: #FF4A6B;
+  --success: #34C759;
+  --success-light: rgba(52, 199, 89, 0.08);
+  --warning: #FF9500;
+  --warning-light: rgba(255, 149, 0, 0.08);
+  --danger: #FF3B30;
+  --danger-light: rgba(255, 59, 48, 0.08);
   
-  --text-primary: #FFFFFF;
-  --text-secondary: #9BA3AE;
-  --text-tertiary: #5C6370;
+  --text-primary: #000000;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
 
-  --border: #2C313C;
-  --border-focus: rgba(74, 144, 226, 0.5);
+  --border: #E5E7EB;
+  --border-focus: rgba(0, 122, 255, 0.3);
 
   /* Spacing */
   --space-1: 0.25rem;
@@ -37,11 +40,12 @@
   --radius-full: 9999px;
 
   /* Shadows / Effects */
-  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.25);
-  --shadow-glow: 0 0 20px rgba(74, 144, 226, 0.3);
-  --glass: rgba(26, 29, 36, 0.6);
-  --blur: blur(12px);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+  --shadow-glow: 0 0 20px rgba(0, 122, 255, 0.2);
+  --glass: rgba(255, 255, 255, 0.95);
+  --blur: blur(8px);
 
   /* Transitions */
   --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -85,11 +89,11 @@ p {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  max-width: 600px;
-  margin: 0 auto; /* Center on desktop, full width on mobile */
+  max-width: 428px; /* iPhone Pro Max width */
+  margin: 0 auto;
   background-color: var(--bg-base);
   position: relative;
-  box-shadow: 0 0 40px rgba(0,0,0,0.5); /* Helps define bounds on desktop */
+  box-shadow: 0 0 40px rgba(0,0,0,0.1);
 }
 
 .page-container {
@@ -105,10 +109,11 @@ p {
 .card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
   transition: var(--transition);
+  box-shadow: var(--shadow-sm);
 }
 
 .card-interactive:hover {
@@ -138,10 +143,10 @@ label {
 
 input, textarea, select {
   width: 100%;
-  background-color: var(--bg-surface-elevated);
+  background-color: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   font-family: inherit;
   font-size: 1rem;
@@ -216,13 +221,13 @@ textarea {
 }
 
 .btn-secondary {
-  background-color: var(--bg-surface-elevated);
+  background-color: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
-  background-color: var(--border);
+  background-color: var(--bg-base);
   border-color: var(--primary);
 }
 
@@ -233,7 +238,7 @@ textarea {
 }
 
 .btn-ghost:hover {
-  background-color: var(--bg-surface);
+  background-color: var(--bg-base);
 }
 
 .btn-danger {
@@ -309,10 +314,10 @@ textarea {
 .badge-sm { padding: 0.2rem 0.6rem; font-size: 0.7rem; }
 .badge-md { padding: 0.3rem 0.9rem; font-size: 0.8rem; }
 .badge-blue { background: var(--primary-light); color: var(--primary); }
-.badge-green { background: rgba(46, 237, 152, 0.15); color: var(--success); }
-.badge-orange { background: rgba(245, 166, 35, 0.15); color: var(--warning); }
-.badge-red { background: rgba(255, 74, 107, 0.15); color: var(--danger); }
-.badge-neutral { background: var(--bg-surface-elevated); color: var(--text-secondary); }
+.badge-green { background: var(--success-light); color: var(--success); }
+.badge-orange { background: var(--warning-light); color: var(--warning); }
+.badge-red { background: var(--danger-light); color: var(--danger); }
+.badge-neutral { background: var(--bg-base); color: var(--text-secondary); }
 
 /* Bottom Nav */
 .bottom-nav {
@@ -320,7 +325,7 @@ textarea {
   bottom: 0;
   left: 0;
   right: 0;
-  max-width: 600px;
+  max-width: 428px;
   margin: 0 auto;
   background: var(--glass);
   backdrop-filter: var(--blur);
@@ -330,6 +335,7 @@ textarea {
   justify-content: space-around;
   padding: var(--space-3) 0 calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
   z-index: 50;
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .nav-item {

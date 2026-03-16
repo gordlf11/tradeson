@@ -50,28 +50,27 @@ export default function Login() {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
-      background: 'linear-gradient(180deg, var(--bg-base) 0%, #1a1d24 100%)'
+      background: 'var(--bg-base)',
+      padding: 'var(--space-4)'
     }}>
       {/* Logo Section */}
       <div className="text-center mb-8">
         <div style={{
-          width: '72px',
-          height: '72px',
-          background: 'linear-gradient(135deg, var(--primary) 0%, #357ABD 100%)',
+          width: '80px',
+          height: '80px',
+          background: 'var(--primary)',
           borderRadius: 'var(--radius-lg)',
           margin: '0 auto var(--space-4)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 10px 30px rgba(74, 144, 226, 0.3)'
+          justifyContent: 'center'
         }}>
-          <Briefcase size={36} color="white" />
+          <Briefcase size={40} color="white" />
         </div>
         <h1 style={{
           fontSize: '2rem',
-          background: 'linear-gradient(135deg, var(--primary) 0%, var(--success) 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          color: 'var(--text-primary)',
+          fontWeight: '700',
           marginBottom: '0.25rem'
         }}>
           TradesOn

@@ -105,13 +105,14 @@ export default function JobCreation() {
                   onClick={() => setFormData({ ...formData, room })}
                   style={{
                     padding: 'var(--space-3)',
-                    background: formData.room === room ? 'var(--primary)' : 'var(--bg-surface-elevated)',
+                    background: formData.room === room ? 'var(--primary)' : 'var(--bg-surface)',
                     border: `1px solid ${formData.room === room ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-sm)',
+                    borderRadius: 'var(--radius-md)',
                     color: formData.room === room ? 'white' : 'var(--text-primary)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: formData.room === room ? 'var(--shadow-md)' : 'none'
                   }}
                 >
                   {room}
@@ -136,7 +137,7 @@ export default function JobCreation() {
                   onClick={() => setFormData({ ...formData, tradeType: trade.id })}
                   style={{
                     padding: 'var(--space-3)',
-                    background: formData.tradeType === trade.id ? 'var(--primary)' : 'var(--bg-surface-elevated)',
+                    background: formData.tradeType === trade.id ? 'var(--primary)' : 'var(--bg-surface)',
                     border: `1px solid ${formData.tradeType === trade.id ? 'var(--primary)' : 'var(--border)'}`,
                     borderRadius: 'var(--radius-md)',
                     color: formData.tradeType === trade.id ? 'white' : 'var(--text-primary)',
@@ -144,7 +145,8 @@ export default function JobCreation() {
                     transition: 'all 0.2s ease',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 'var(--space-2)'
+                    gap: 'var(--space-2)',
+                    boxShadow: formData.tradeType === trade.id ? 'var(--shadow-md)' : 'none'
                   }}
                 >
                   {trade.icon}
@@ -218,7 +220,7 @@ export default function JobCreation() {
             <label style={{
               flex: 1,
               padding: 'var(--space-3)',
-              background: 'var(--bg-surface-elevated)',
+              background: 'var(--bg-surface)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               display: 'flex',
@@ -226,7 +228,8 @@ export default function JobCreation() {
               justifyContent: 'center',
               gap: 'var(--space-2)',
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              boxShadow: 'var(--shadow-sm)'
             }}>
               <input
                 type="file"
@@ -281,8 +284,8 @@ export default function JobCreation() {
           </div>
 
           <div style={{
-            background: 'linear-gradient(135deg, var(--primary-light), transparent)',
-            border: '1px solid var(--primary-light)',
+            background: 'var(--primary-light)',
+            border: '1px solid var(--primary)',
             padding: 'var(--space-4)',
             borderRadius: 'var(--radius-md)',
             marginBottom: 'var(--space-4)'
@@ -311,6 +314,7 @@ export default function JobCreation() {
 
           <div style={{
             background: 'var(--bg-base)',
+            border: '1px solid var(--border)',
             padding: 'var(--space-4)',
             borderRadius: 'var(--radius-md)',
             marginTop: 'var(--space-4)',
@@ -355,7 +359,7 @@ export default function JobCreation() {
           <div style={{
             width: '80px',
             height: '80px',
-            background: 'linear-gradient(135deg, var(--success), #25d893)',
+            background: 'var(--success)',
             borderRadius: '50%',
             margin: '0 auto var(--space-4)',
             display: 'flex',
