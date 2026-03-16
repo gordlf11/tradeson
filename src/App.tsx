@@ -2,9 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react
 import { Home, Briefcase, Calendar, User as UserIcon } from 'lucide-react';
 
 // Placeholders for Pages
-import Onboarding from './pages/Onboarding';
+import Onboarding from './pages/OnboardingEnhanced';
 import JobCreation from './pages/JobCreation';
-import JobBoard from './pages/JobBoard';
+import JobBoard from './pages/JobBoardEnhanced';
 import JobExecution from './pages/JobExecution';
 import JobCompletion from './pages/JobCompletion';
 
