@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, Clock, MapPin, CheckCircle2, 
-  AlertCircle, ChevronLeft, ChevronRight, Navigation
+  Clock, MapPin, CheckCircle2, 
+  ChevronLeft, ChevronRight, Navigation
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';

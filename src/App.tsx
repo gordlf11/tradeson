@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { Home, Briefcase, Calendar, User as UserIcon, Plus } from 'lucide-react';
+import { Briefcase, Calendar, User as UserIcon, Plus } from 'lucide-react';
 
 // Auth Pages
 import Login from './pages/Login';

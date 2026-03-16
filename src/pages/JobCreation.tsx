@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Camera, Mic, Sparkles, AlertCircle, 
   Wrench, Zap, Droplets, Thermometer, 
-  Hammer, Home, ArrowRight, Upload
+  Hammer, Home, ArrowRight
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
