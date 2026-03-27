@@ -84,16 +84,73 @@ p {
   margin-bottom: var(--space-4);
 }
 
-/* Layout - Mobile First */
+/* Layout - Mobile First with Responsive Design */
 #root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  max-width: 428px; /* iPhone Pro Max width */
+  max-width: 428px; /* Mobile: iPhone Pro Max width */
   margin: 0 auto;
   background-color: var(--bg-base);
   position: relative;
   box-shadow: 0 0 40px rgba(0,0,0,0.1);
+}
+
+/* Tablet breakpoint */
+@media (min-width: 768px) {
+  #root {
+    max-width: 700px;
+    padding: var(--space-4);
+    background-color: #f8fafc;
+  }
+  
+  #root::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-base) 100%);
+    z-index: -2;
+  }
+  
+  .page-container {
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    margin: var(--space-4) 0;
+    max-width: 600px;
+    margin: var(--space-4) auto;
+  }
+}
+
+/* Desktop breakpoint */
+@media (min-width: 1024px) {
+  #root {
+    max-width: 1200px;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-8);
+    padding: var(--space-8);
+  }
+  
+  .page-container {
+    flex: 1;
+    max-width: 800px;
+    margin: 0;
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1440px) {
+  #root {
+    max-width: 1400px;
+  }
+  
+  .page-container {
+    max-width: 900px;
+  }
 }
 
 .page-container {
@@ -103,6 +160,20 @@ p {
   display: flex;
   flex-direction: column;
   animation: fadeIn 0.4s ease-out;
+}
+
+/* Responsive adjustments for page container */
+@media (min-width: 768px) {
+  .page-container {
+    padding: var(--space-6);
+    padding-bottom: var(--space-6); /* No bottom nav on tablet+ */
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-container {
+    padding: var(--space-8);
+  }
 }
 
 /* Components */
@@ -131,6 +202,33 @@ p {
 /* Forms */
 .form-group {
   margin-bottom: var(--space-4);
+}
+
+/* Responsive form layouts */
+@media (min-width: 768px) {
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+  
+  .form-row-thirds {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-3);
+  }
+  
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+@media (min-width: 1024px) {
+  .form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
 }
 
 label {
@@ -209,6 +307,29 @@ textarea {
   width: 100%;
 }
 
+/* Responsive button layouts */
+@media (min-width: 768px) {
+  .btn-group {
+    display: flex;
+    gap: var(--space-3);
+  }
+  
+  .btn-group .btn {
+    flex: 1;
+  }
+  
+  .btn-center {
+    max-width: 300px;
+    margin: 0 auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  .btn-center {
+    max-width: 400px;
+  }
+}
+
 .btn-primary {
   background-color: var(--primary);
   color: #fff;
@@ -263,6 +384,86 @@ textarea {
 .text-center { text-align: center; }
 .text-left { text-align: left; }
 .text-right { text-align: right; }
+
+/* Responsive grid utilities */
+.responsive-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .responsive-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .responsive-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .responsive-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  .responsive-grid-auto {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid-auto {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+/* Responsive spacing utilities */
+@media (min-width: 768px) {
+  .tablet-mt-8 { margin-top: var(--space-8); }
+  .tablet-mb-8 { margin-bottom: var(--space-8); }
+  .tablet-p-8 { padding: var(--space-8); }
+}
+
+@media (min-width: 1024px) {
+  .desktop-mt-8 { margin-top: var(--space-8); }
+  .desktop-mb-8 { margin-bottom: var(--space-8); }
+  .desktop-p-8 { padding: var(--space-8); }
+}
+
+/* Responsive debug indicator (remove in production) */
+.responsive-indicator {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: var(--primary);
+  color: white;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  z-index: 1000;
+  font-weight: 600;
+}
+
+.responsive-indicator::after {
+  content: 'Mobile';
+}
+
+@media (min-width: 768px) {
+  .responsive-indicator::after {
+    content: 'Tablet';
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-indicator::after {
+    content: 'Desktop';
+  }
+}
+
+@media (min-width: 1440px) {
+  .responsive-indicator::after {
+    content: 'Large Desktop';
+  }
+}
 .mt-2 { margin-top: var(--space-2); }
 .mt-4 { margin-top: var(--space-4); }
 .mt-6 { margin-top: var(--space-6); }
@@ -336,6 +537,51 @@ textarea {
   padding: var(--space-3) 0 calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
   z-index: 50;
   box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Hide bottom nav on larger screens */
+@media (min-width: 768px) {
+  .bottom-nav {
+    display: none;
+  }
+}
+
+/* Desktop sidebar navigation */
+@media (min-width: 1024px) {
+  .desktop-nav {
+    position: sticky;
+    top: var(--space-8);
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-lg);
+    width: 280px;
+    height: fit-content;
+  }
+  
+  .desktop-nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+    transition: var(--transition-fast);
+  }
+  
+  .desktop-nav-item:hover,
+  .desktop-nav-item.active {
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+  
+  .desktop-nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
 }
 
 .nav-item {
