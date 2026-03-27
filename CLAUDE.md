@@ -209,60 +209,77 @@ master                  # Main integration branch (default)
 
 ### Production Deployment (Cloud Run via Cloud Build)
 
-The project uses **Google Cloud Build** with an automated trigger to deploy to **Cloud Run** whenever code is pushed to the `production` branch.
+**Live Production URL**: https://tradeson-app-63629008205.us-central1.run.app
 
-**Trigger Details:**
-- **Trigger Name**: `tradesonproduction`
-- **GCP Project**: `frankly-data`
-- **Region**: `us-central1` (Iowa)
-- **Repository**: `gordlf11/tradeson` (GitHub App, 1st gen)
-- **Branch**: `production`
-- **Configuration**: Auto-detected (`cloudbuild.yaml` in repo root)
-- **Service Account**: `63629008205-compute@developer.gserviceaccount.com`
+The project uses **Google Cloud Build** with an automated trigger to deploy to **Cloud Run** whenever code is pushed to the `production` branch. The build is fully automated — no manual steps needed in GCP.
 
-**How the pipeline works:**
-1. `cloudbuild.yaml` — Builds a Docker image, pushes to Container Registry, deploys to Cloud Run
-2. `Dockerfile` — Multi-stage build: Node 20 builds the Vite app, nginx serves it on port 8080
-3. `nginx.conf` — Configures nginx for the production SPA
+**Deployment Flow:**
+```
+feature branch → PR to master → merge → push master to production → auto-deploys to Cloud Run
+```
 
-**To deploy to production:**
+**Quick Deploy (one command):**
 ```bash
-# Option 1: Push master to production (most common)
+# Make sure you're up to date, then deploy
+git pull origin master && git push origin master:production
+```
+
+**Step-by-step deploy:**
+```bash
+# 1. Ensure your local branch is up to date
+git fetch origin
+git pull origin master
+
+# 2. Verify the build passes locally before deploying
+npm run build
+
+# 3. Push to production (this triggers the deploy)
 git push origin master:production
 
-# Option 2: From a local branch that's up to date
-git push origin main:production
-
-# Option 3: Merge into production branch directly
-git checkout production
-git merge master
-git push origin production
+# 4. Monitor the build
+#    → GCP Console > Cloud Build > History
+#    → Or check: https://console.cloud.google.com/cloud-build/builds?project=frankly-data
 ```
 
-**To deploy a specific feature branch to production (use with caution):**
-```bash
-git push origin feature/my-branch:production
-```
+**How the pipeline works:**
+1. Push to `production` branch triggers Cloud Build (`tradesonproduction` trigger)
+2. `cloudbuild.yaml` orchestrates: Docker build → push to Container Registry → deploy to Cloud Run
+3. `Dockerfile` runs a multi-stage build: Node 20 compiles the Vite/React app, nginx serves it on port 8080
+4. Cloud Run serves the app at the production URL above
 
-**Service account roles required** (already configured):
-- Artifact Registry Writer
-- Cloud Build Connection Admin
-- Cloud Run Admin
-- Editor
-- Logs Writer
-- Service Account User
-- Storage Admin
+**Before you deploy — pre-flight checklist:**
+- [ ] Run `npm run build` locally — if TypeScript fails, the Cloud Build will also fail
+- [ ] Test your changes in the browser (`npm run dev`)
+- [ ] Ensure your code is committed and pushed to `master`
+- [ ] Coordinate with your partner if deploying shared changes
 
-**Monitoring a deployment:**
-- Cloud Build History: GCP Console > Cloud Build > History
-- Cloud Run Service: GCP Console > Cloud Run > `tradeson-app`
-- Build logs are sent to GitHub automatically
+**Infrastructure details:**
+| Setting | Value |
+|---|---|
+| GCP Project | `frankly-data` (project ID: `tradeson-491518`) |
+| Trigger Name | `tradesonproduction` |
+| Region | `us-central1` (Iowa) |
+| Cloud Run Service | `tradeson-app` |
+| Service Account | `63629008205-compute@developer.gserviceaccount.com` |
+| Build Config | `cloudbuild.yaml` (auto-detected) |
+| Repository | `gordlf11/tradeson` (GitHub App, 1st gen) |
+| Access | Public (`--allow-unauthenticated`) |
+| Memory | 512Mi |
+| Port | 8080 |
 
-**Important notes:**
-- The `production` branch should only receive tested, reviewed code
-- Preferred flow: feature branch → PR to `master` → merge → push `master` to `production`
-- To skip a build on a push, include `[skip ci]` or `[ci skip]` in the commit message
-- The Cloud Run service is publicly accessible (`--allow-unauthenticated`)
+**Troubleshooting failed builds:**
+1. Check Cloud Build logs: GCP Console > Cloud Build > History > click the failed build
+2. Most common failure: **TypeScript errors** — always run `npm run build` locally first
+3. If the build passes locally but fails in Cloud Build, check for files missing from git (not committed)
+4. To skip a build on a trivial push, include `[skip ci]` in the commit message
+
+**Notes for Claude:** When a developer asks to "deploy to production", "push to prod", or "go live":
+1. Pull latest from `origin/master`
+2. Run `npm run build` to verify TypeScript compiles
+3. If there are errors, fix them before pushing
+4. Push to production: `git push origin <current-branch>:production`
+5. Keep `master` in sync: `git push origin <current-branch>:master`
+6. Confirm the build started in Cloud Build
 
 ### Commit Convention
 ```
