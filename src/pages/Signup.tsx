@@ -42,7 +42,7 @@ export default function Signup() {
       localStorage.setItem('isAuthenticated', 'true');
       
       // Navigate to role selection
-      navigate('/onboarding');
+      navigate('/role-selection');
       setIsLoading(false);
     }, 1500);
   };
