@@ -7,8 +7,11 @@ import Signup from './pages/Signup';
 
 // Onboarding Pages  
 import RoleSelection from './pages/RoleSelection';
-import Onboarding from './pages/OnboardingEnhanced';
-import OnboardingClientSelection from './pages/OnboardingClientSelection';
+import HomeownerOnboarding from './pages/HomeownerOnboarding';
+import PropertyManagerOnboarding from './pages/PropertyManagerOnboarding';
+import RealtorOnboarding from './pages/RealtorOnboarding';
+import LicensedTradespersonOnboarding from './pages/LicensedTradespersonOnboarding';
+import UnlicensedTradespersonOnboarding from './pages/UnlicensedTradespersonOnboarding';
 
 // Main App Pages
 import JobCreation from './pages/JobCreation';
@@ -47,9 +50,59 @@ const BottomNav = () => {
   );
 };
 
+const DesktopNav = () => {
+  const location = useLocation();
+  const path = location.pathname;
+
+  // Don't show nav on auth and onboarding screens
+  const hideNavPaths = ['/', '/login', '/signup', '/onboarding', '/role-selection'];
+  if (hideNavPaths.some(p => path.startsWith(p))) return null;
+
+  return (
+    <nav className="desktop-nav">
+      <div style={{ marginBottom: 'var(--space-6)' }}>
+        <h3 style={{ 
+          fontSize: '1.25rem', 
+          fontWeight: '700', 
+          color: 'var(--primary)',
+          marginBottom: 'var(--space-2)'
+        }}>
+          TradesOn
+        </h3>
+        <p style={{ 
+          fontSize: '0.875rem', 
+          color: 'var(--text-secondary)',
+          margin: 0
+        }}>
+          Your marketplace platform
+        </p>
+      </div>
+      
+      <Link to="/job-board" className={`desktop-nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
+        <Briefcase />
+        <span>Job Board</span>
+      </Link>
+      <Link to="/job-creation" className={`desktop-nav-item ${path === '/job-creation' ? 'active' : ''}`}>
+        <Plus />
+        <span>Create Job</span>
+      </Link>
+      <Link to="/scheduling" className={`desktop-nav-item ${path.includes('/scheduling') ? 'active' : ''}`}>
+        <Calendar />
+        <span>Schedule</span>
+      </Link>
+      <Link to="/dashboard" className={`desktop-nav-item ${path === '/dashboard' || path === '/profile' ? 'active' : ''}`}>
+        <UserIcon />
+        <span>Dashboard</span>
+      </Link>
+    </nav>
+  );
+};
+
 function App() {
   return (
     <BrowserRouter>
+      <div className="responsive-indicator"></div>
+      <DesktopNav />
       <Routes>
         {/* Auth Routes */}
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -59,11 +112,11 @@ function App() {
         {/* Onboarding Routes */}
         <Route path="/onboarding" element={<RoleSelection />} />
         <Route path="/role-selection" element={<RoleSelection />} />
-        <Route path="/onboarding/homeowner" element={<OnboardingClientSelection />} />
-        <Route path="/onboarding/property-manager" element={<OnboardingClientSelection />} />
-        <Route path="/onboarding/realtor" element={<OnboardingClientSelection />} />
-        <Route path="/onboarding/licensed-trade" element={<Onboarding />} />
-        <Route path="/onboarding/non-licensed-trade" element={<Onboarding />} />
+        <Route path="/onboarding/homeowner" element={<HomeownerOnboarding />} />
+        <Route path="/onboarding/property-manager" element={<PropertyManagerOnboarding />} />
+        <Route path="/onboarding/realtor" element={<RealtorOnboarding />} />
+        <Route path="/onboarding/licensed-trade" element={<LicensedTradespersonOnboarding />} />
+        <Route path="/onboarding/non-licensed-trade" element={<UnlicensedTradespersonOnboarding />} />
         
         {/* Main App Routes */}
         <Route path="/job-creation" element={<JobCreation />} />

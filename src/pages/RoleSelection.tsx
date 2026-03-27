@@ -49,7 +49,7 @@ export default function RoleSelection() {
     },
     {
       id: 'non-licensed-trade',
-      title: 'General Service Provider',
+      title: 'General Service Provider (Unlicensed)',
       description: 'I provide general home services and repairs',
       icon: <User size={28} />,
       color: 'var(--warning)'
@@ -102,13 +102,10 @@ export default function RoleSelection() {
       </div>
 
       {/* Role Cards */}
-      <div style={{
-        maxWidth: '600px',
+      <div className="responsive-grid responsive-grid-auto" style={{
+        maxWidth: '800px',
         margin: '0 auto',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-3)'
+        width: '100%'
       }}>
         {roles.map((role, index) => (
           <Card
@@ -185,7 +182,7 @@ export default function RoleSelection() {
       </div>
 
       {/* Continue Button */}
-      <div style={{ maxWidth: '600px', margin: '2rem auto 0', width: '100%' }}>
+      <div className="btn-center" style={{ margin: '2rem auto 0', width: '100%' }}>
         <Button
           variant="primary"
           size="lg"
