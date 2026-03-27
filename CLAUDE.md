@@ -200,12 +200,69 @@ The platform consists of 49 screens organized by user role:
 
 ### Branch Strategy
 ```bash
-main                    # Production-ready code
-├── develop            # Integration branch
-│   ├── feature/1a-*   # Phase 1A features
-│   ├── feature/1b-*   # Phase 1B features
-│   └── hotfix/*       # Emergency fixes
+master                  # Main integration branch (default)
+├── production         # Production deployments (auto-deploys to Cloud Run)
+├── feature/1a-*       # Phase 1A features
+├── feature/1b-*       # Phase 1B features
+└── hotfix/*           # Emergency fixes
 ```
+
+### Production Deployment (Cloud Run via Cloud Build)
+
+The project uses **Google Cloud Build** with an automated trigger to deploy to **Cloud Run** whenever code is pushed to the `production` branch.
+
+**Trigger Details:**
+- **Trigger Name**: `tradesonproduction`
+- **GCP Project**: `frankly-data`
+- **Region**: `us-central1` (Iowa)
+- **Repository**: `gordlf11/tradeson` (GitHub App, 1st gen)
+- **Branch**: `production`
+- **Configuration**: Auto-detected (`cloudbuild.yaml` in repo root)
+- **Service Account**: `63629008205-compute@developer.gserviceaccount.com`
+
+**How the pipeline works:**
+1. `cloudbuild.yaml` — Builds a Docker image, pushes to Container Registry, deploys to Cloud Run
+2. `Dockerfile` — Multi-stage build: Node 20 builds the Vite app, nginx serves it on port 8080
+3. `nginx.conf` — Configures nginx for the production SPA
+
+**To deploy to production:**
+```bash
+# Option 1: Push master to production (most common)
+git push origin master:production
+
+# Option 2: From a local branch that's up to date
+git push origin main:production
+
+# Option 3: Merge into production branch directly
+git checkout production
+git merge master
+git push origin production
+```
+
+**To deploy a specific feature branch to production (use with caution):**
+```bash
+git push origin feature/my-branch:production
+```
+
+**Service account roles required** (already configured):
+- Artifact Registry Writer
+- Cloud Build Connection Admin
+- Cloud Run Admin
+- Editor
+- Logs Writer
+- Service Account User
+- Storage Admin
+
+**Monitoring a deployment:**
+- Cloud Build History: GCP Console > Cloud Build > History
+- Cloud Run Service: GCP Console > Cloud Run > `tradeson-app`
+- Build logs are sent to GitHub automatically
+
+**Important notes:**
+- The `production` branch should only receive tested, reviewed code
+- Preferred flow: feature branch → PR to `master` → merge → push `master` to `production`
+- To skip a build on a push, include `[skip ci]` or `[ci skip]` in the commit message
+- The Cloud Run service is publicly accessible (`--allow-unauthenticated`)
 
 ### Commit Convention
 ```
