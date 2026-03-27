@@ -89,28 +89,26 @@ export default function HomeownerOnboarding() {
               <p style={{ color: 'var(--text-secondary)' }}>Tell us about yourself</p>
             </div>
 
-            <div className="form-grid" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               <Input
                 label="Full Name"
                 placeholder="John Doe"
                 value={formData.fullName}
                 onChange={(e) => updateFormData('fullName', e.target.value)}
               />
-              <div className="form-row">
-                <Input
-                  label="Phone Number"
-                  placeholder="(555) 123-4567"
-                  value={formData.phoneNumber}
-                  onChange={(e) => updateFormData('phoneNumber', e.target.value)}
-                />
-                <Input
-                  label="Email"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={formData.email}
-                  onChange={(e) => updateFormData('email', e.target.value)}
-                />
-              </div>
+              <Input
+                label="Phone Number"
+                placeholder="(555) 123-4567"
+                value={formData.phoneNumber}
+                onChange={(e) => updateFormData('phoneNumber', e.target.value)}
+              />
+              <Input
+                label="Email"
+                type="email"
+                placeholder="john@example.com"
+                value={formData.email}
+                onChange={(e) => updateFormData('email', e.target.value)}
+              />
             </div>
           </div>
         );
@@ -142,27 +140,27 @@ export default function HomeownerOnboarding() {
                 value={formData.address}
                 onChange={(e) => updateFormData('address', e.target.value)}
               />
-              <div className="form-row">
+              <Input
+                label="City"
+                placeholder="Your City"
+                value={formData.city}
+                onChange={(e) => updateFormData('city', e.target.value)}
+              />
+              <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
                 <Input
-                  label="City"
-                  placeholder="Your City"
-                  value={formData.city}
-                  onChange={(e) => updateFormData('city', e.target.value)}
+                  label="State"
+                  placeholder="CA"
+                  value={formData.state}
+                  onChange={(e) => updateFormData('state', e.target.value)}
+                  style={{ flex: 1 }}
                 />
-                <div className="form-row">
-                  <Input
-                    label="State"
-                    placeholder="CA"
-                    value={formData.state}
-                    onChange={(e) => updateFormData('state', e.target.value)}
-                  />
-                  <Input
-                    label="Zip Code"
-                    placeholder="12345"
-                    value={formData.zipCode}
-                    onChange={(e) => updateFormData('zipCode', e.target.value)}
-                  />
-                </div>
+                <Input
+                  label="Zip Code"
+                  placeholder="12345"
+                  value={formData.zipCode}
+                  onChange={(e) => updateFormData('zipCode', e.target.value)}
+                  style={{ flex: 1 }}
+                />
               </div>
             </div>
           </div>
@@ -281,18 +279,16 @@ export default function HomeownerOnboarding() {
       </Card>
 
       {/* Continue Button */}
-      <div className="btn-center">
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          onClick={handleNext}
-          disabled={!isStepValid()}
-          icon={<ArrowRight size={20} />}
-        >
-          {currentStep === 3 ? 'Complete Setup' : 'Continue'}
-        </Button>
-      </div>
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        onClick={handleNext}
+        disabled={!isStepValid()}
+        icon={<ArrowRight size={20} />}
+      >
+        {currentStep === 3 ? 'Complete Setup' : 'Continue'}
+      </Button>
     </div>
   );
 }

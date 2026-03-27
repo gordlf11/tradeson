@@ -5,6 +5,7 @@ import {
   Wrench, Zap, Droplets, Thermometer, 
   Hammer, Home, ArrowRight
 } from 'lucide-react';
+import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -77,14 +78,16 @@ export default function JobCreation() {
   };
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>Create New Job</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          Describe your issue and let our AI help you get quotes
-        </p>
-      </div>
+    <>
+      <TopNav title="Create New Job" />
+      
+      <div className="page-container" style={{ paddingTop: 'var(--space-4)' }}>
+        {/* Header */}
+        <div className="mb-6">
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Describe your issue and let our AI help you get quotes
+          </p>
+        </div>
 
       {/* Step 1: Input Form */}
       {step === 1 && (
@@ -375,5 +378,6 @@ export default function JobCreation() {
         </Card>
       )}
     </div>
+    </>
   );
 }

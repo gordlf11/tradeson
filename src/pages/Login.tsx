@@ -20,23 +20,16 @@ export default function Login() {
     // Simulate login - in production, this would call an auth API
     setTimeout(() => {
       if (email && password) {
+        // TEMPORARY: Clear any existing state for testing
+        localStorage.clear();
+        
         // Store user session (mock)
         localStorage.setItem('userEmail', email);
         localStorage.setItem('isAuthenticated', 'true');
         
-        // Check if user has completed onboarding
-        const hasOnboarded = localStorage.getItem('hasOnboarded');
-        if (hasOnboarded) {
-          // Route to appropriate dashboard based on user role
-          const userRole = localStorage.getItem('userRole');
-          if (userRole === 'tradesperson') {
-            navigate('/dashboard/tradesperson');
-          } else {
-            navigate('/dashboard');
-          }
-        } else {
-          navigate('/onboarding');
-        }
+        // FORCE ROUTE TO ROLE SELECTION FOR TESTING
+        console.log('TESTING MODE: Always routing to role selection');
+        navigate('/role-selection');
       } else {
         setError('Please enter both email and password');
       }
@@ -171,7 +164,42 @@ export default function Login() {
         </div>
       </Card>
 
-      <p className="text-center mt-6" style={{
+      {/* Dev Tool - Remove in production */}
+      <div style={{ textAlign: 'center', marginTop: 'var(--space-4)' }}>
+        <div style={{ 
+          fontSize: '0.7rem', 
+          color: 'var(--text-tertiary)', 
+          marginBottom: '8px',
+          fontFamily: 'monospace'
+        }}>
+          Debug: userRole={localStorage.getItem('userRole')} | hasOnboarded={localStorage.getItem('hasOnboarded')}
+        </div>
+        <button
+          onClick={() => {
+            console.log('Clearing localStorage:', {
+              userRole: localStorage.getItem('userRole'),
+              hasOnboarded: localStorage.getItem('hasOnboarded'),
+              userEmail: localStorage.getItem('userEmail')
+            });
+            localStorage.clear();
+            window.location.reload();
+          }}
+          style={{
+            background: 'var(--danger-light)',
+            border: '1px solid var(--danger)',
+            color: 'var(--danger)',
+            padding: '6px 16px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.75rem',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          🗑️ Reset User State (Dev)
+        </button>
+      </div>
+
+      <p className="text-center mt-4" style={{
         fontSize: '0.75rem',
         color: 'var(--text-tertiary)'
       }}>

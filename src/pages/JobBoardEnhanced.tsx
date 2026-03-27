@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Clock, Camera, DollarSign, Filter, TrendingUp, AlertCircle, Users } from 'lucide-react';
+import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -90,21 +91,23 @@ export default function JobBoardEnhanced() {
   };
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h1 style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Job Board</h1>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-              <MapPin size={14} style={{ display: 'inline', marginRight: '4px' }} />
-              Springfield Area • 5 mile radius
-            </p>
+    <>
+      <TopNav title="Job Board" />
+      
+      <div className="page-container" style={{ paddingTop: 'var(--space-4)' }}>
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                <MapPin size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                Springfield Area • 5 mile radius
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" icon={<Filter size={16} />}>
+              Filter
+            </Button>
           </div>
-          <Button variant="secondary" size="sm" icon={<Filter size={16} />}>
-            Filter
-          </Button>
-        </div>
 
         {/* Category Tabs */}
         <div className="flex gap-2 overflow-x-auto" style={{ paddingBottom: '8px' }}>
@@ -309,6 +312,7 @@ export default function JobBoardEnhanced() {
           </Card>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

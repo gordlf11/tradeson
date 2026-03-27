@@ -102,10 +102,13 @@ export default function RoleSelection() {
       </div>
 
       {/* Role Cards */}
-      <div className="responsive-grid responsive-grid-auto" style={{
-        maxWidth: '800px',
+      <div style={{
+        maxWidth: '600px',
         margin: '0 auto',
-        width: '100%'
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-3)'
       }}>
         {roles.map((role, index) => (
           <Card
@@ -182,7 +185,7 @@ export default function RoleSelection() {
       </div>
 
       {/* Continue Button */}
-      <div className="btn-center" style={{ margin: '2rem auto 0', width: '100%' }}>
+      <div style={{ maxWidth: '600px', margin: '2rem auto 0', width: '100%' }}>
         <Button
           variant="primary"
           size="lg"

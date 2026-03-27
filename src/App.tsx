@@ -19,6 +19,7 @@ import JobBoard from './pages/JobBoardEnhanced';
 import JobExecution from './pages/JobExecution';
 import JobCompletion from './pages/JobCompletion';
 import Scheduling from './pages/Scheduling';
+import Settings from './pages/Settings';
 
 const BottomNav = () => {
   const location = useLocation();
@@ -50,59 +51,10 @@ const BottomNav = () => {
   );
 };
 
-const DesktopNav = () => {
-  const location = useLocation();
-  const path = location.pathname;
-
-  // Don't show nav on auth and onboarding screens
-  const hideNavPaths = ['/', '/login', '/signup', '/onboarding', '/role-selection'];
-  if (hideNavPaths.some(p => path.startsWith(p))) return null;
-
-  return (
-    <nav className="desktop-nav">
-      <div style={{ marginBottom: 'var(--space-6)' }}>
-        <h3 style={{ 
-          fontSize: '1.25rem', 
-          fontWeight: '700', 
-          color: 'var(--primary)',
-          marginBottom: 'var(--space-2)'
-        }}>
-          TradesOn
-        </h3>
-        <p style={{ 
-          fontSize: '0.875rem', 
-          color: 'var(--text-secondary)',
-          margin: 0
-        }}>
-          Your marketplace platform
-        </p>
-      </div>
-      
-      <Link to="/job-board" className={`desktop-nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
-        <Briefcase />
-        <span>Job Board</span>
-      </Link>
-      <Link to="/job-creation" className={`desktop-nav-item ${path === '/job-creation' ? 'active' : ''}`}>
-        <Plus />
-        <span>Create Job</span>
-      </Link>
-      <Link to="/scheduling" className={`desktop-nav-item ${path.includes('/scheduling') ? 'active' : ''}`}>
-        <Calendar />
-        <span>Schedule</span>
-      </Link>
-      <Link to="/dashboard" className={`desktop-nav-item ${path === '/dashboard' || path === '/profile' ? 'active' : ''}`}>
-        <UserIcon />
-        <span>Dashboard</span>
-      </Link>
-    </nav>
-  );
-};
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="responsive-indicator"></div>
-      <DesktopNav />
       <Routes>
         {/* Auth Routes */}
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -124,6 +76,7 @@ function App() {
         <Route path="/scheduling" element={<Scheduling />} />
         <Route path="/job-execution" element={<JobExecution />} />
         <Route path="/completion" element={<JobCompletion />} />
+        <Route path="/settings" element={<Settings />} />
         
         {/* Dashboard Routes */}
         <Route path="/dashboard" element={<JobBoard />} />
