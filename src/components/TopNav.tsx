@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, Settings, User, Briefcase, Plus, X, ChevronDown } from 'lucide-react';
-import { Button } from './ui/Button';
 
 interface TopNavProps {
   title?: string;

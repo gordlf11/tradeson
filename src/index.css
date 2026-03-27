@@ -250,6 +250,16 @@ textarea {
   background-color: #e63950;
 }
 
+.btn-outline {
+  background-color: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-outline:hover {
+  background-color: var(--bg-secondary);
+}
+
 .btn-sm { padding: var(--space-2) var(--space-4); font-size: 0.875rem; }
 .btn-md { padding: var(--space-3) var(--space-6); font-size: 1rem; }
 .btn-lg { padding: var(--space-4) var(--space-8); font-size: 1.125rem; }
