@@ -408,6 +408,24 @@ When assisting with this project:
 6. **Track progress** in the development tracker
 7. **Test across all user roles** before marking complete
 8. **Document any deviations** from the original plan
+9. **Read CHAT_HISTORY.md at session start** to understand what the other developer has done
+10. **Log the session to CHAT_HISTORY.md at session end** -- this is how both partners stay in sync
+
+## 📓 Chat History Workflow
+
+This project uses `CHAT_HISTORY.md` as a **shared session log** between Larry and Kevin (and their respective Claude instances).
+
+### Why This Matters
+Two developers working async with separate Claude sessions will lose context without a shared log. CHAT_HISTORY.md is the bridge -- it lives in the repo, gets pushed/pulled with the code, and gives each Claude full context on what the other developer has done.
+
+### Rules
+1. **Start of session**: Read `CHAT_HISTORY.md` before doing anything else
+2. **End of session**: Append a dated entry summarizing what was done, decisions made, and next steps
+3. **Format**: `## YYYY-MM-DD -- [Developer Name] -- [Session Title]` followed by bullet points
+4. **New entries go at the top** (reverse chronological)
+5. **Include the developer's name** (Larry or Kevin) so Claude knows who did what
+6. **Commit CHAT_HISTORY.md with your code changes** -- it should always be part of the push
+7. **Pull before starting** to get your partner's latest session notes
 
 ## 🤝 Collaboration Rules
 
