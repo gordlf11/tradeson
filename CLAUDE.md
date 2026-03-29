@@ -29,15 +29,26 @@ When you read this file, please ask the developer:
 - Handles end-to-end job lifecycle: intake → quote → schedule → execute → payment
 - Ensures compliance through identity verification and license checking
 
-### Tech Stack
+### Tech Stack (Locked 2026-03-29)
 - **Frontend**: Next.js 14+ (Web), FlutterFlow (iOS)
 - **Backend**: Node.js with Express
-- **Database**: Firebase Firestore / Supabase
+- **Database**: Cloud SQL (PostgreSQL 15) — transactional store
+- **Analytics**: BigQuery — analytics mirror (Phase 1D, streamed via Pub/Sub or Datastream)
 - **AI**: Google Vertex AI with ADK
 - **Payments**: Stripe Connect Express
 - **Cloud**: Google Cloud Platform (Cloud Run, Cloud Functions)
-- **Auth**: Firebase Auth / Supabase Auth
+- **Auth**: Firebase Auth (JWT + custom claims for active role)
 - **File Storage**: Google Cloud Storage
+
+### Architecture Decisions (Locked 2026-03-29)
+1. **Cloud SQL (PostgreSQL)** for all transactional data. BigQuery for analytics only (Phase 1D).
+2. **Firebase Auth** for authentication. NOT Firestore. NOT Supabase.
+3. **Multi-role users**: one `users` record per email, `user_roles` junction table, role-scoped sessions via JWT custom claims.
+4. **Normalized schema**: base `users` table + role-detail profile tables (homeowner, tradesperson, realtor, property_manager).
+5. **Flat brokerages**: `brokerages` entity with FK on `realtor_profiles`. No complex org tree until Phase 2+.
+6. **Compliance retention**: PostgreSQL for active records, BigQuery archive Phase 1D. Identity/license 7yr, insurance 5yr, audit 7yr.
+
+See `docs/DATABASE_SCHEMA.md` for full schema documentation and ERD.
 
 ## 🎯 Current Development Phases
 
