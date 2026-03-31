@@ -29,15 +29,26 @@ When you read this file, please ask the developer:
 - Handles end-to-end job lifecycle: intake → quote → schedule → execute → payment
 - Ensures compliance through identity verification and license checking
 
-### Tech Stack
+### Tech Stack (Locked 2026-03-29)
 - **Frontend**: Next.js 14+ (Web), FlutterFlow (iOS)
 - **Backend**: Node.js with Express
-- **Database**: Firebase Firestore / Supabase
+- **Database**: Cloud SQL (PostgreSQL 15) — transactional store
+- **Analytics**: BigQuery — analytics mirror (Phase 1D, streamed via Pub/Sub or Datastream)
 - **AI**: Google Vertex AI with ADK
 - **Payments**: Stripe Connect Express
 - **Cloud**: Google Cloud Platform (Cloud Run, Cloud Functions)
-- **Auth**: Firebase Auth / Supabase Auth
+- **Auth**: Firebase Auth (JWT + custom claims for active role)
 - **File Storage**: Google Cloud Storage
+
+### Architecture Decisions (Locked 2026-03-29)
+1. **Cloud SQL (PostgreSQL)** for all transactional data. BigQuery for analytics only (Phase 1D).
+2. **Firebase Auth** for authentication. NOT Firestore. NOT Supabase.
+3. **Multi-role users**: one `users` record per email, `user_roles` junction table, role-scoped sessions via JWT custom claims.
+4. **Normalized schema**: base `users` table + role-detail profile tables (homeowner, tradesperson, realtor, property_manager).
+5. **Flat brokerages**: `brokerages` entity with FK on `realtor_profiles`. No complex org tree until Phase 2+.
+6. **Compliance retention**: PostgreSQL for active records, BigQuery archive Phase 1D. Identity/license 7yr, insurance 5yr, audit 7yr.
+
+See `docs/DATABASE_SCHEMA.md` for full schema documentation and ERD.
 
 ## 🎯 Current Development Phases
 
@@ -408,6 +419,24 @@ When assisting with this project:
 6. **Track progress** in the development tracker
 7. **Test across all user roles** before marking complete
 8. **Document any deviations** from the original plan
+9. **Read CHAT_HISTORY.md at session start** to understand what the other developer has done
+10. **Log the session to CHAT_HISTORY.md at session end** -- this is how both partners stay in sync
+
+## 📓 Chat History Workflow
+
+This project uses `CHAT_HISTORY.md` as a **shared session log** between Larry and Kevin (and their respective Claude instances).
+
+### Why This Matters
+Two developers working async with separate Claude sessions will lose context without a shared log. CHAT_HISTORY.md is the bridge -- it lives in the repo, gets pushed/pulled with the code, and gives each Claude full context on what the other developer has done.
+
+### Rules
+1. **Start of session**: Read `CHAT_HISTORY.md` before doing anything else
+2. **End of session**: Append a dated entry summarizing what was done, decisions made, and next steps
+3. **Format**: `## YYYY-MM-DD -- [Developer Name] -- [Session Title]` followed by bullet points
+4. **New entries go at the top** (reverse chronological)
+5. **Include the developer's name** (Larry or Kevin) so Claude knows who did what
+6. **Commit CHAT_HISTORY.md with your code changes** -- it should always be part of the push
+7. **Pull before starting** to get your partner's latest session notes
 
 ## 🤝 Collaboration Rules
 
