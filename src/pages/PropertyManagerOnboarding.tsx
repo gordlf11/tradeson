@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ArrowRight, Building, MapPin, Wrench, CreditCard, Plus, Trash2 } from 'lucide-react';
+import {
+  ChevronLeft, ArrowRight, User, MapPin, Building, Layers, Wrench, Sliders,
+  Plus, Trash2, Upload, Eye, EyeOff
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 
-interface PropertyData {
+interface PropertyLocation {
   address: string;
   city: string;
   state: string;
@@ -13,81 +16,122 @@ interface PropertyData {
 }
 
 interface PropertyManagerData {
+  // Step 1 – Account Info
+  fullName: string;
+  phoneNumber: string;
+  password: string;
+  confirmPassword: string;
+  profilePhotoUploaded: boolean;
+
+  // Step 2 – Location
+  primaryAddress: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  serviceRadius: string;
+
+  // Step 3 – Company / Business Info
   companyName: string;
-  companyAddress: string;
-  companyEmail: string;
-  companyPhone: string;
-  pocName: string;
-  pocEmail: string;
-  pocPhone: string;
-  propertyCount: '1-5' | '6-20' | '20+' | '';
-  properties: PropertyData[];
-  servicePreferences: string[];
-  plan: 'per-job' | 'pro' | '';
+  jobTitle: string;
+  businessEmail: string;
+
+  // Step 4 – Portfolio Details
+  propertyCount: string;
+  propertyTypes: string[];
+  propertyLocations: PropertyLocation[];
+
+  // Step 5 – Operational Preferences
+  preferredServiceTypes: string[];
+  urgencyTypes: string[];
+
+  // Step 6 – Preferences
+  notifySMS: boolean;
+  notifyEmail: boolean;
+  notifyPush: boolean;
+  marketingOptIn: boolean;
 }
 
-const tradeOptions = [
-  'Electric', 'Plumbing', 'General Contracting', 'Renovation', 'HVAC', 
-  'Roofing', 'Landscaping', 'Cleaning', 'Painting', 'Flooring'
-];
+const PROPERTY_COUNT_OPTIONS = ['1–5', '6–20', '21–50', '50+'];
+const PROPERTY_TYPE_OPTIONS = ['Residential', 'Commercial', 'Mixed-Use', 'Vacation/STR'];
+const SERVICE_TYPE_OPTIONS = ['Plumbing', 'Electrical', 'HVAC', 'General Contracting', 'Landscaping', 'Cleaning', 'Painting', 'Roofing'];
+const URGENCY_OPTIONS = ['Emergency', 'Routine', 'Turnover'];
+const RADIUS_OPTIONS = ['10', '25', '50', '100'];
+
+const STEP_TOTAL = 6;
+
+const sectionLabel = (text: string) => (
+  <p style={{
+    fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase' as const,
+    letterSpacing: '0.08em', color: 'var(--primary)',
+    marginBottom: 'var(--space-3)', marginTop: 'var(--space-5)',
+  }}>{text}</p>
+);
 
 export default function PropertyManagerOnboarding() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const [formData, setFormData] = useState<PropertyManagerData>({
+    fullName: '',
+    phoneNumber: '',
+    password: '',
+    confirmPassword: '',
+    profilePhotoUploaded: false,
+    primaryAddress: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    serviceRadius: '',
     companyName: '',
-    companyAddress: '',
-    companyEmail: '',
-    companyPhone: '',
-    pocName: '',
-    pocEmail: '',
-    pocPhone: '',
+    jobTitle: '',
+    businessEmail: '',
     propertyCount: '',
-    properties: [{ address: '', city: '', state: '', zipCode: '' }],
-    servicePreferences: [],
-    plan: ''
+    propertyTypes: [],
+    propertyLocations: [{ address: '', city: '', state: '', zipCode: '' }],
+    preferredServiceTypes: [],
+    urgencyTypes: [],
+    notifySMS: true,
+    notifyEmail: true,
+    notifyPush: false,
+    marketingOptIn: false,
   });
 
-  const updateFormData = (field: keyof PropertyManagerData, value: any) => {
+  const update = (field: keyof PropertyManagerData, value: any) =>
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
-  const addProperty = () => {
+  const toggleList = (field: 'propertyTypes' | 'preferredServiceTypes' | 'urgencyTypes', value: string) => {
     setFormData(prev => ({
       ...prev,
-      properties: [...prev.properties, { address: '', city: '', state: '', zipCode: '' }]
+      [field]: (prev[field] as string[]).includes(value)
+        ? (prev[field] as string[]).filter(v => v !== value)
+        : [...(prev[field] as string[]), value],
     }));
   };
 
-  const removeProperty = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      properties: prev.properties.filter((_, i) => i !== index)
-    }));
-  };
+  const addLocation = () => setFormData(prev => ({
+    ...prev,
+    propertyLocations: [...prev.propertyLocations, { address: '', city: '', state: '', zipCode: '' }],
+  }));
 
-  const updateProperty = (index: number, field: keyof PropertyData, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      properties: prev.properties.map((prop, i) => 
-        i === index ? { ...prop, [field]: value } : prop
-      )
-    }));
-  };
+  const removeLocation = (i: number) => setFormData(prev => ({
+    ...prev,
+    propertyLocations: prev.propertyLocations.filter((_, idx) => idx !== i),
+  }));
 
-  const toggleServicePreference = (service: string) => {
+  const updateLocation = (i: number, field: keyof PropertyLocation, value: string) => {
     setFormData(prev => ({
       ...prev,
-      servicePreferences: prev.servicePreferences.includes(service)
-        ? prev.servicePreferences.filter(s => s !== service)
-        : [...prev.servicePreferences, service]
+      propertyLocations: prev.propertyLocations.map((loc, idx) =>
+        idx === i ? { ...loc, [field]: value } : loc
+      ),
     }));
   };
 
   const handleNext = () => {
-    if (currentStep < 5) {
-      setCurrentStep(currentStep + 1);
-    } else {
+    if (currentStep < STEP_TOTAL) setCurrentStep(s => s + 1);
+    else {
       localStorage.setItem('userRole', 'property-manager');
       localStorage.setItem('propertyManagerData', JSON.stringify(formData));
       localStorage.setItem('hasOnboarded', 'true');
@@ -96,98 +140,124 @@ export default function PropertyManagerOnboarding() {
   };
 
   const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    } else {
-      navigate(-1);
-    }
+    if (currentStep > 1) setCurrentStep(s => s - 1);
+    else navigate(-1);
   };
 
   const isStepValid = () => {
     switch (currentStep) {
       case 1:
-        return formData.companyName && formData.companyAddress && formData.companyEmail && 
-               formData.companyPhone && formData.pocName && formData.pocEmail && formData.pocPhone;
+        return formData.fullName && formData.phoneNumber &&
+          formData.password.length >= 8 && formData.password === formData.confirmPassword;
       case 2:
-        return formData.propertyCount !== '';
+        return formData.primaryAddress && formData.city && formData.state && formData.zipCode && formData.serviceRadius;
       case 3:
-        return formData.properties.every(prop => prop.address && prop.city && prop.state && prop.zipCode);
+        return formData.companyName && formData.jobTitle && formData.businessEmail;
       case 4:
-        return formData.servicePreferences.length > 0;
+        return formData.propertyCount && formData.propertyTypes.length > 0;
       case 5:
-        return formData.plan !== '';
+        return formData.preferredServiceTypes.length > 0 && formData.urgencyTypes.length > 0;
+      case 6:
+        return true;
       default:
         return false;
     }
   };
 
-  const renderStepContent = () => {
+  const iconCircle = (icon: React.ReactNode) => (
+    <div style={{
+      width: '60px', height: '60px', background: 'var(--primary)',
+      borderRadius: 'var(--radius-full)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-4)',
+    }}>{icon}</div>
+  );
+
+  const stepHeader = (icon: React.ReactNode, title: string, subtitle: string) => (
+    <div className="text-center mb-6">
+      {iconCircle(icon)}
+      <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{title}</h2>
+      <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{subtitle}</p>
+    </div>
+  );
+
+  const chipGrid = (options: string[], field: 'propertyTypes' | 'preferredServiceTypes' | 'urgencyTypes') => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
+      {options.map(opt => (
+        <button key={opt} onClick={() => toggleList(field, opt)} style={{
+          padding: 'var(--space-3)',
+          border: (formData[field] as string[]).includes(opt) ? '2px solid var(--primary)' : '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          background: (formData[field] as string[]).includes(opt) ? 'var(--primary-light)' : 'var(--bg-surface)',
+          cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem',
+          color: (formData[field] as string[]).includes(opt) ? 'var(--primary)' : 'var(--text-secondary)',
+          fontFamily: 'inherit',
+        }}>{opt}</button>
+      ))}
+    </div>
+  );
+
+  const notifToggle = (label: string, field: 'notifySMS' | 'notifyEmail' | 'notifyPush') => (
+    <button onClick={() => update(field, !formData[field])} style={{
+      flex: 1, padding: 'var(--space-3)',
+      border: formData[field] ? '2px solid var(--primary)' : '1px solid var(--border)',
+      borderRadius: 'var(--radius-md)',
+      background: formData[field] ? 'var(--primary-light)' : 'var(--bg-surface)',
+      cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
+      color: formData[field] ? 'var(--primary)' : 'var(--text-secondary)',
+      fontFamily: 'inherit',
+    }}>{label}</button>
+  );
+
+  const renderStep = () => {
     switch (currentStep) {
+
       case 1:
         return (
           <div>
-            <div className="text-center mb-6">
-              <div style={{
-                width: '60px',
-                height: '60px',
-                background: 'var(--primary)',
-                borderRadius: 'var(--radius-full)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto var(--space-4)'
-              }}>
-                <Building size={24} color="white" />
-              </div>
-              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Business Information</h2>
-              <p style={{ color: 'var(--text-secondary)' }}>Tell us about your company</p>
-            </div>
-
+            {stepHeader(<User size={24} color="white" />, 'Your Account', 'Set up your login credentials')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <Input
-                label="Company Name"
-                placeholder="ABC Property Management"
-                value={formData.companyName}
-                onChange={(e) => updateFormData('companyName', e.target.value)}
-              />
-              <Input
-                label="Company Address"
-                placeholder="123 Business St"
-                value={formData.companyAddress}
-                onChange={(e) => updateFormData('companyAddress', e.target.value)}
-              />
-              <Input
-                label="Company Email"
-                type="email"
-                placeholder="contact@company.com"
-                value={formData.companyEmail}
-                onChange={(e) => updateFormData('companyEmail', e.target.value)}
-              />
-              <Input
-                label="Company Phone"
-                placeholder="(555) 123-4567"
-                value={formData.companyPhone}
-                onChange={(e) => updateFormData('companyPhone', e.target.value)}
-              />
-              <Input
-                label="Point of Contact Full Name"
-                placeholder="John Smith"
-                value={formData.pocName}
-                onChange={(e) => updateFormData('pocName', e.target.value)}
-              />
-              <Input
-                label="POC Email"
-                type="email"
-                placeholder="john@company.com"
-                value={formData.pocEmail}
-                onChange={(e) => updateFormData('pocEmail', e.target.value)}
-              />
-              <Input
-                label="POC Phone"
-                placeholder="(555) 987-6543"
-                value={formData.pocPhone}
-                onChange={(e) => updateFormData('pocPhone', e.target.value)}
-              />
+              <Input label="Full Name" placeholder="Jane Smith" value={formData.fullName}
+                onChange={e => update('fullName', e.target.value)} />
+              <Input label="Phone Number" placeholder="(555) 123-4567" value={formData.phoneNumber}
+                onChange={e => update('phoneNumber', e.target.value)} />
+              <div style={{ position: 'relative' }}>
+                <Input label="Password" type={showPassword ? 'text' : 'password'}
+                  placeholder="Minimum 8 characters" value={formData.password}
+                  onChange={e => update('password', e.target.value)} />
+                <button onClick={() => setShowPassword(v => !v)} style={{
+                  position: 'absolute', right: '12px', top: '36px',
+                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
+                }}>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <Input label="Confirm Password" type={showConfirm ? 'text' : 'password'}
+                  placeholder="Re-enter password" value={formData.confirmPassword}
+                  onChange={e => update('confirmPassword', e.target.value)} />
+                <button onClick={() => setShowConfirm(v => !v)} style={{
+                  position: 'absolute', right: '12px', top: '36px',
+                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
+                }}>
+                  {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                <p style={{ color: 'var(--danger)', fontSize: '0.8rem', margin: 0 }}>Passwords do not match</p>
+              )}
+
+              {sectionLabel('Profile Photo (optional)')}
+              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
+                {!formData.profilePhotoUploaded ? (
+                  <>
+                    <Upload size={32} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>Upload a profile photo</p>
+                    <Button variant="outline" onClick={() => update('profilePhotoUploaded', true)} icon={<Upload size={16} />}>Upload Photo</Button>
+                  </>
+                ) : (
+                  <p style={{ color: 'var(--success)', fontWeight: '600' }}>Photo uploaded ✓</p>
+                )}
+              </Card>
             </div>
           </div>
         );
@@ -195,27 +265,32 @@ export default function PropertyManagerOnboarding() {
       case 2:
         return (
           <div>
-            <div className="text-center mb-6">
-              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Property Portfolio</h2>
-              <p style={{ color: 'var(--text-secondary)' }}>How many properties do you manage?</p>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {['1-5', '6-20', '20+'].map((option) => (
-                <Card
-                  key={option}
-                  interactive
-                  onClick={() => updateFormData('propertyCount', option as any)}
-                  style={{
-                    padding: 'var(--space-4)',
-                    border: formData.propertyCount === option ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    background: formData.propertyCount === option ? 'var(--primary-light)' : 'var(--bg-surface)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ fontWeight: '600', fontSize: '1.1rem' }}>{option} properties</div>
-                </Card>
-              ))}
+            {stepHeader(<MapPin size={24} color="white" />, 'Your Location', 'Where are you based?')}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <Input label="Primary Address" placeholder="123 Office Blvd" value={formData.primaryAddress}
+                onChange={e => update('primaryAddress', e.target.value)} />
+              <Input label="City" placeholder="Your City" value={formData.city}
+                onChange={e => update('city', e.target.value)} />
+              <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                <Input label="State" placeholder="CA" value={formData.state}
+                  onChange={e => update('state', e.target.value)} style={{ flex: 1 }} />
+                <Input label="Zip Code" placeholder="12345" value={formData.zipCode}
+                  onChange={e => update('zipCode', e.target.value)} style={{ flex: 1 }} />
+              </div>
+              {sectionLabel('Service Radius')}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)' }}>
+                {RADIUS_OPTIONS.map(r => (
+                  <button key={r} onClick={() => update('serviceRadius', r)} style={{
+                    padding: 'var(--space-3)',
+                    border: formData.serviceRadius === r ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: formData.serviceRadius === r ? 'var(--primary-light)' : 'var(--bg-surface)',
+                    cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
+                    color: formData.serviceRadius === r ? 'var(--primary)' : 'var(--text-secondary)',
+                    fontFamily: 'inherit',
+                  }}>{r} mi</button>
+                ))}
+              </div>
             </div>
           </div>
         );
@@ -223,77 +298,14 @@ export default function PropertyManagerOnboarding() {
       case 3:
         return (
           <div>
-            <div className="text-center mb-6">
-              <div style={{
-                width: '60px',
-                height: '60px',
-                background: 'var(--primary)',
-                borderRadius: 'var(--radius-full)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto var(--space-4)'
-              }}>
-                <MapPin size={24} color="white" />
-              </div>
-              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Add Properties</h2>
-              <p style={{ color: 'var(--text-secondary)' }}>Enter your property addresses</p>
-            </div>
-
+            {stepHeader(<Building size={24} color="white" />, 'Company Info', 'Tell us about your business')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              {formData.properties.map((property, index) => (
-                <Card key={index} style={{ padding: 'var(--space-4)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: '600' }}>Property {index + 1}</h3>
-                    {index > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeProperty(index)}
-                        icon={<Trash2 size={16} />}
-                      />
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                    <Input
-                      label="Address"
-                      placeholder="123 Property St"
-                      value={property.address}
-                      onChange={(e) => updateProperty(index, 'address', e.target.value)}
-                    />
-                    <Input
-                      label="City"
-                      placeholder="City"
-                      value={property.city}
-                      onChange={(e) => updateProperty(index, 'city', e.target.value)}
-                    />
-                    <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-                      <Input
-                        label="State"
-                        placeholder="CA"
-                        value={property.state}
-                        onChange={(e) => updateProperty(index, 'state', e.target.value)}
-                        style={{ flex: 1 }}
-                      />
-                      <Input
-                        label="Zip Code"
-                        placeholder="12345"
-                        value={property.zipCode}
-                        onChange={(e) => updateProperty(index, 'zipCode', e.target.value)}
-                        style={{ flex: 1 }}
-                      />
-                    </div>
-                  </div>
-                </Card>
-              ))}
-
-              <Button
-                variant="outline"
-                onClick={addProperty}
-                icon={<Plus size={16} />}
-              >
-                Add Another Property
-              </Button>
+              <Input label="Company Name" placeholder="ABC Property Management" value={formData.companyName}
+                onChange={e => update('companyName', e.target.value)} />
+              <Input label="Your Job Title" placeholder="e.g. Operations Manager" value={formData.jobTitle}
+                onChange={e => update('jobTitle', e.target.value)} />
+              <Input label="Business Email" type="email" placeholder="ops@yourcompany.com" value={formData.businessEmail}
+                onChange={e => update('businessEmail', e.target.value)} />
             </div>
           </div>
         );
@@ -301,40 +313,56 @@ export default function PropertyManagerOnboarding() {
       case 4:
         return (
           <div>
-            <div className="text-center mb-6">
-              <div style={{
-                width: '60px',
-                height: '60px',
-                background: 'var(--primary)',
-                borderRadius: 'var(--radius-full)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto var(--space-4)'
-              }}>
-                <Wrench size={24} color="white" />
+            {stepHeader(<Layers size={24} color="white" />, 'Portfolio Details', 'Tell us about your properties')}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+              {sectionLabel('Number of Properties Managed')}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
+                {PROPERTY_COUNT_OPTIONS.map(opt => (
+                  <button key={opt} onClick={() => update('propertyCount', opt)} style={{
+                    padding: 'var(--space-4)',
+                    border: formData.propertyCount === opt ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: formData.propertyCount === opt ? 'var(--primary-light)' : 'var(--bg-surface)',
+                    cursor: 'pointer', fontWeight: '700', fontSize: '1rem',
+                    color: formData.propertyCount === opt ? 'var(--primary)' : 'var(--text-primary)',
+                    fontFamily: 'inherit',
+                  }}>{opt} properties</button>
+                ))}
               </div>
-              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Service Preferences</h2>
-              <p style={{ color: 'var(--text-secondary)' }}>Which trades do you need most often?</p>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
-              {tradeOptions.map((trade) => (
-                <Card
-                  key={trade}
-                  interactive
-                  onClick={() => toggleServicePreference(trade)}
-                  style={{
-                    padding: 'var(--space-3)',
-                    border: formData.servicePreferences.includes(trade) ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    background: formData.servicePreferences.includes(trade) ? 'var(--primary-light)' : 'var(--bg-surface)',
-                    cursor: 'pointer',
-                    textAlign: 'center'
-                  }}
-                >
-                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{trade}</div>
-                </Card>
-              ))}
+              {sectionLabel('Property Types Managed')}
+              {chipGrid(PROPERTY_TYPE_OPTIONS, 'propertyTypes')}
+
+              {sectionLabel('Property Locations')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                {formData.propertyLocations.map((loc, idx) => (
+                  <Card key={idx} style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                      <span style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--text-primary)' }}>Location {idx + 1}</span>
+                      {idx > 0 && (
+                        <button onClick={() => removeLocation(idx)} style={{
+                          background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)',
+                        }}>
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                      <Input label="Address" placeholder="123 Property St" value={loc.address}
+                        onChange={e => updateLocation(idx, 'address', e.target.value)} />
+                      <Input label="City" placeholder="City" value={loc.city}
+                        onChange={e => updateLocation(idx, 'city', e.target.value)} />
+                      <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                        <Input label="State" placeholder="CA" value={loc.state}
+                          onChange={e => updateLocation(idx, 'state', e.target.value)} style={{ flex: 1 }} />
+                        <Input label="Zip" placeholder="12345" value={loc.zipCode}
+                          onChange={e => updateLocation(idx, 'zipCode', e.target.value)} style={{ flex: 1 }} />
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+                <Button variant="outline" onClick={addLocation} icon={<Plus size={16} />}>Add Another Location</Button>
+              </div>
             </div>
           </div>
         );
@@ -342,51 +370,47 @@ export default function PropertyManagerOnboarding() {
       case 5:
         return (
           <div>
-            <div className="text-center mb-6">
-              <div style={{
-                width: '60px',
-                height: '60px',
-                background: 'var(--primary)',
-                borderRadius: 'var(--radius-full)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto var(--space-4)'
-              }}>
-                <CreditCard size={24} color="white" />
+            {stepHeader(<Wrench size={24} color="white" />, 'Operational Preferences', 'What services do you need?')}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+              {sectionLabel('Preferred Service Types')}
+              {chipGrid(SERVICE_TYPE_OPTIONS, 'preferredServiceTypes')}
+
+              {sectionLabel('Urgency Types Handled')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {URGENCY_OPTIONS.map(opt => (
+                  <button key={opt} onClick={() => toggleList('urgencyTypes', opt)} style={{
+                    padding: 'var(--space-4)',
+                    border: formData.urgencyTypes.includes(opt) ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: formData.urgencyTypes.includes(opt) ? 'var(--primary-light)' : 'var(--bg-surface)',
+                    cursor: 'pointer', fontWeight: '700', fontSize: '1rem', textAlign: 'left' as const,
+                    color: formData.urgencyTypes.includes(opt) ? 'var(--primary)' : 'var(--text-primary)',
+                    fontFamily: 'inherit',
+                  }}>{opt}</button>
+                ))}
               </div>
-              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Choose Your Plan</h2>
-              <p style={{ color: 'var(--text-secondary)' }}>Select the pricing that works for you</p>
             </div>
+          </div>
+        );
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <Card
-                interactive
-                onClick={() => updateFormData('plan', 'per-job')}
-                style={{
-                  padding: 'var(--space-4)',
-                  border: formData.plan === 'per-job' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  background: formData.plan === 'per-job' ? 'var(--primary-light)' : 'var(--bg-surface)',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ fontWeight: '600', fontSize: '1.2rem', marginBottom: '0.5rem' }}>Per-Job (12%)</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Pay 12% commission per completed job</div>
-              </Card>
-
-              <Card
-                interactive
-                onClick={() => updateFormData('plan', 'pro')}
-                style={{
-                  padding: 'var(--space-4)',
-                  border: formData.plan === 'pro' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  background: formData.plan === 'pro' ? 'var(--primary-light)' : 'var(--bg-surface)',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ fontWeight: '600', fontSize: '1.2rem', marginBottom: '0.5rem' }}>Pro ($99/mo)</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Fixed monthly rate, unlimited jobs</div>
-              </Card>
+      case 6:
+        return (
+          <div>
+            {stepHeader(<Sliders size={24} color="white" />, 'Notifications', 'How should we reach you?')}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+              {sectionLabel('Notification Preferences')}
+              <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                {notifToggle('SMS', 'notifySMS')}
+                {notifToggle('Email', 'notifyEmail')}
+                {notifToggle('Push', 'notifyPush')}
+              </div>
+              {sectionLabel('Marketing')}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', cursor: 'pointer', fontWeight: '500' }}>
+                <input type="checkbox" checked={formData.marketingOptIn}
+                  onChange={e => update('marketingOptIn', e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }} />
+                I'd like to receive tips, promotions, and platform updates from TradesOn
+              </label>
             </div>
           </div>
         );
@@ -396,85 +420,44 @@ export default function PropertyManagerOnboarding() {
     }
   };
 
+  const stepTitles = ['Account', 'Location', 'Company', 'Portfolio', 'Operations', 'Notifications'];
+
   return (
-    <div className="page-container" style={{
-      minHeight: '100vh',
-      background: 'var(--bg-base)',
-      padding: 'var(--space-4)',
-      paddingTop: '3rem'
-    }}>
-      {/* Header */}
-      <div style={{
-        marginBottom: 'var(--space-6)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-3)'
-      }}>
-        <button
-          onClick={handleBack}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem' }}>
+      <div style={{ marginBottom: 'var(--space-6)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        <button onClick={handleBack} style={{
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
           <ChevronLeft size={24} color="var(--text-primary)" />
         </button>
         <div style={{ flex: 1 }}>
-          <h1 style={{
-            fontSize: '1.5rem',
-            marginBottom: '0.25rem',
-            color: 'var(--text-primary)',
-            fontWeight: '600'
-          }}>
-            Let's get your property portfolio connected
+          <h1 style={{ fontSize: '1.25rem', marginBottom: '0.2rem', color: 'var(--text-primary)', fontWeight: '700' }}>
+            Property Manager Setup
           </h1>
-          <p style={{
-            color: 'var(--text-secondary)',
-            fontSize: '0.9rem',
-            margin: 0
-          }}>
-            Step {currentStep} of 5
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+            Step {currentStep} of {STEP_TOTAL} — {stepTitles[currentStep - 1]}
           </p>
         </div>
       </div>
 
-      {/* Progress Bar */}
       <div style={{
-        height: '8px',
-        background: 'var(--border)',
-        borderRadius: 'var(--radius-full)',
-        overflow: 'hidden',
-        marginBottom: 'var(--space-6)'
+        height: '6px', background: 'var(--border)', borderRadius: 'var(--radius-full)',
+        overflow: 'hidden', marginBottom: 'var(--space-6)',
       }}>
         <div style={{
-          width: `${(currentStep / 5) * 100}%`,
-          height: '100%',
-          background: 'var(--primary)',
-          borderRadius: 'var(--radius-full)',
-          transition: 'width 0.3s ease'
+          width: `${(currentStep / STEP_TOTAL) * 100}%`, height: '100%',
+          background: 'var(--primary)', borderRadius: 'var(--radius-full)', transition: 'width 0.3s ease',
         }} />
       </div>
 
-      {/* Form Content */}
       <Card style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)' }}>
-        {renderStepContent()}
+        {renderStep()}
       </Card>
 
-      {/* Continue Button */}
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        onClick={handleNext}
-        disabled={!isStepValid()}
-        icon={<ArrowRight size={20} />}
-      >
-        {currentStep === 5 ? 'Complete Setup' : 'Continue'}
+      <Button variant="primary" size="lg" fullWidth onClick={handleNext}
+        disabled={!isStepValid()} icon={<ArrowRight size={20} />}>
+        {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>
     </div>
   );
