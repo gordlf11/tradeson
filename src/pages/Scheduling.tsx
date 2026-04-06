@@ -1,43 +1,32 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Clock, MapPin, CheckCircle2, 
+import {
+  Clock, MapPin, CheckCircle2,
   ChevronLeft, ChevronRight, Navigation
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import TopNav from '../components/TopNav';
 
 interface TimeSlot {
-  date: string;
   time: string;
-  available: boolean;
 }
 
-const generateTimeSlots = (): TimeSlot[] => {
-  const slots: TimeSlot[] = [];
-  const dates = ['Mon, Mar 18', 'Tue, Mar 19', 'Wed, Mar 20', 'Thu, Mar 21', 'Fri, Mar 22'];
-  const times = ['9:00 AM', '10:00 AM', '11:00 AM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
-  
-  dates.forEach(date => {
-    times.forEach(time => {
-      slots.push({
-        date,
-        time,
-        available: Math.random() > 0.3 // 70% availability
-      });
-    });
-  });
-  
-  return slots;
-};
+const DATES = ['Mon, Mar 18', 'Tue, Mar 19', 'Wed, Mar 20', 'Thu, Mar 21', 'Fri, Mar 22', 'Sat, Mar 23', 'Sun, Mar 24'];
+const TIMES: TimeSlot[] = [
+  { time: '8:00 AM' }, { time: '9:00 AM' }, { time: '10:00 AM' }, { time: '11:00 AM' },
+  { time: '1:00 PM' }, { time: '2:00 PM' }, { time: '3:00 PM' }, { time: '4:00 PM' }, { time: '5:00 PM' },
+];
 
 export default function Scheduling() {
   const navigate = useNavigate();
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [step, setStep] = useState<'select' | 'confirm' | 'route'>('select');
-  const [timeSlots] = useState(generateTimeSlots());
-  const [selectedDate, setSelectedDate] = useState('Mon, Mar 18');
+  const [dayIndex, setDayIndex] = useState(0);
+  const [checklist, setChecklist] = useState<boolean[]>([false, false, false, false]);
+
+  const selectedDate = DATES[dayIndex];
 
   const handleSlotToggle = (slotKey: string) => {
     if (selectedSlots.includes(slotKey)) {
@@ -49,310 +38,270 @@ export default function Scheduling() {
 
   const handleConfirm = () => {
     setStep('confirm');
-    // Simulate tradesperson selecting time
-    setTimeout(() => {
-      setStep('route');
-    }, 2000);
+    setTimeout(() => setStep('route'), 2000);
   };
 
-  const filteredSlots = timeSlots.filter(slot => slot.date === selectedDate);
-  const dates = [...new Set(timeSlots.map(slot => slot.date))];
+  const prevDay = () => setDayIndex(i => Math.max(0, i - 1));
+  const nextDay = () => setDayIndex(i => Math.min(DATES.length - 1, i + 1));
+
+  const checklistItems = [
+    'Clear access to work area',
+    'Turn off water main if leaking',
+    'Move valuables from under sink',
+    'Have payment method ready',
+  ];
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>Schedule Service</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          {step === 'select' && 'Select your preferred time slots (up to 3)'}
-          {step === 'confirm' && 'Confirming with tradesperson...'}
-          {step === 'route' && 'Service scheduled - View route'}
-        </p>
-      </div>
+    <>
+      <TopNav title="Schedule Service" />
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)', paddingBottom: '90px' }}>
+        <div style={{ padding: 'var(--space-4)' }}>
 
-      {/* Step 1: Time Selection */}
-      {step === 'select' && (
-        <>
-          {/* Job Summary Card */}
-          <Card className="mb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Kitchen Sink Leak Repair</h3>
-                <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Bob's Plumbing Services • 2.4 miles away
-                </p>
-              </div>
-              <Badge variant="warning">MODERATE</Badge>
-            </div>
-            <div style={{
-              marginTop: 'var(--space-3)',
-              padding: 'var(--space-2)',
-              background: 'var(--bg-base)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.875rem',
-              color: 'var(--primary)'
-            }}>
-              Quoted Price: $150 - $250
-            </div>
-          </Card>
+          {/* Step 1: Time Selection */}
+          {step === 'select' && (
+            <>
+              {/* Job Summary Card */}
+              <Card style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700' }}>Kitchen Sink Leak Repair</h3>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                      Bob's Plumbing Services · 2.4 miles away
+                    </p>
+                  </div>
+                  <Badge variant="warning">Moderate</Badge>
+                </div>
+                <div style={{
+                  marginTop: 'var(--space-3)', padding: 'var(--space-2) var(--space-3)',
+                  background: 'var(--primary-light)', borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '700',
+                }}>
+                  Accepted Quote: $195
+                </div>
+              </Card>
 
-          {/* Date Selector */}
-          <Card elevated className="mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 style={{ margin: 0 }}>Available Times</h3>
-              <div className="flex items-center gap-2">
-                <ChevronLeft size={20} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} />
-                <span style={{ fontSize: '0.875rem', minWidth: '100px', textAlign: 'center' }}>
-                  This Week
-                </span>
-                <ChevronRight size={20} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} />
-              </div>
-            </div>
+              {/* Available Times card */}
+              <Card style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
+                {/* Section title */}
+                <h3 style={{ margin: '0 0 var(--space-4) 0', fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                  Available Times
+                </h3>
 
-            {/* Date Tabs */}
-            <div className="flex gap-2 mb-4" style={{ overflowX: 'auto' }}>
-              {dates.map(date => (
-                <button
-                  key={date}
-                  onClick={() => setSelectedDate(date)}
-                  style={{
-                    padding: '8px 16px',
-                    background: selectedDate === date ? 'var(--primary)' : 'var(--bg-surface)',
-                    border: selectedDate === date ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    borderRadius: 'var(--radius-full)',
-                    color: selectedDate === date ? 'white' : 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {date}
-                </button>
-              ))}
-            </div>
-
-            {/* Time Slots Grid */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-              gap: 'var(--space-2)'
-            }}>
-              {filteredSlots.map(slot => {
-                const slotKey = `${slot.date}-${slot.time}`;
-                const isSelected = selectedSlots.includes(slotKey);
-                
-                return (
+                {/* Day carousel */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
                   <button
-                    key={slotKey}
-                    onClick={() => slot.available && handleSlotToggle(slotKey)}
-                    disabled={!slot.available}
+                    type="button"
+                    onClick={prevDay}
+                    disabled={dayIndex === 0}
                     style={{
-                      padding: 'var(--space-3)',
-                      background: isSelected ? 'var(--primary)' : 
-                                 !slot.available ? 'var(--bg-base)' : 'var(--bg-surface)',
-                      border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
-                      borderRadius: 'var(--radius-md)',
-                      color: isSelected ? 'white' : 
-                             !slot.available ? 'var(--text-tertiary)' : 'var(--text-primary)',
-                      fontSize: '0.875rem',
-                      cursor: slot.available ? 'pointer' : 'not-allowed',
-                      transition: 'all 0.2s ease',
-                      opacity: slot.available ? 1 : 0.5,
-                      boxShadow: isSelected ? 'var(--shadow-md)' : 'none'
+                      background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-full)',
+                      width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: dayIndex === 0 ? 'not-allowed' : 'pointer',
+                      color: dayIndex === 0 ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                      flexShrink: 0,
                     }}
                   >
-                    <Clock size={14} style={{ display: 'block', margin: '0 auto 4px' }} />
-                    {slot.time}
+                    <ChevronLeft size={18} />
                   </button>
-                );
-              })}
-            </div>
 
-            {selectedSlots.length > 0 && (
-              <div style={{
-                marginTop: 'var(--space-4)',
-                padding: 'var(--space-3)',
-                background: 'var(--primary-light)',
-                border: '1px solid var(--primary)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.875rem'
-              }}>
-                <strong>Selected times:</strong> {selectedSlots.length}/3
-                <div style={{ marginTop: '8px', color: 'var(--text-secondary)' }}>
-                  The tradesperson will confirm the best time from your selections
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>
+                      {selectedDate}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      {dayIndex + 1} of {DATES.length}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={nextDay}
+                    disabled={dayIndex === DATES.length - 1}
+                    style={{
+                      background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-full)',
+                      width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: dayIndex === DATES.length - 1 ? 'not-allowed' : 'pointer',
+                      color: dayIndex === DATES.length - 1 ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
                 </div>
-              </div>
-            )}
-          </Card>
 
-          {/* Pre-Job Checklist */}
-          <Card className="mb-4">
-            <h3 style={{ margin: '0 0 var(--space-3) 0' }}>Pre-Service Checklist</h3>
-            <div className="flex flex-col gap-2">
-              {[
-                'Clear access to work area',
-                'Turn off water main if leaking',
-                'Move valuables from under sink',
-                'Have payment method ready'
-              ].map((item, index) => (
-                <label key={index} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer'
-                }}>
-                  <input type="checkbox" style={{ marginRight: '8px' }} />
-                  {item}
-                </label>
-              ))}
-            </div>
-          </Card>
+                {/* Dot indicators */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginBottom: 'var(--space-4)' }}>
+                  {DATES.map((_, i) => (
+                    <button
+                      type="button"
+                      key={i}
+                      onClick={() => setDayIndex(i)}
+                      style={{
+                        width: i === dayIndex ? '20px' : '8px', height: '8px',
+                        borderRadius: '4px', border: 'none', cursor: 'pointer',
+                        background: i === dayIndex ? 'var(--primary)' : 'var(--border)',
+                        transition: 'all 0.2s ease', padding: 0,
+                      }}
+                    />
+                  ))}
+                </div>
 
-          {/* Submit Button */}
-          <Button
-            variant="primary"
-            size="lg"
-            fullWidth
-            disabled={selectedSlots.length === 0}
-            onClick={handleConfirm}
-          >
-            Submit Time Preferences ({selectedSlots.length} selected)
-          </Button>
-        </>
-      )}
-
-      {/* Step 2: Confirmation */}
-      {step === 'confirm' && (
-        <Card elevated className="text-center animate-slideUp" style={{ padding: '3rem 2rem' }}>
-          <div className="loader" style={{ 
-            width: '60px', 
-            height: '60px', 
-            margin: '0 auto var(--space-4)' 
-          }} />
-          <h2>Confirming with Tradesperson</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Bob's Plumbing is reviewing your time preferences...
-          </p>
-        </Card>
-      )}
-
-      {/* Step 3: Route View */}
-      {step === 'route' && (
-        <>
-          {/* Confirmation Card */}
-          <Card elevated className="mb-4 animate-slideUp">
-            <div className="flex items-center gap-3 mb-4">
-              <div style={{
-                width: '48px',
-                height: '48px',
-                background: 'var(--success)',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <CheckCircle2 size={28} color="white" />
-              </div>
-              <div>
-                <h3 style={{ margin: 0 }}>Service Confirmed!</h3>
-                <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  Tuesday, March 19 at 2:00 PM
-                </p>
-              </div>
-            </div>
-
-            <div style={{
-              padding: 'var(--space-3)',
-              background: 'var(--bg-base)',
-              borderRadius: 'var(--radius-sm)'
-            }}>
-              <div className="flex items-center justify-between mb-2">
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Service Provider
-                </span>
-                <Badge variant="success">VERIFIED</Badge>
-              </div>
-              <div style={{ fontWeight: 600 }}>Bob's Plumbing Services</div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                License #PL-2024-1234 • 4.8★ (127 reviews)
-              </div>
-            </div>
-          </Card>
-
-          {/* Route Map Placeholder */}
-          <Card elevated className="mb-4">
-            <h3 style={{ margin: '0 0 var(--space-3) 0' }}>Service Route</h3>
-            <div style={{
-              height: '300px',
-              background: 'var(--bg-base)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative'
-            }}>
-              <MapPin size={48} color="var(--primary)" style={{ marginBottom: 'var(--space-2)' }} />
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                123 Main St, Springfield
-              </p>
-              <p style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', marginTop: '4px' }}>
-                Estimated arrival: 1:45 PM - 2:15 PM
-              </p>
-              
-              {/* Route Line Mock */}
-              <div style={{
-                position: 'absolute',
-                top: '40%',
-                left: '20%',
-                right: '20%',
-                height: '2px',
-                background: 'var(--primary)',
-                opacity: 0.5
-              }}>
+                {/* Time slots grid */}
                 <div style={{
-                  position: 'absolute',
-                  right: '-8px',
-                  top: '-7px',
-                  width: '16px',
-                  height: '16px',
-                  background: 'var(--primary)',
-                  borderRadius: '50%',
-                  border: '3px solid var(--bg-surface)'
-                }} />
-              </div>
-            </div>
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 'var(--space-2)',
+                }}>
+                  {TIMES.map(slot => {
+                    const slotKey = `${selectedDate}-${slot.time}`;
+                    const isSelected = selectedSlots.includes(slotKey);
+                    return (
+                      <button
+                        type="button"
+                        key={slotKey}
+                        onClick={() => handleSlotToggle(slotKey)}
+                        style={{
+                          padding: 'var(--space-3)',
+                          background: isSelected ? 'var(--primary)' : 'var(--bg-surface)',
+                          border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                          borderRadius: 'var(--radius-md)',
+                          color: isSelected ? 'white' : 'var(--text-primary)',
+                          fontSize: '0.82rem', fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontFamily: 'inherit',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                        }}
+                      >
+                        <Clock size={13} />
+                        {slot.time}
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <div className="flex gap-2 mt-4">
-              <Button variant="secondary" size="md" fullWidth icon={<Navigation size={18} />}>
-                Get Directions
-              </Button>
-              <Button variant="primary" size="md" fullWidth onClick={() => navigate('/job-execution')}>
-                Track Live
-              </Button>
-            </div>
-          </Card>
+                {selectedSlots.length > 0 && (
+                  <div style={{
+                    marginTop: 'var(--space-4)', padding: 'var(--space-3)',
+                    background: 'var(--primary-light)', border: '1px solid var(--primary)',
+                    borderRadius: 'var(--radius-md)', fontSize: '0.85rem',
+                  }}>
+                    <strong style={{ color: 'var(--primary)' }}>{selectedSlots.length}/3 time slots selected</strong>
+                    <div style={{ marginTop: '4px', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+                      The tradesperson will confirm the best time from your selections
+                    </div>
+                  </div>
+                )}
+              </Card>
 
-          {/* Contact Card */}
-          <Card>
-            <div className="flex items-center justify-between">
-              <div>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Questions about your service?
-                </p>
-                <p style={{ margin: '4px 0 0', fontWeight: 600 }}>
-                  Contact Bob: (555) 123-4567
-                </p>
-              </div>
-              <Button variant="ghost" size="sm">
-                Call Now
+              {/* Pre-Service Checklist */}
+              <Card style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
+                <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                  Pre-Service Checklist
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                  {checklistItems.map((item, index) => (
+                    <label key={index} style={{
+                      display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                      fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text-primary)',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={checklist[index]}
+                        onChange={() => setChecklist(prev => prev.map((v, i) => i === index ? !v : v))}
+                        style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', flexShrink: 0, cursor: 'pointer' }}
+                      />
+                      <span style={{ flex: 1 }}>{item}</span>
+                    </label>
+                  ))}
+                </div>
+              </Card>
+
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                disabled={selectedSlots.length === 0}
+                onClick={handleConfirm}
+              >
+                Submit Time Preferences ({selectedSlots.length} selected)
               </Button>
-            </div>
-          </Card>
-        </>
-      )}
-    </div>
+            </>
+          )}
+
+          {/* Step 2: Confirmation */}
+          {step === 'confirm' && (
+            <Card style={{ padding: '3rem 2rem', textAlign: 'center' }}>
+              <div className="loader" style={{ width: '60px', height: '60px', margin: '0 auto var(--space-4)' }} />
+              <h2>Confirming with Tradesperson</h2>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                Bob's Plumbing is reviewing your time preferences...
+              </p>
+            </Card>
+          )}
+
+          {/* Step 3: Confirmed */}
+          {step === 'route' && (
+            <>
+              <Card style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                  <div style={{
+                    width: '48px', height: '48px', background: 'var(--success)',
+                    borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <CheckCircle2 size={28} color="white" />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0 }}>Service Confirmed!</h3>
+                    <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                      Tuesday, March 19 at 2:00 PM
+                    </p>
+                  </div>
+                </div>
+                <div style={{ padding: 'var(--space-3)', background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Service Provider</span>
+                    <Badge variant="success">Verified</Badge>
+                  </div>
+                  <div style={{ fontWeight: 600 }}>Bob's Plumbing Services</div>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    License #PL-2024-1234 · 4.8★ (127 reviews)
+                  </div>
+                </div>
+              </Card>
+
+              <Card style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
+                <h3 style={{ margin: '0 0 var(--space-3) 0' }}>Service Route</h3>
+                <div style={{
+                  height: '240px', background: 'var(--bg-base)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', position: 'relative',
+                }}>
+                  <MapPin size={48} color="var(--primary)" style={{ marginBottom: 'var(--space-2)' }} />
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>123 Main St, Springfield</p>
+                  <p style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', marginTop: '4px' }}>
+                    Estimated arrival: 1:45 PM – 2:15 PM
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
+                  <Button variant="outline" size="md" fullWidth icon={<Navigation size={18} />}>Get Directions</Button>
+                  <Button variant="primary" size="md" fullWidth onClick={() => navigate('/job-execution')}>Track Live</Button>
+                </div>
+              </Card>
+
+              <Card style={{ padding: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Questions about your service?</p>
+                    <p style={{ margin: '4px 0 0', fontWeight: 600 }}>Contact Bob: (555) 123-4567</p>
+                  </div>
+                  <Button variant="ghost" size="sm">Call Now</Button>
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

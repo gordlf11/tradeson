@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc } from 'lucide-react';
+import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -146,13 +146,13 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,28,60,0.65)',
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,28,60,0.65)',
       zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      maxWidth: '428px', margin: '0 auto',
     }}>
       <div style={{
         background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-        width: '100%', padding: 'var(--space-5)', maxHeight: '90vh', overflowY: 'auto',
+        width: '100%', maxWidth: '600px', padding: 'var(--space-5)', maxHeight: '90vh', overflowY: 'auto',
       }}>
         {submitted ? (
           <div style={{ textAlign: 'center', padding: 'var(--space-8) 0' }}>
@@ -270,23 +270,26 @@ interface ComparisonModalProps {
 
 function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) {
   const [acceptedId, setAcceptedId] = useState<string | null>(null);
+  const [acceptedPrice, setAcceptedPrice] = useState<number | null>(null);
 
   const handleAccept = (qid: string) => {
+    const quote = job.quotes.find(q => q.id === qid);
     setAcceptedId(qid);
-    setTimeout(() => { onAccept(qid); onClose(); }, 1500);
+    setAcceptedPrice(quote?.totalPrice ?? null);
+    setTimeout(() => { onAccept(qid); onClose(); }, 2000);
   };
 
   const sorted = [...job.quotes].sort((a, b) => b.rating - a.rating);
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,28,60,0.65)',
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,28,60,0.65)',
       zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      maxWidth: '428px', margin: '0 auto',
     }}>
       <div style={{
         background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-        width: '100%', padding: 'var(--space-5)', maxHeight: '90vh', overflowY: 'auto',
+        width: '100%', maxWidth: '600px', padding: 'var(--space-5)', maxHeight: '90vh', overflowY: 'auto',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
@@ -367,7 +370,7 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
               {acceptedId === q.id ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'center', padding: 'var(--space-3)', background: 'var(--success)', borderRadius: 'var(--radius-md)' }}>
                   <CheckCircle size={18} color="white" />
-                  <span style={{ color: 'white', fontWeight: '700' }}>Quote Accepted!</span>
+                  <span style={{ color: 'white', fontWeight: '700' }}>Job Accepted — ${acceptedPrice}</span>
                 </div>
               ) : (
                 <Button variant={idx === 0 ? 'primary' : 'outline'} fullWidth onClick={() => handleAccept(q.id)} disabled={!!acceptedId}>
@@ -514,27 +517,41 @@ export default function JobBoardEnhanced() {
             </div>
           </div>
 
-          {/* Category tabs */}
-          <div style={{ display: 'flex', gap: 'var(--space-2)', overflowX: 'auto', paddingBottom: '8px', marginBottom: 'var(--space-4)' }}>
-            {categories.map(cat => (
-              <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} style={{
-                padding: '7px 14px', borderRadius: 'var(--radius-full)',
-                background: selectedCategory === cat.id ? 'var(--primary)' : 'var(--bg-surface)',
-                color: selectedCategory === cat.id ? 'white' : 'var(--text-primary)',
-                border: `1px solid ${selectedCategory === cat.id ? 'var(--primary)' : 'var(--border)'}`,
-                fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer',
-                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px',
-                fontFamily: 'inherit',
-              }}>
-                {cat.label}
-                <span style={{
-                  background: selectedCategory === cat.id ? 'rgba(255,255,255,0.25)' : 'var(--bg-base)',
-                  padding: '1px 6px', borderRadius: '10px', fontSize: '0.7rem',
-                }}>
-                  {cat.count}
-                </span>
-              </button>
-            ))}
+          {/* Category filter dropdown */}
+          <div style={{ marginBottom: 'var(--space-4)', position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <Filter size={14} color="var(--text-secondary)" />
+              <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginRight: 'var(--space-2)' }}>
+                Filter by trade:
+              </label>
+            </div>
+            <div style={{ position: 'relative', marginTop: 'var(--space-2)' }}>
+              <select
+                value={selectedCategory}
+                onChange={e => setSelectedCategory(e.target.value)}
+                style={{
+                  width: '100%', padding: 'var(--space-3) var(--space-4)',
+                  paddingRight: '40px',
+                  border: selectedCategory !== 'all' ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: selectedCategory !== 'all' ? 'var(--primary-light)' : 'var(--bg-surface)',
+                  color: selectedCategory !== 'all' ? 'var(--primary)' : 'var(--text-primary)',
+                  fontSize: '0.875rem', fontWeight: '600', fontFamily: 'inherit',
+                  cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none',
+                }}
+              >
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label} ({cat.count})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} style={{
+                position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                color: selectedCategory !== 'all' ? 'var(--primary)' : 'var(--text-secondary)',
+                pointerEvents: 'none',
+              }} />
+            </div>
           </div>
 
           {/* Job Cards */}
@@ -658,7 +675,7 @@ export default function JobBoardEnhanced() {
                             icon={<Users size={16} />}
                             disabled={job.status === 'accepted'}
                           >
-                            {job.status === 'accepted' ? 'Quote Accepted' : 'Compare & Accept Quotes'}
+                            {job.status === 'accepted' ? 'Job Accepted' : 'Compare & Accept Quotes'}
                           </Button>
                         </div>
                       ) : (

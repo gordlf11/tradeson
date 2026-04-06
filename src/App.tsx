@@ -80,10 +80,6 @@ const BottomNav = () => {
           <Building2 size={20} />
           <span>My Jobs</span>
         </Link>
-        <Link to="/scheduling" className={`nav-item ${path.includes('/scheduling') ? 'active' : ''}`}>
-          <Calendar size={20} />
-          <span>Schedule</span>
-        </Link>
         <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
@@ -121,10 +117,6 @@ const BottomNav = () => {
       <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
         <Home size={20} />
         <span>My Jobs</span>
-      </Link>
-      <Link to="/scheduling" className={`nav-item ${path.includes('/scheduling') ? 'active' : ''}`}>
-        <Calendar size={20} />
-        <span>Schedule</span>
       </Link>
       <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
         <LayoutDashboard size={20} />
