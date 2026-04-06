@@ -111,8 +111,8 @@ export default function Login() {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', flexWrap: 'nowrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', gap: 'var(--space-4)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer', flexShrink: 0 }}>
               <input type="checkbox" style={{ margin: 0, flexShrink: 0 }} />
               Remember me
             </label>
@@ -120,7 +120,6 @@ export default function Login() {
               color: 'var(--primary)',
               fontSize: '0.875rem',
               textDecoration: 'none',
-              whiteSpace: 'nowrap',
               flexShrink: 0,
             }}>
               Forgot password?

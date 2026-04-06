@@ -152,7 +152,7 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
     }}>
       <div style={{
         background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-        width: '100%', maxWidth: '600px', padding: 'var(--space-5)', maxHeight: '90vh', overflowY: 'auto',
+        width: '100%', maxWidth: '600px', padding: '24px 20px 32px', maxHeight: '90vh', overflowY: 'auto',
       }}>
         {submitted ? (
           <div style={{ textAlign: 'center', padding: 'var(--space-8) 0' }}>
@@ -250,7 +250,7 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
               This job expires in {formatExpiry(job.expiresInHours)}
             </div>
 
-            <Button variant="primary" size="lg" fullWidth onClick={handleSubmit} disabled={!isValid}>
+            <Button variant="primary" size="lg" fullWidth onClick={handleSubmit}>
               Submit Quote
             </Button>
           </>
@@ -289,7 +289,7 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
     }}>
       <div style={{
         background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-        width: '100%', maxWidth: '600px', padding: 'var(--space-5)', maxHeight: '90vh', overflowY: 'auto',
+        width: '100%', maxWidth: '600px', padding: '24px 20px 32px', maxHeight: '90vh', overflowY: 'auto',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
