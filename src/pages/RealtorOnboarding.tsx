@@ -111,23 +111,6 @@ export default function RealtorOnboarding() {
     else navigate(-1);
   };
 
-  const isStepValid = () => {
-    switch (currentStep) {
-      case 1:
-        return formData.fullName && formData.phoneNumber &&
-          formData.password.length >= 8 && formData.password === formData.confirmPassword;
-      case 2:
-        return formData.primaryAddress && formData.city && formData.state && formData.zipCode && formData.serviceRadius;
-      case 3:
-        return formData.brokerageName && formData.licenseNumber;
-      case 4:
-        return true;
-      case 5:
-        return true; // client invites optional
-      default:
-        return false;
-    }
-  };
 
   const iconCircle = (icon: React.ReactNode) => (
     <div style={{
@@ -375,7 +358,7 @@ export default function RealtorOnboarding() {
       </Card>
 
       <Button variant="primary" size="lg" fullWidth onClick={handleNext}
-        disabled={!isStepValid()} icon={<ArrowRight size={20} />}>
+        icon={<ArrowRight size={20} />}>
         {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>
     </div>

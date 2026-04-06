@@ -144,25 +144,6 @@ export default function PropertyManagerOnboarding() {
     else navigate(-1);
   };
 
-  const isStepValid = () => {
-    switch (currentStep) {
-      case 1:
-        return formData.fullName && formData.phoneNumber &&
-          formData.password.length >= 8 && formData.password === formData.confirmPassword;
-      case 2:
-        return formData.primaryAddress && formData.city && formData.state && formData.zipCode && formData.serviceRadius;
-      case 3:
-        return formData.companyName && formData.jobTitle && formData.businessEmail;
-      case 4:
-        return formData.propertyCount && formData.propertyTypes.length > 0;
-      case 5:
-        return formData.preferredServiceTypes.length > 0 && formData.urgencyTypes.length > 0;
-      case 6:
-        return true;
-      default:
-        return false;
-    }
-  };
 
   const iconCircle = (icon: React.ReactNode) => (
     <div style={{
@@ -456,7 +437,7 @@ export default function PropertyManagerOnboarding() {
       </Card>
 
       <Button variant="primary" size="lg" fullWidth onClick={handleNext}
-        disabled={!isStepValid()} icon={<ArrowRight size={20} />}>
+        icon={<ArrowRight size={20} />}>
         {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>
     </div>

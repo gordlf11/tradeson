@@ -129,30 +129,6 @@ export default function HomeownerOnboarding() {
     else navigate(-1);
   };
 
-  const isStepValid = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          formData.fullName.trim() &&
-          formData.phoneNumber.trim() &&
-          formData.password.length >= 8 &&
-          formData.password === formData.confirmPassword
-        );
-      case 2:
-        return formData.primaryAddress && formData.city && formData.state && formData.zipCode && formData.serviceRadius;
-      case 3:
-        return (
-          formData.propertyType &&
-          formData.propertyAddress && formData.propertyCity && formData.propertyState && formData.propertyZip
-        );
-      case 4:
-        return true; // preferences optional
-      case 5:
-        return true; // payment can be deferred
-      default:
-        return false;
-    }
-  };
 
   const iconCircle = (icon: React.ReactNode) => (
     <div style={{
@@ -444,7 +420,7 @@ export default function HomeownerOnboarding() {
       </Card>
 
       <Button variant="primary" size="lg" fullWidth onClick={handleNext}
-        disabled={!isStepValid()} icon={<ArrowRight size={20} />}>
+        icon={<ArrowRight size={20} />}>
         {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>
     </div>

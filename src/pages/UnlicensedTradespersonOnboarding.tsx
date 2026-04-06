@@ -142,26 +142,6 @@ export default function UnlicensedTradespersonOnboarding() {
     else navigate(-1);
   };
 
-  const isStepValid = () => {
-    switch (currentStep) {
-      case 1:
-        return formData.fullName && formData.phoneNumber &&
-          formData.password.length >= 8 && formData.password === formData.confirmPassword &&
-          formData.profilePhotoUploaded;
-      case 2:
-        return formData.primaryAddress && formData.city && formData.state && formData.zipCode;
-      case 3:
-        return formData.serviceCategories.length > 0;
-      case 4:
-        return formData.serviceRadius && formData.areasServed.length > 0;
-      case 5:
-        return formData.idUploaded;
-      case 6:
-        return formData.businessEntityType;
-      default:
-        return false;
-    }
-  };
 
   const iconCircle = (icon: React.ReactNode) => (
     <div style={{
@@ -516,7 +496,7 @@ export default function UnlicensedTradespersonOnboarding() {
       </Card>
 
       <Button variant="primary" size="lg" fullWidth onClick={handleNext}
-        disabled={!isStepValid()} icon={<ArrowRight size={20} />}>
+        icon={<ArrowRight size={20} />}>
         {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>
     </div>

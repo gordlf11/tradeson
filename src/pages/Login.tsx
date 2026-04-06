@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Briefcase } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { TradesOnIcon } from '../components/Logo';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -47,18 +48,9 @@ export default function Login() {
       padding: 'var(--space-4)'
     }}>
       {/* Logo Section */}
-      <div className="text-center mb-8">
-        <div style={{
-          width: '80px',
-          height: '80px',
-          background: 'var(--primary)',
-          borderRadius: 'var(--radius-lg)',
-          margin: '0 auto var(--space-4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <Briefcase size={40} color="white" />
+      <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-3)' }}>
+          <TradesOnIcon size={72} variant="icon-light" />
         </div>
         <h1 style={{
           fontSize: '2rem',
@@ -119,15 +111,17 @@ export default function Login() {
             </div>
           )}
 
-          <div className="flex justify-between items-center mb-6">
-            <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem' }}>
-              <input type="checkbox" style={{ marginRight: '8px' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', flexWrap: 'nowrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <input type="checkbox" style={{ margin: 0, flexShrink: 0 }} />
               Remember me
             </label>
             <Link to="/forgot-password" style={{
               color: 'var(--primary)',
               fontSize: '0.875rem',
-              textDecoration: 'none'
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}>
               Forgot password?
             </Link>
