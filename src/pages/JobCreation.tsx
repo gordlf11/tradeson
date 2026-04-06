@@ -1,383 +1,531 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Camera, Mic, Sparkles, AlertCircle, 
-  Wrench, Zap, Droplets, Thermometer, 
-  Hammer, Home, ArrowRight
+import {
+  Camera, Sparkles, AlertCircle, CheckCircle,
+  Wrench, Zap, Droplets, Thermometer,
+  Hammer, Home, ArrowRight, ArrowLeft, X
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
 interface JobFormData {
+  // Step 1 — Room
   room: string;
+  // Step 2 — Trade type
   tradeType: string;
-  severity: 'low' | 'medium' | 'high';
+  // Step 3 — Severity / urgency
+  severity: 'routine' | 'moderate' | 'urgent';
+  // Step 4 — Uncovering questions
+  affectedPart: string;
+  adjacentImpact: string;
+  housewideImpact: string;
+  jobNature: string;
+  // Step 5 — Description & photos
   description: string;
   photos: File[];
+  // Validation flags
+  photoQualityFlag: boolean;
+  categoryMismatchFlag: boolean;
 }
 
-const tradeCategories = [
-  { id: 'plumbing', label: 'Plumbing', icon: <Droplets size={20} /> },
+// ── Options ────────────────────────────────────────────────────────────────
+
+const ROOMS = [
+  'Kitchen', 'Bathroom', 'Living Room', 'Bedroom',
+  'Basement', 'Attic', 'Garage', 'Outdoor / Yard', 'Whole House', 'Other',
+];
+
+const TRADE_CATEGORIES = [
+  { id: 'plumbing',   label: 'Plumbing',   icon: <Droplets size={20} /> },
   { id: 'electrical', label: 'Electrical', icon: <Zap size={20} /> },
-  { id: 'hvac', label: 'HVAC', icon: <Thermometer size={20} /> },
-  { id: 'carpentry', label: 'Carpentry', icon: <Hammer size={20} /> },
-  { id: 'general', label: 'General', icon: <Wrench size={20} /> },
-  { id: 'other', label: 'Other', icon: <Home size={20} /> },
+  { id: 'hvac',       label: 'HVAC',       icon: <Thermometer size={20} /> },
+  { id: 'carpentry',  label: 'Carpentry',  icon: <Hammer size={20} /> },
+  { id: 'general',    label: 'General',    icon: <Wrench size={20} /> },
+  { id: 'cleaning',   label: 'Cleaning',   icon: <Home size={20} /> },
 ];
 
-const severityLevels = [
-  { id: 'low', label: 'Routine', color: 'var(--success)', description: 'Non-urgent maintenance' },
-  { id: 'medium', label: 'Moderate', color: 'var(--warning)', description: 'Needs attention soon' },
-  { id: 'high', label: 'Urgent', color: 'var(--danger)', description: 'Immediate attention needed' }
+const SEVERITY_LEVELS = [
+  { id: 'routine', label: 'Routine',  sub: 'Not urgent — schedule at your convenience', color: 'var(--success)' },
+  { id: 'moderate', label: 'Moderate', sub: 'Needs attention within a few days',          color: 'var(--warning)' },
+  { id: 'urgent',  label: 'Urgent',   sub: 'Immediate attention required',               color: 'var(--danger)' },
+] as const;
+
+const JOB_NATURE_OPTIONS = [
+  'Cosmetic', 'Routine Maintenance', 'Repair / Fix', 'Renovation', 'Other',
 ];
 
-const rooms = [
-  'Kitchen', 'Bathroom', 'Living Room', 'Bedroom', 
-  'Basement', 'Attic', 'Garage', 'Outdoor', 'Other'
-];
+const TOTAL_STEPS = 5;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const sectionLabel = (text: string) => (
+  <p style={{
+    fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase' as const,
+    letterSpacing: '0.08em', color: 'var(--primary)',
+    marginBottom: 'var(--space-3)', marginTop: 'var(--space-4)',
+  }}>{text}</p>
+);
+
+const stepHeader = (title: string, subtitle: string) => (
+  <div style={{ marginBottom: 'var(--space-5)' }}>
+    <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 6px', letterSpacing: '-0.02em' }}>{title}</h2>
+    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>{subtitle}</p>
+  </div>
+);
+
+// ── Component ──────────────────────────────────────────────────────────────
 
 export default function JobCreation() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formData, setFormData] = useState<JobFormData>({
     room: '',
     tradeType: '',
-    severity: 'medium',
+    severity: 'moderate',
+    affectedPart: '',
+    adjacentImpact: '',
+    housewideImpact: '',
+    jobNature: '',
     description: '',
-    photos: []
+    photos: [],
+    photoQualityFlag: false,
+    categoryMismatchFlag: false,
   });
+
+  const set = (field: keyof JobFormData, value: any) =>
+    setFormData(prev => ({ ...prev, [field]: value }));
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setFormData({ ...formData, photos: [...formData.photos, ...files] });
+      setFormData(prev => ({ ...prev, photos: [...prev.photos, ...files] }));
     }
   };
 
-  const handleAIProcess = () => {
-    if (!formData.description.trim() || !formData.room || !formData.tradeType) {
-      return;
+  const removePhoto = (idx: number) => {
+    setFormData(prev => ({ ...prev, photos: prev.photos.filter((_, i) => i !== idx) }));
+  };
+
+  const isStepValid = () => {
+    switch (step) {
+      case 1: return !!formData.room;
+      case 2: return !!formData.tradeType;
+      case 3: return !!formData.severity;
+      case 4: return !!formData.affectedPart && !!formData.jobNature;
+      case 5: return formData.description.trim().length >= 20;
+      default: return true;
     }
-    
-    setIsProcessing(true);
-    // Simulate AI processing
-    setTimeout(() => {
-      setIsProcessing(false);
-      setStep(2);
-    }, 2500);
+  };
+
+  const handleNext = () => {
+    if (step < 5) {
+      setStep(s => (s + 1) as any);
+    } else {
+      handleSubmit();
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) setStep(s => (s - 1) as any);
+    else navigate(-1);
   };
 
   const handleSubmit = () => {
-    setStep(3);
+    setIsSubmitting(true);
+    const jobData = {
+      ...formData,
+      photos: formData.photos.map(f => f.name),
+      createdAt: new Date().toISOString(),
+    };
+    const existing = JSON.parse(localStorage.getItem('submittedJobs') || '[]');
+    localStorage.setItem('submittedJobs', JSON.stringify([...existing, { id: Date.now().toString(), ...jobData }]));
     setTimeout(() => {
-      navigate('/job-board');
-    }, 2000);
+      setIsSubmitting(false);
+      setStep(6 as any);
+      setTimeout(() => navigate('/dashboard'), 2500);
+    }, 1500);
   };
+
+  // ── Step renderers ──────────────────────────────────────────────────────
+
+  const renderStep1 = () => (
+    <div>
+      {stepHeader('Where is the issue?', 'Select the room or area of the home affected.')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
+        {ROOMS.map(room => (
+          <button
+            key={room}
+            onClick={() => set('room', room)}
+            style={{
+              padding: 'var(--space-4)',
+              background: formData.room === room ? 'var(--primary)' : 'var(--bg-surface)',
+              border: `2px solid ${formData.room === room ? 'var(--primary)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-md)',
+              color: formData.room === room ? 'white' : 'var(--text-primary)',
+              fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer',
+              transition: 'all 0.15s ease', textAlign: 'left',
+              fontFamily: 'inherit',
+              boxShadow: formData.room === room ? 'var(--shadow-md)' : 'none',
+            }}
+          >
+            {room}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep2 = () => (
+    <div>
+      {stepHeader('What type of work is needed?', 'Choose the trade category that best fits the problem.')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
+        {TRADE_CATEGORIES.map(trade => (
+          <button
+            key={trade.id}
+            onClick={() => set('tradeType', trade.id)}
+            style={{
+              padding: 'var(--space-4)',
+              background: formData.tradeType === trade.id ? 'var(--primary)' : 'var(--bg-surface)',
+              border: `2px solid ${formData.tradeType === trade.id ? 'var(--primary)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-md)',
+              color: formData.tradeType === trade.id ? 'white' : 'var(--text-primary)',
+              cursor: 'pointer', transition: 'all 0.15s ease',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+              fontFamily: 'inherit', fontWeight: '600', fontSize: '0.9rem',
+              boxShadow: formData.tradeType === trade.id ? 'var(--shadow-md)' : 'none',
+            }}
+          >
+            {trade.icon}
+            {trade.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep3 = () => (
+    <div>
+      {stepHeader('How soon does this need to be done?', 'This helps tradespeople prioritize your job.')}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        {SEVERITY_LEVELS.map(level => (
+          <button
+            key={level.id}
+            onClick={() => set('severity', level.id)}
+            style={{
+              padding: 'var(--space-4)',
+              border: `2px solid ${formData.severity === level.id ? level.color : 'var(--border)'}`,
+              borderRadius: 'var(--radius-md)', cursor: 'pointer',
+              background: formData.severity === level.id ? `${level.color}12` : 'var(--bg-surface)',
+              transition: 'all 0.15s ease', textAlign: 'left', fontFamily: 'inherit', width: '100%',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '1rem', color: formData.severity === level.id ? level.color : 'var(--text-primary)' }}>
+                  {level.label}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  {level.sub}
+                </div>
+              </div>
+              {formData.severity === level.id && <AlertCircle size={20} color={level.color} />}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep4 = () => (
+    <div>
+      {stepHeader('Tell us more about the issue', 'Answer a few quick questions so tradespeople arrive prepared.')}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+
+        {/* Q1 */}
+        <div>
+          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+            What part of the {formData.room.toLowerCase()} is not working or damaged? <span style={{ color: 'var(--danger)' }}>*</span>
+          </label>
+          <textarea
+            placeholder={`e.g. "The faucet under the sink" or "The light switch on the left wall"`}
+            value={formData.affectedPart}
+            onChange={e => set('affectedPart', e.target.value)}
+            rows={2}
+            style={{
+              width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem',
+              color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical',
+            }}
+          />
+        </div>
+
+        {/* Q2 */}
+        <div>
+          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+            Is anything else in the {formData.room.toLowerCase()} being affected because of this?
+          </label>
+          <textarea
+            placeholder={`e.g. "The cabinet under the sink is also getting wet" or "None"`}
+            value={formData.adjacentImpact}
+            onChange={e => set('adjacentImpact', e.target.value)}
+            rows={2}
+            style={{
+              width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem',
+              color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical',
+            }}
+          />
+        </div>
+
+        {/* Q3 */}
+        <div>
+          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+            Is anything else in the house being impacted by this issue?
+          </label>
+          <textarea
+            placeholder={`e.g. "The water pressure everywhere dropped" or "No, it's isolated to the kitchen"`}
+            value={formData.housewideImpact}
+            onChange={e => set('housewideImpact', e.target.value)}
+            rows={2}
+            style={{
+              width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem',
+              color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical',
+            }}
+          />
+        </div>
+
+        {/* Q4 — Nature of job */}
+        <div>
+          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+            What best describes the nature of this job? <span style={{ color: 'var(--danger)' }}>*</span>
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
+            {JOB_NATURE_OPTIONS.map(opt => (
+              <button
+                key={opt}
+                onClick={() => set('jobNature', opt)}
+                style={{
+                  padding: 'var(--space-3)',
+                  border: formData.jobNature === opt ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: formData.jobNature === opt ? 'var(--primary-light)' : 'var(--bg-surface)',
+                  cursor: 'pointer', fontWeight: '600', fontSize: '0.82rem',
+                  color: formData.jobNature === opt ? 'var(--primary)' : 'var(--text-secondary)',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStep5 = () => (
+    <div>
+      {stepHeader('Describe the issue & add photos', 'Give tradespeople a clear picture of what needs to be done.')}
+
+      {/* Validation flags */}
+      {formData.photoQualityFlag && (
+        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', background: 'var(--danger-light)', border: '1px solid var(--danger)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+          <AlertCircle size={18} color="var(--danger)" />
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--danger)' }}>Photo quality issue</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>One or more photos appear blurry or too dark. Please re-upload a clearer image.</div>
+          </div>
+        </div>
+      )}
+      {formData.categoryMismatchFlag && (
+        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', background: 'rgba(255,149,0,0.1)', border: '1px solid var(--warning)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+          <AlertCircle size={18} color="var(--warning)" />
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--warning)' }}>Trade category may not match</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Your description suggests a different trade. Please verify your category selection in Step 2.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Description */}
+      <div style={{ marginBottom: 'var(--space-4)' }}>
+        <label style={{ display: 'block', fontWeight: '700', fontSize: '0.875rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+          Describe the issue <span style={{ color: 'var(--text-secondary)', fontWeight: '400' }}>(min. 20 characters)</span>
+        </label>
+        <textarea
+          placeholder="Describe what is broken, not working, or needs attention. Include any context that would help the tradesperson prepare..."
+          value={formData.description}
+          onChange={e => set('description', e.target.value)}
+          rows={5}
+          style={{
+            width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem',
+            color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical', minHeight: '120px',
+          }}
+        />
+        <div style={{ textAlign: 'right', fontSize: '0.72rem', color: formData.description.length < 20 ? 'var(--danger)' : 'var(--text-secondary)', marginTop: '4px' }}>
+          {formData.description.length} / 20 min
+        </div>
+      </div>
+
+      {/* Photo upload */}
+      {sectionLabel('Photos (strongly recommended)')}
+      <label style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-3)',
+        padding: 'var(--space-4)', background: 'var(--bg-surface)',
+        border: '2px dashed var(--border)', borderRadius: 'var(--radius-md)',
+        cursor: 'pointer', transition: 'all 0.15s ease', marginBottom: 'var(--space-3)',
+      }}>
+        <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+        <Camera size={22} color="var(--primary)" />
+        <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>Add Photos</span>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Camera or file upload</span>
+      </label>
+
+      {formData.photos.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+          {formData.photos.map((file, idx) => (
+            <div key={idx} style={{ position: 'relative', aspectRatio: '1', background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <img
+                src={URL.createObjectURL(file)}
+                alt={`Photo ${idx + 1}`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              <button
+                onClick={() => removePhoto(idx)}
+                style={{
+                  position: 'absolute', top: '4px', right: '4px',
+                  background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
+                  width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={12} color="white" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Job summary preview */}
+      <Card style={{ padding: 'var(--space-4)', background: 'var(--primary-light)', border: '1px solid var(--primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+          <Sparkles size={14} color="var(--primary)" />
+          <span style={{ fontWeight: '700', fontSize: '0.8rem', color: 'var(--primary)' }}>JOB SUMMARY</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          {[
+            { label: 'Room', value: formData.room },
+            { label: 'Trade', value: TRADE_CATEGORIES.find(t => t.id === formData.tradeType)?.label || '' },
+            { label: 'Urgency', value: SEVERITY_LEVELS.find(s => s.id === formData.severity)?.label || '' },
+            { label: 'Affected Area', value: formData.affectedPart || '—' },
+            { label: 'Nature', value: formData.jobNature || '—' },
+            { label: 'Photos', value: `${formData.photos.length} attached` },
+          ].map(row => (
+            <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+              <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>{row.label}</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+
+  // Step 6 — Success
+  if (step === (6 as any)) {
+    return (
+      <>
+        <TopNav title="Job Posted" />
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-4)' }}>
+          <div style={{ textAlign: 'center', maxWidth: '320px' }}>
+            <div style={{
+              width: '80px', height: '80px', background: 'var(--success)',
+              borderRadius: '50%', margin: '0 auto var(--space-5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <CheckCircle size={40} color="white" />
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: 'var(--space-3)' }}>
+              Job Posted!
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.6' }}>
+              Your job has been posted to the board. Verified tradespeople in your area will review it and submit quotes. You'll be notified when new quotes arrive.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  const stepLabels = ['Room', 'Trade Type', 'Urgency', 'Details', 'Description'];
 
   return (
     <>
-      <TopNav title="Create New Job" />
-      
-      <div className="page-container" style={{ paddingTop: 'var(--space-4)' }}>
-        {/* Header */}
-        <div className="mb-6">
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Describe your issue and let our AI help you get quotes
-          </p>
-        </div>
+      <TopNav title="Create Job" />
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)', paddingBottom: '100px' }}>
+        <div style={{ padding: 'var(--space-4)' }}>
 
-      {/* Step 1: Input Form */}
-      {step === 1 && (
-        <Card elevated className="animate-slideUp">
-          {/* Room Selection */}
-          <div className="form-group">
-            <label style={{ marginBottom: 'var(--space-3)', display: 'block' }}>
-              Where is the issue located?
-            </label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(3, 1fr)', 
-              gap: 'var(--space-2)' 
-            }}>
-              {rooms.map(room => (
-                <button
-                  key={room}
-                  onClick={() => setFormData({ ...formData, room })}
-                  style={{
-                    padding: 'var(--space-3)',
-                    background: formData.room === room ? 'var(--primary)' : 'var(--bg-surface)',
-                    border: `1px solid ${formData.room === room ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-md)',
-                    color: formData.room === room ? 'white' : 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: formData.room === room ? 'var(--shadow-md)' : 'none'
-                  }}
-                >
-                  {room}
-                </button>
-              ))}
+          {/* Step progress */}
+          <div style={{ marginBottom: 'var(--space-2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Step {step} of {TOTAL_STEPS} — {stepLabels[step - 1]}
+              </span>
+              <Badge variant="neutral" size="sm">{Math.round((step / TOTAL_STEPS) * 100)}%</Badge>
+            </div>
+            <div style={{ height: '4px', background: 'var(--border)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+              <div style={{ width: `${(step / TOTAL_STEPS) * 100}%`, height: '100%', background: 'var(--primary)', borderRadius: 'var(--radius-full)', transition: 'width 0.3s ease' }} />
             </div>
           </div>
 
-          {/* Trade Type Selection */}
-          <div className="form-group mt-6">
-            <label style={{ marginBottom: 'var(--space-3)', display: 'block' }}>
-              What type of service do you need?
-            </label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(2, 1fr)', 
-              gap: 'var(--space-3)' 
-            }}>
-              {tradeCategories.map(trade => (
-                <button
-                  key={trade.id}
-                  onClick={() => setFormData({ ...formData, tradeType: trade.id })}
-                  style={{
-                    padding: 'var(--space-3)',
-                    background: formData.tradeType === trade.id ? 'var(--primary)' : 'var(--bg-surface)',
-                    border: `1px solid ${formData.tradeType === trade.id ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-md)',
-                    color: formData.tradeType === trade.id ? 'white' : 'var(--text-primary)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--space-2)',
-                    boxShadow: formData.tradeType === trade.id ? 'var(--shadow-md)' : 'none'
-                  }}
-                >
-                  {trade.icon}
-                  <span style={{ fontWeight: 500 }}>{trade.label}</span>
-                </button>
-              ))}
-            </div>
+          {/* Step dots */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', justifyContent: 'center' }}>
+            {stepLabels.map((label, i) => (
+              <div key={label} style={{
+                width: i + 1 <= step ? '20px' : '8px', height: '8px',
+                borderRadius: 'var(--radius-full)',
+                background: i + 1 <= step ? 'var(--primary)' : 'var(--border)',
+                transition: 'all 0.3s ease',
+              }} />
+            ))}
           </div>
 
-          {/* Severity Selection */}
-          <div className="form-group mt-6">
-            <label style={{ marginBottom: 'var(--space-3)', display: 'block' }}>
-              How urgent is this issue?
-            </label>
-            <div className="flex flex-col gap-3">
-              {severityLevels.map(level => (
-                <div
-                  key={level.id}
-                  onClick={() => setFormData({ ...formData, severity: level.id as JobFormData['severity'] })}
-                  style={{
-                    padding: 'var(--space-3)',
-                    border: `2px solid ${formData.severity === level.id ? level.color : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-md)',
-                    cursor: 'pointer',
-                    background: formData.severity === level.id ? `${level.color}15` : 'transparent',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span style={{ 
-                        fontWeight: 600, 
-                        color: formData.severity === level.id ? level.color : 'var(--text-primary)' 
-                      }}>
-                        {level.label}
-                      </span>
-                      <p style={{ 
-                        fontSize: '0.8rem', 
-                        color: 'var(--text-secondary)', 
-                        margin: 0, 
-                        marginTop: '2px' 
-                      }}>
-                        {level.description}
-                      </p>
-                    </div>
-                    {formData.severity === level.id && (
-                      <AlertCircle size={20} color={level.color} />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Form card */}
+          <Card style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
+            {step === 1 && renderStep1()}
+            {step === 2 && renderStep2()}
+            {step === 3 && renderStep3()}
+            {step === 4 && renderStep4()}
+            {step === 5 && renderStep5()}
+          </Card>
 
-          {/* Description */}
-          <div className="form-group mt-6">
-            <label>Describe the issue in detail</label>
-            <textarea
-              placeholder="E.g., The pipe under my kitchen sink is leaking when I run the water. It started yesterday and seems to be getting worse..."
-              value={formData.description}
-              onChange={e => setFormData({ ...formData, description: e.target.value })}
-              style={{
-                minHeight: '120px',
-                resize: 'vertical'
-              }}
-            />
-          </div>
-
-          {/* Photo Upload */}
-          <div className="flex gap-2 mb-6">
-            <label style={{
-              flex: 1,
-              padding: 'var(--space-3)',
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 'var(--space-2)',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: 'var(--shadow-sm)'
-            }}>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handlePhotoUpload}
-                style={{ display: 'none' }}
-              />
-              <Camera size={20} />
-              <span>Add Photos</span>
-              {formData.photos.length > 0 && (
-                <Badge variant="primary" size="sm">{formData.photos.length}</Badge>
-              )}
-            </label>
-            
-            <button className="btn btn-secondary" style={{ 
-              flex: 1, 
-              padding: 'var(--space-3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 'var(--space-2)'
-            }}>
-              <Mic size={20} />
-              <span>Voice Note</span>
-            </button>
-          </div>
-
-          {/* Submit Button */}
-          <Button
-            variant="primary"
-            size="lg"
-            fullWidth
-            onClick={handleAIProcess}
-            disabled={!formData.description || !formData.room || !formData.tradeType}
-            loading={isProcessing}
-            icon={isProcessing ? undefined : <Sparkles size={20} />}
-          >
-            {isProcessing ? 'Analyzing Issue...' : 'Generate Quote Estimate'}
-          </Button>
-        </Card>
-      )}
-
-      {/* Step 2: AI Summary */}
-      {step === 2 && (
-        <Card elevated className="animate-slideUp">
-          <div className="flex items-center justify-between mb-4">
-            <h3 style={{ margin: 0, fontSize: '1.25rem' }}>AI Job Summary</h3>
-            <Badge variant={formData.severity === 'high' ? 'danger' : formData.severity === 'medium' ? 'warning' : 'success'}>
-              {formData.severity.toUpperCase()} SEVERITY
-            </Badge>
-          </div>
-
-          <div style={{
-            background: 'var(--primary-light)',
-            border: '1px solid var(--primary)',
-            padding: 'var(--space-4)',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: 'var(--space-4)'
-          }}>
-            <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--primary)' }}>
-              <Sparkles size={16} />
-              <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>AI Analysis</span>
-            </div>
-            <p style={{ margin: 0 }}>
-              {formData.severity === 'high' ? 'High' : formData.severity === 'medium' ? 'Medium' : 'Low'} severity {formData.tradeType} issue in {formData.room.toLowerCase()}. 
-              {formData.description}. Professional assessment recommended. {' '}
-              {formData.tradeType === 'plumbing' && 'Likely requires pipe inspection and possible replacement.'}
-              {formData.tradeType === 'electrical' && 'Electrical work should be performed by a licensed professional.'}
-              {formData.tradeType === 'hvac' && 'HVAC system diagnosis needed to determine repair scope.'}
-            </p>
-          </div>
-
-          <div className="form-group">
-            <label>Trade Category</label>
-            <select value={formData.tradeType} onChange={e => setFormData({ ...formData, tradeType: e.target.value })}>
-              {tradeCategories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{
-            background: 'var(--bg-base)',
-            border: '1px solid var(--border)',
-            padding: 'var(--space-4)',
-            borderRadius: 'var(--radius-md)',
-            marginTop: 'var(--space-4)',
-            marginBottom: 'var(--space-4)'
-          }}>
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-              Estimated Cost Range
-            </div>
-            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)' }}>
-              ${formData.severity === 'high' ? '300 - 500' : formData.severity === 'medium' ? '150 - 250' : '75 - 150'}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Based on regional averages. Final quote provided by tradesperson.
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              size="lg"
-              onClick={() => setStep(1)}
-              style={{ flex: 1 }}
-            >
-              Edit Details
+          {/* Navigation buttons */}
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <Button variant="outline" onClick={handleBack} icon={<ArrowLeft size={18} />} style={{ flex: 1 }}>
+              Back
             </Button>
             <Button
               variant="primary"
               size="lg"
-              onClick={handleSubmit}
-              icon={<ArrowRight size={20} />}
+              onClick={handleNext}
+              disabled={!isStepValid() || isSubmitting}
+              loading={isSubmitting}
+              icon={step === TOTAL_STEPS ? <CheckCircle size={18} /> : <ArrowRight size={18} />}
               style={{ flex: 2 }}
             >
-              Post to Job Board
+              {step === TOTAL_STEPS ? 'Post Job' : 'Continue'}
             </Button>
           </div>
-        </Card>
-      )}
-
-      {/* Step 3: Success */}
-      {step === 3 && (
-        <Card className="text-center animate-slideUp" style={{ padding: '4rem 2rem' }}>
-          <div style={{
-            width: '80px',
-            height: '80px',
-            background: 'var(--success)',
-            borderRadius: '50%',
-            margin: '0 auto var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <Sparkles size={40} color="white" />
-          </div>
-          <h2>Job Posted Successfully!</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Local tradespeople are being notified. You'll receive quotes shortly.
-          </p>
-        </Card>
-      )}
-    </div>
+        </div>
+      </div>
     </>
   );
 }

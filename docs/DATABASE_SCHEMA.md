@@ -282,21 +282,24 @@ Stripe Connect payout configuration.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | id | UUID | PK | |
-| homeowner_user_id | UUID | FK → users.id | Job requester |
-| assigned_tradesperson_id | UUID | FK → users.id, NULLABLE | Winning tradesperson |
-| title | TEXT | NOT NULL | Short job title |
-| description | TEXT | NOT NULL | Full problem description |
-| category | TEXT | NOT NULL | e.g. 'Plumbing' |
-| severity | TEXT | CHECK (severity IN ('low','medium','high','emergency')) | |
-| status | TEXT | DEFAULT 'open', CHECK (status IN ('open','quoted','scheduled','in_progress','completed','cancelled')) | |
+| homeowner_user_id | UUID | FK → users.id | Job requester (homeowner, realtor, or PM) |
+| assigned_tradesperson_id | UUID | FK → users.id, NULLABLE | Winning tradesperson after quote accepted |
+| title | TEXT | NOT NULL | Short job title (auto-generated from room + category) |
+| description | TEXT | NOT NULL | Full problem description (free-text from Step 5) |
+| category | TEXT | NOT NULL | Trade type: e.g. 'Plumbing', 'Electrical', 'HVAC' |
+| room | TEXT | NOT NULL | Room where issue is located (Step 1 of job creation) |
+| severity | TEXT | CHECK (severity IN ('routine','moderate','urgent')) | Customer-selected urgency level |
+| job_nature | TEXT | NULLABLE, CHECK (job_nature IN ('Cosmetic','Routine Maintenance','Repair / Fix','Renovation','Other')) | Nature of job selected during intake |
+| affected_part | TEXT | NULLABLE | What part of the room is not working (uncovering Q1) |
+| adjacent_impact | TEXT | NULLABLE | Other items in the room being affected (uncovering Q2) |
+| housewide_impact | TEXT | NULLABLE | Anything else in the house being impacted (uncovering Q3) |
+| status | TEXT | DEFAULT 'open', CHECK (status IN ('open','quoted','scheduled','in_progress','completed','cancelled','expired')) | Current job lifecycle status |
 | address | TEXT | NOT NULL | Service location address |
 | city | TEXT | NOT NULL | |
 | state | VARCHAR(2) | NOT NULL | |
 | zip_code | VARCHAR(10) | NOT NULL | |
-| ai_estimated_cost_min | DECIMAL(10,2) | NULLABLE | AI cost estimate lower bound |
-| ai_estimated_cost_max | DECIMAL(10,2) | NULLABLE | AI cost estimate upper bound |
-| ai_analysis | JSONB | NULLABLE | Full AI analysis payload |
-| scheduled_at | TIMESTAMPTZ | NULLABLE | Agreed appointment time |
+| expires_at | TIMESTAMPTZ | NOT NULL | Job expires 72 hours after posting if no quote accepted |
+| scheduled_at | TIMESTAMPTZ | NULLABLE | Agreed appointment time after quote accepted |
 | completed_at | TIMESTAMPTZ | NULLABLE | |
 | created_at | TIMESTAMPTZ | DEFAULT now() | |
 | updated_at | TIMESTAMPTZ | DEFAULT now() | |
@@ -311,9 +314,11 @@ Stripe Connect payout configuration.
 | id | UUID | PK | |
 | job_id | UUID | FK → jobs.id | |
 | tradesperson_user_id | UUID | FK → users.id | Quoting tradesperson |
-| price | DECIMAL(10,2) | NOT NULL | Quoted price |
-| message | TEXT | NULLABLE | Tradesperson pitch |
-| eta_days | INTEGER | NULLABLE | Estimated start in days |
+| price | DECIMAL(10,2) | NOT NULL | Flat rate to complete the full job scope |
+| estimated_hours | DECIMAL(4,1) | NOT NULL | Tradesperson's estimated completion time in hours |
+| hourly_overage_rate | DECIMAL(6,2) | NOT NULL | Hourly rate charged if job exceeds estimated_hours |
+| message | TEXT | NULLABLE | Tradesperson pitch / approach description |
+| tradesperson_rating_at_submission | DECIMAL(3,2) | NULLABLE | Snapshot of tradesperson rating when quote submitted |
 | status | TEXT | DEFAULT 'pending', CHECK (status IN ('pending','accepted','rejected','withdrawn')) | |
 | accepted_at | TIMESTAMPTZ | NULLABLE | |
 | created_at | TIMESTAMPTZ | DEFAULT now() | |
