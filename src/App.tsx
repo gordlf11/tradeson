@@ -43,8 +43,8 @@ const BottomNav = () => {
   const userRole = localStorage.getItem('userRole') || 'homeowner';
 
   // Hide nav on auth and onboarding screens
-  const hideNavPaths = ['/', '/login', '/signup', '/onboarding', '/role-selection'];
-  if (hideNavPaths.some(p => path.startsWith(p))) return null;
+  const hideNavPaths = ['/login', '/signup', '/onboarding', '/role-selection'];
+  if (path === '/' || hideNavPaths.some(p => path.startsWith(p))) return null;
 
   const dashPath = getDashboardPath(userRole);
   const isOnDash = path.includes('/dashboard');

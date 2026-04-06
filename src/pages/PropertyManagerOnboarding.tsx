@@ -205,7 +205,7 @@ export default function PropertyManagerOnboarding() {
                 <Input label="Password" type={showPassword ? 'text' : 'password'}
                   placeholder="Minimum 8 characters" value={formData.password}
                   onChange={e => update('password', e.target.value)} />
-                <button onClick={() => setShowPassword(v => !v)} style={{
+                <button type="button" onClick={() => setShowPassword(v => !v)} style={{
                   position: 'absolute', right: '12px', top: '36px',
                   background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
                 }}>
@@ -216,7 +216,7 @@ export default function PropertyManagerOnboarding() {
                 <Input label="Confirm Password" type={showConfirm ? 'text' : 'password'}
                   placeholder="Re-enter password" value={formData.confirmPassword}
                   onChange={e => update('confirmPassword', e.target.value)} />
-                <button onClick={() => setShowConfirm(v => !v)} style={{
+                <button type="button" onClick={() => setShowConfirm(v => !v)} style={{
                   position: 'absolute', right: '12px', top: '36px',
                   background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
                 }}>
