@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Conversations — only participants can read/write messages
+    match /conversations/{convId}/messages/{msgId} {
+      allow read: if request.auth != null
+        && request.auth.uid in getConversationParticipants(convId);
+      allow create: if request.auth != null
+        && request.auth.uid in getConversationParticipants(convId)
+        && request.resource.data.sender_id == request.auth.uid;
+    }
+
+    // Live tracking — tradesperson writes, customer reads
+    match /tracking/{jobId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.data.tradesperson_id == request.auth.uid;
+    }
+
+    // Helper: get conversation participants from metadata doc
+    function getConversationParticipants(convId) {
+      return get(/databases/$(database)/documents/conversations/$(convId)).data.participant_uids;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
