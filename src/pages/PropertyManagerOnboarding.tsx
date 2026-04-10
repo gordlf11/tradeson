@@ -377,7 +377,7 @@ export default function PropertyManagerOnboarding() {
       case 6:
         return (
           <div>
-            {stepHeader(<Sliders size={24} color="white" />, 'Notifications', 'How should we reach you?')}
+            {stepHeader(<Sliders size={24} color="white" />, 'Notifications & Payment', 'Preferences and billing setup')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
               {sectionLabel('Notification Preferences')}
               <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
@@ -392,6 +392,43 @@ export default function PropertyManagerOnboarding() {
                   style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }} />
                 I'd like to receive tips, promotions, and platform updates from TradesOn
               </label>
+
+              {sectionLabel('Payment Method')}
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Set up billing for your service jobs. You'll only be charged after jobs are completed and approved.
+              </p>
+              <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>PayBright</div>
+                  <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                  Flexible payment options via the PayBright Gateway sandbox environment.
+                </p>
+                <button
+                  onClick={() => window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank')}
+                  style={{
+                    width: '100%', padding: '10px', background: 'var(--primary)', color: 'white',
+                    border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700',
+                    fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Connect with PayBright
+                </button>
+              </Card>
+              <Card style={{ padding: 'var(--space-4)' }}>
+                <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Stripe</div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                  Secure card payments via Stripe.
+                </p>
+                <button style={{
+                  width: '100%', padding: '10px', background: 'transparent', color: 'var(--primary)',
+                  border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', fontWeight: '700',
+                  fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                  Add Card via Stripe
+                </button>
+              </Card>
             </div>
           </div>
         );

@@ -354,17 +354,39 @@ export default function HomeownerOnboarding() {
         return (
           <div>
             {stepHeader(<CreditCard size={24} color="white" />, 'Payment Setup', 'Secure checkout for jobs')}
-            <Card style={{ padding: 'var(--space-6)', textAlign: 'center', marginBottom: 'var(--space-4)' }}>
-              <CreditCard size={36} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-4)' }} />
-              <h3 style={{ fontSize: '1rem', marginBottom: 'var(--space-2)' }}>Add a Payment Method</h3>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Stripe-powered secure payments. You'll only be charged after a job is approved and completed.
+
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
+              Choose your preferred payment method. You'll only be charged after a job is approved and completed.
+            </p>
+
+            {/* PayBright Sandbox */}
+            <Card style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-3)', border: '2px solid var(--primary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>PayBright</div>
+                <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>SANDBOX</span>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                Flexible payment options. Powered by the PayBright Gateway sandbox environment.
               </p>
+              <Button variant="primary" fullWidth onClick={() => {
+                window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank');
+                update('paymentDeferred', false);
+              }}>
+                Connect with PayBright
+              </Button>
             </Card>
-            <Button variant="outline" fullWidth onClick={() => update('paymentDeferred', false)}
-              style={{ marginBottom: 'var(--space-3)' }}>
-              Add Card Now (Stripe)
-            </Button>
+
+            {/* Stripe */}
+            <Card style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-3)' }}>
+              <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Stripe</div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                Secure card payments via Stripe. Industry-standard encryption.
+              </p>
+              <Button variant="outline" fullWidth onClick={() => update('paymentDeferred', false)}>
+                Add Card via Stripe
+              </Button>
+            </Card>
+
             <button onClick={() => update('paymentDeferred', true)} style={{
               width: '100%', background: 'none', border: 'none',
               color: 'var(--text-secondary)', fontSize: '0.875rem',

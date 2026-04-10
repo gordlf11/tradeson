@@ -417,22 +417,49 @@ export default function UnlicensedTradespersonOnboarding() {
                 ))}
               </div>
 
-              {sectionLabel('Payout Setup (Stripe Connect)')}
+              {sectionLabel('Payout Setup')}
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 var(--space-3)' }}>
+                Choose how you'd like to receive your earnings.
+              </p>
+
+              {/* PayBright Sandbox */}
+              <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)', marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>PayBright</div>
+                  <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                  Set up payouts via the PayBright Gateway sandbox environment.
+                </p>
+                <button
+                  onClick={() => window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank')}
+                  style={{
+                    width: '100%', padding: '10px', background: 'var(--primary)', color: 'white',
+                    border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700',
+                    fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Connect PayBright Payout
+                </button>
+              </Card>
+
+              {/* Stripe Connect */}
               <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
+                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Stripe Connect</div>
                 {!formData.stripeConnectSetup ? (
                   <>
-                    <CreditCard size={32} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                    <CreditCard size={28} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
                       Connect your bank account via Stripe to receive payments
                     </p>
-                    <Button variant="primary" onClick={() => update('stripeConnectSetup', true)}>
-                      Connect Bank Account
+                    <Button variant="outline" onClick={() => update('stripeConnectSetup', true)}>
+                      Connect Bank Account (Stripe)
                     </Button>
                   </>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
                     <CheckCircle size={20} color="var(--success)" />
-                    <p style={{ color: 'var(--success)', fontWeight: '600', margin: 0 }}>Payout account connected ✓</p>
+                    <p style={{ color: 'var(--success)', fontWeight: '600', margin: 0 }}>Stripe payout connected ✓</p>
                   </div>
                 )}
               </Card>

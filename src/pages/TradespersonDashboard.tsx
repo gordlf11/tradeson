@@ -1,18 +1,21 @@
-import { } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, DollarSign, Star, AlertTriangle, Calendar,
-  Clock, ChevronRight, CheckCircle, TrendingUp, Shield
+  Clock, ChevronRight, CheckCircle, TrendingUp, Shield,
+  MessageCircle,
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import MessagingModal from '../components/MessagingModal';
 
 interface ActiveJob {
   id: string;
   title: string;
   client: string;
+  clientId: string;
   address: string;
   status: 'confirmed' | 'en-route' | 'in-progress' | 'completed';
   scheduledDate: string;
@@ -38,9 +41,9 @@ interface ComplianceAlert {
 }
 
 const mockActiveJobs: ActiveJob[] = [
-  { id: '1', title: 'Kitchen Sink Leak Repair', client: 'Sarah Johnson', address: '842 Maple Ave', status: 'confirmed', scheduledDate: 'Today, 2:00 PM', estimatedValue: 220 },
-  { id: '2', title: 'Bathroom Electrical Outlet', client: 'James Park', address: '310 Elm St', status: 'in-progress', scheduledDate: 'Today, 4:30 PM', estimatedValue: 175 },
-  { id: '3', title: 'HVAC Annual Tune-Up', client: 'Maria Torres', address: '57 Oak Drive', status: 'confirmed', scheduledDate: 'Tomorrow, 9:00 AM', estimatedValue: 310 },
+  { id: '1', title: 'Kitchen Sink Leak Repair', client: 'Sarah Johnson', clientId: 'customer_sarah', address: '842 Maple Ave', status: 'confirmed', scheduledDate: 'Today, 2:00 PM', estimatedValue: 220 },
+  { id: '2', title: 'Bathroom Electrical Outlet', client: 'James Park', clientId: 'customer_james', address: '310 Elm St', status: 'in-progress', scheduledDate: 'Today, 4:30 PM', estimatedValue: 175 },
+  { id: '3', title: 'HVAC Annual Tune-Up', client: 'Maria Torres', clientId: 'customer_maria', address: '57 Oak Drive', status: 'confirmed', scheduledDate: 'Tomorrow, 9:00 AM', estimatedValue: 310 },
 ];
 
 const mockPendingQuotes: PendingQuote[] = [
@@ -73,8 +76,11 @@ export default function TradespersonDashboard() {
   const tradespersonData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
   const userRole = localStorage.getItem('userRole') || 'licensed-trade';
   const displayName = tradespersonData.fullName || tradespersonData.businessName || 'Tradesperson';
+  const userId = localStorage.getItem('userEmail') || 'tp_me';
   const rating = 4.8;
   const reviewCount = 47;
+
+  const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
 
   return (
     <>
@@ -148,20 +154,39 @@ export default function TradespersonDashboard() {
               {mockActiveJobs.map(job => {
                 const sc = statusConfig[job.status];
                 return (
-                  <Card key={job.id} interactive style={{ padding: 'var(--space-4)' }} onClick={() => navigate('/job-execution')}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)' }}>
+                  <Card key={job.id} style={{ padding: 'var(--space-4)' }}>
+                    <div
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)', cursor: 'pointer' }}
+                      onClick={() => navigate('/job-execution')}
+                    >
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{job.title}</div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{job.client} · {job.address}</div>
                       </div>
                       <Badge variant={sc.variant} size="sm">{sc.label}</Badge>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                         <Clock size={13} />
                         {job.scheduledDate}
                       </div>
                       <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--primary)' }}>${job.estimatedValue}</div>
+                    </div>
+                    {/* Messaging — available on accepted/confirmed jobs */}
+                    <div style={{ paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
+                      <button
+                        onClick={() => setMessagingJob(job)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          background: 'var(--primary-light)', border: '1px solid var(--primary)',
+                          borderRadius: 'var(--radius-sm)', padding: '6px 12px',
+                          color: 'var(--primary)', fontSize: '0.78rem', fontWeight: '700',
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        <MessageCircle size={14} />
+                        Message {job.client}
+                      </button>
                     </div>
                   </Card>
                 );
@@ -238,6 +263,20 @@ export default function TradespersonDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Messaging Modal */}
+      {messagingJob && (
+        <MessagingModal
+          jobId={messagingJob.id}
+          jobTitle={messagingJob.title}
+          currentUserId={userId}
+          currentUserName={displayName}
+          currentUserRole={userRole}
+          otherUserId={messagingJob.clientId}
+          otherUserName={messagingJob.client}
+          onClose={() => setMessagingJob(null)}
+        />
+      )}
     </>
   );
 }

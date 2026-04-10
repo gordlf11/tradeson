@@ -16,6 +16,7 @@ import UnlicensedTradespersonOnboarding from './pages/UnlicensedTradespersonOnbo
 // Dashboards
 import TradespersonDashboard from './pages/TradespersonDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 // Main App
 import JobCreation from './pages/JobCreation';
@@ -32,6 +33,7 @@ function isTradeRole(role: string) {
 }
 
 function getDashboardPath(role: string) {
+  if (role === 'admin') return '/dashboard/admin';
   return isTradeRole(role) ? '/dashboard/tradesperson' : '/dashboard/customer';
 }
 
@@ -42,15 +44,14 @@ const BottomNav = () => {
   const path = location.pathname;
   const userRole = localStorage.getItem('userRole') || 'homeowner';
 
-  // Hide nav on auth and onboarding screens
-  const hideNavPaths = ['/login', '/signup', '/onboarding', '/role-selection'];
+  // Hide nav on auth, onboarding, and admin screens
+  const hideNavPaths = ['/login', '/signup', '/onboarding', '/role-selection', '/dashboard/admin'];
   if (path === '/' || hideNavPaths.some(p => path.startsWith(p))) return null;
 
   const dashPath = getDashboardPath(userRole);
   const isOnDash = path.includes('/dashboard');
 
   if (isTradeRole(userRole)) {
-    // Tradesperson nav: Job Board | Schedule | Dashboard
     return (
       <nav className="bottom-nav">
         <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
@@ -157,6 +158,7 @@ function App() {
         <Route path="/dashboard" element={<DashboardRedirect />} />
         <Route path="/dashboard/tradesperson" element={<TradespersonDashboard />} />
         <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+        <Route path="/dashboard/admin" element={<AdminDashboard />} />
 
         {/* Main App */}
         <Route path="/job-creation" element={<JobCreation />} />

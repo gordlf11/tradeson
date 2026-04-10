@@ -313,6 +313,47 @@ export default function RealtorOnboarding() {
                   You can also invite clients anytime from your dashboard. This step is optional.
                 </p>
               </Card>
+
+              {/* Payment Setup */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)' }}>
+                <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+                  Payment Method
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                  Set up billing for your client service jobs. Charged only after jobs are completed.
+                </p>
+                <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>PayBright</div>
+                    <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                    Flexible payment options via PayBright Gateway.
+                  </p>
+                  <button
+                    onClick={() => window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank')}
+                    style={{
+                      width: '100%', padding: '10px', background: 'var(--primary)', color: 'white',
+                      border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700',
+                      fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Connect with PayBright
+                  </button>
+                </Card>
+                <Card style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Stripe (Add Card)</span>
+                    <button style={{
+                      padding: '6px 14px', background: 'transparent', color: 'var(--primary)',
+                      border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', fontWeight: '700',
+                      fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      Add Card
+                    </button>
+                  </div>
+                </Card>
+              </div>
             </div>
           </div>
         );
