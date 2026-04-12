@@ -126,21 +126,27 @@ export default function TradespersonDashboard() {
 
         {/* Compliance Alerts */}
         {mockAlerts.some(a => a.daysLeft < 90) && (
-          <div style={{ padding: '0 var(--space-4)', position: 'relative', zIndex: 10, marginTop: '-20px' }}>
+          <div style={{ padding: 'var(--space-3) var(--space-4) 0', position: 'relative', zIndex: 10, marginTop: '-12px' }}>
             {mockAlerts.filter(a => a.daysLeft < 90).map(alert => (
-              <div key={alert.id} style={{
-                background: alert.daysLeft < 30 ? 'var(--danger-light)' : 'rgba(255,149,0,0.1)',
-                border: `1px solid ${alert.daysLeft < 30 ? 'var(--danger)' : 'var(--warning)'}`,
-                borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-2)',
-                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-              }}>
-                <AlertTriangle size={18} color={alert.daysLeft < 30 ? 'var(--danger)' : 'var(--warning)'} />
+              <button
+                key={alert.id}
+                onClick={() => navigate('/insurance-upload')}
+                style={{
+                  width: '100%', background: alert.daysLeft < 30 ? 'var(--danger-light)' : 'rgba(255,149,0,0.12)',
+                  border: `1.5px solid ${alert.daysLeft < 30 ? 'var(--danger)' : 'var(--warning)'}`,
+                  borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-2)',
+                  display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                  cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+                }}
+              >
+                <AlertTriangle size={18} color={alert.daysLeft < 30 ? 'var(--danger)' : 'var(--warning)'} style={{ flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{alert.label} Expiring</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Expires {alert.expiresOn} · {alert.daysLeft} days left</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Expires {alert.expiresOn} · {alert.daysLeft} days left — Tap to upload</div>
                 </div>
-                <ChevronRight size={16} color="var(--text-secondary)" />
-              </div>
+                <ChevronRight size={16} color={alert.daysLeft < 30 ? 'var(--danger)' : 'var(--warning)'} />
+              </button>
             ))}
           </div>
         )}

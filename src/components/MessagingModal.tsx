@@ -7,7 +7,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { X, Send, MessageCircle } from 'lucide-react';
-import { Button } from './ui/Button';
 import {
   subscribeToMessages,
   sendMessage,
@@ -112,43 +111,60 @@ export default function MessagingModal({
       <div style={{
         background: 'var(--bg-surface)',
         borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-        width: '100%', maxWidth: '600px', height: '80vh',
+        width: '100%', maxWidth: '428px',
+        height: '75vh', maxHeight: '600px',
         display: 'flex', flexDirection: 'column',
+        boxShadow: '0 -4px 24px rgba(0,0,0,0.18)',
       }}>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+          <div style={{ width: '36px', height: '4px', background: 'var(--border)', borderRadius: '2px' }} />
+        </div>
+
         {/* Header */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '16px 20px', borderBottom: '1px solid var(--border)',
+          padding: '8px 16px 12px', borderBottom: '1px solid var(--border)',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <MessageCircle size={20} color="var(--primary)" />
+            <div style={{
+              width: '36px', height: '36px', background: 'var(--primary-light)',
+              borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <MessageCircle size={18} color="var(--primary)" />
+            </div>
             <div>
-              <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+              <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: 1.2 }}>
                 {otherUserName}
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>re: {jobTitle}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>re: {jobTitle}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-secondary)' }}>
-            <X size={22} />
+          <button onClick={onClose} style={{
+            background: 'var(--bg-base)', border: '1px solid var(--border)',
+            borderRadius: '50%', width: '32px', height: '32px',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--text-secondary)', flexShrink: 0,
+          }}>
+            <X size={16} />
           </button>
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.82rem', marginTop: '40px' }}>
-              No messages yet. Send the first message!
+            <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.82rem', marginTop: '32px' }}>
+              No messages yet — send the first one!
             </div>
           )}
           {messages.map(msg => {
             const isMine = msg.senderId === currentUserId;
             return (
               <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                <div style={{ maxWidth: '75%' }}>
+                <div style={{ maxWidth: '80%' }}>
                   {!isMine && (
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '3px', paddingLeft: '4px' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', marginBottom: '3px', paddingLeft: '4px' }}>
                       {msg.senderName}
                     </div>
                   )}
@@ -156,16 +172,16 @@ export default function MessagingModal({
                     background: isMine ? 'var(--primary)' : 'var(--bg-base)',
                     color: isMine ? 'white' : 'var(--text-primary)',
                     borderRadius: isMine
-                      ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)'
-                      : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
+                      ? '16px 16px 4px 16px'
+                      : '16px 16px 16px 4px',
                     padding: '10px 14px',
-                    fontSize: '0.875rem',
-                    lineHeight: '1.4',
+                    fontSize: '0.9rem',
+                    lineHeight: '1.45',
                     border: isMine ? 'none' : '1px solid var(--border)',
                   }}>
                     {msg.text}
                   </div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', marginTop: '3px', textAlign: isMine ? 'right' : 'left', paddingLeft: '4px', paddingRight: '4px' }}>
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-tertiary)', marginTop: '3px', textAlign: isMine ? 'right' : 'left', paddingLeft: '4px', paddingRight: '4px' }}>
                     {formatTime(msg.createdAt)}
                   </div>
                 </div>
@@ -177,32 +193,41 @@ export default function MessagingModal({
 
         {/* Input */}
         <div style={{
-          padding: '12px 20px 20px', borderTop: '1px solid var(--border)',
+          padding: '12px 16px',
+          paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+          borderTop: '1px solid var(--border)',
           display: 'flex', gap: '10px', alignItems: 'flex-end', flexShrink: 0,
+          background: 'var(--bg-surface)',
         }}>
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="Type a message..."
-            rows={2}
+            rows={3}
             style={{
-              flex: 1, padding: '10px 12px', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)', fontSize: '0.875rem',
-              fontFamily: 'inherit', resize: 'none', color: 'var(--text-primary)',
-              background: 'var(--bg-base)', lineHeight: '1.4',
+              flex: 1, padding: '12px 14px',
+              border: '1.5px solid var(--border)',
+              borderRadius: '16px', fontSize: '0.9rem',
+              fontFamily: 'inherit', resize: 'none',
+              color: 'var(--text-primary)', background: 'var(--bg-base)',
+              lineHeight: '1.45', outline: 'none',
+              minHeight: '52px',
             }}
           />
-          <Button
-            variant="primary"
-            size="sm"
+          <button
             onClick={handleSend}
-            loading={sending}
-            disabled={!text.trim()}
-            icon={<Send size={16} />}
+            disabled={!text.trim() || sending}
+            style={{
+              width: '44px', height: '44px', borderRadius: '50%',
+              background: text.trim() ? 'var(--primary)' : 'var(--border)',
+              border: 'none', cursor: text.trim() ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, transition: 'background 0.15s ease',
+            }}
           >
-            Send
-          </Button>
+            <Send size={18} color="white" />
+          </button>
         </div>
       </div>
     </div>

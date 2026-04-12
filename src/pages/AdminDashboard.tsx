@@ -133,32 +133,6 @@ const platformMetrics = {
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-function SectionTab({ label, icon, active, onClick, badge }: {
-  label: string; icon: React.ReactNode; active: boolean;
-  onClick: () => void; badge?: number;
-}) {
-  return (
-    <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: '6px',
-      padding: '8px 12px', borderRadius: 'var(--radius-sm)',
-      background: active ? 'var(--navy)' : 'transparent',
-      color: active ? 'white' : 'var(--text-secondary)',
-      border: 'none', cursor: 'pointer', fontSize: '0.8rem',
-      fontWeight: active ? '700' : '500', fontFamily: 'inherit',
-      whiteSpace: 'nowrap', position: 'relative',
-    }}>
-      {icon}
-      {label}
-      {badge !== undefined && badge > 0 && (
-        <span style={{
-          background: 'var(--danger)', color: 'white', fontSize: '0.65rem',
-          fontWeight: '700', borderRadius: '9999px', padding: '1px 6px',
-          minWidth: '18px', textAlign: 'center',
-        }}>{badge}</span>
-      )}
-    </button>
-  );
-}
 
 function StatusBadge({ status }: { status: ComplianceSubmission['status'] }) {
   const map = {
@@ -794,26 +768,22 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Section Nav */}
-      <div style={{
-        background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
-        padding: 'var(--space-2) var(--space-3)', overflowX: 'auto',
-        display: 'flex', gap: '4px', whiteSpace: 'nowrap',
-      }}>
-        {sections.map(s => (
-          <SectionTab
-            key={s.key}
-            label={s.label}
-            icon={s.icon}
-            active={activeSection === s.key}
-            onClick={() => setActiveSection(s.key)}
-            badge={s.badge}
-          />
-        ))}
-      </div>
-
       {/* Section Content */}
       <div style={{ padding: 'var(--space-4)' }}>
+        {/* Back to Overview — shown when in a sub-section */}
+        {activeSection !== 'overview' && (
+          <button
+            onClick={() => setActiveSection('overview')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '700',
+              fontFamily: 'inherit', padding: '0 0 var(--space-4) 0',
+            }}
+          >
+            ← Back to Overview
+          </button>
+        )}
 
         {/* Overview */}
         {activeSection === 'overview' && (

@@ -29,6 +29,7 @@ import ProfileSettings from './pages/ProfileSettings';
 import LocationSettings from './pages/LocationSettings';
 import PaymentSettings from './pages/PaymentSettings';
 import PrivacySettings from './pages/PrivacySettings';
+import InsuranceUpload from './pages/InsuranceUpload';
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -175,6 +176,7 @@ function App() {
         <Route path="/location-settings" element={<LocationSettings />} />
         <Route path="/payment-settings" element={<PaymentSettings />} />
         <Route path="/privacy-settings" element={<PrivacySettings />} />
+        <Route path="/insurance-upload" element={<InsuranceUpload />} />
       </Routes>
       <BottomNav />
     </BrowserRouter>

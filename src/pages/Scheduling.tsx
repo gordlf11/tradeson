@@ -15,8 +15,16 @@ interface TimeSlot {
 
 const DATES = ['Mon, Mar 18', 'Tue, Mar 19', 'Wed, Mar 20', 'Thu, Mar 21', 'Fri, Mar 22', 'Sat, Mar 23', 'Sun, Mar 24'];
 const TIMES: TimeSlot[] = [
-  { time: '8:00 AM' }, { time: '9:00 AM' }, { time: '10:00 AM' }, { time: '11:00 AM' },
-  { time: '1:00 PM' }, { time: '2:00 PM' }, { time: '3:00 PM' }, { time: '4:00 PM' }, { time: '5:00 PM' },
+  { time: '8:00 AM' }, { time: '8:30 AM' },
+  { time: '9:00 AM' }, { time: '9:30 AM' },
+  { time: '10:00 AM' }, { time: '10:30 AM' },
+  { time: '11:00 AM' }, { time: '11:30 AM' },
+  { time: '12:00 PM' }, { time: '12:30 PM' },
+  { time: '1:00 PM' }, { time: '1:30 PM' },
+  { time: '2:00 PM' }, { time: '2:30 PM' },
+  { time: '3:00 PM' }, { time: '3:30 PM' },
+  { time: '4:00 PM' }, { time: '4:30 PM' },
+  { time: '5:00 PM' },
 ];
 
 export default function Scheduling() {
@@ -31,7 +39,7 @@ export default function Scheduling() {
   const handleSlotToggle = (slotKey: string) => {
     if (selectedSlots.includes(slotKey)) {
       setSelectedSlots(selectedSlots.filter(s => s !== slotKey));
-    } else if (selectedSlots.length < 3) {
+    } else {
       setSelectedSlots([...selectedSlots, slotKey]);
     }
   };
@@ -186,7 +194,7 @@ export default function Scheduling() {
                     background: 'var(--primary-light)', border: '1px solid var(--primary)',
                     borderRadius: 'var(--radius-md)', fontSize: '0.85rem',
                   }}>
-                    <strong style={{ color: 'var(--primary)' }}>{selectedSlots.length}/3 time slots selected</strong>
+                    <strong style={{ color: 'var(--primary)' }}>{selectedSlots.length} time slot{selectedSlots.length !== 1 ? 's' : ''} selected</strong>
                     <div style={{ marginTop: '4px', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
                       The tradesperson will confirm the best time from your selections
                     </div>
