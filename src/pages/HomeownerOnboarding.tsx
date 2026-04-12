@@ -376,17 +376,6 @@ export default function HomeownerOnboarding() {
               </Button>
             </Card>
 
-            {/* Stripe */}
-            <Card style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-3)' }}>
-              <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Stripe</div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                Secure card payments via Stripe. Industry-standard encryption.
-              </p>
-              <Button variant="outline" fullWidth onClick={() => update('paymentDeferred', false)}>
-                Add Card via Stripe
-              </Button>
-            </Card>
-
             <button onClick={() => update('paymentDeferred', true)} style={{
               width: '100%', background: 'none', border: 'none',
               color: 'var(--text-secondary)', fontSize: '0.875rem',

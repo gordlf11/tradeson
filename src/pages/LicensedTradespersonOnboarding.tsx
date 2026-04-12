@@ -517,27 +517,6 @@ export default function LicensedTradespersonOnboarding() {
                 </button>
               </Card>
 
-              {/* Stripe Connect */}
-              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
-                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Stripe Connect</div>
-                {!formData.stripeConnectSetup ? (
-                  <>
-                    <CreditCard size={28} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                      Connect your bank account via Stripe to receive payments
-                    </p>
-                    <Button variant="outline" onClick={() => update('stripeConnectSetup', true)}>
-                      Connect Bank Account (Stripe)
-                    </Button>
-                  </>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
-                    <CheckCircle size={20} color="var(--success)" />
-                    <p style={{ color: 'var(--success)', fontWeight: '600', margin: 0 }}>Stripe payout connected ✓</p>
-                  </div>
-                )}
-              </Card>
-
               {sectionLabel('Notification Preferences')}
               <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
                 {notifToggle('SMS', 'notifySMS')}

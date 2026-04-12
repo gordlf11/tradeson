@@ -132,6 +132,10 @@ export default function CustomerDashboard() {
     return job;
   });
 
+  const acceptedJobs = enrichedJobs.filter(j => j.status === 'scheduled' || j.status === 'in-progress');
+  const pendingJobs = enrichedJobs.filter(j => j.status === 'open');
+  const quotesInJobs = enrichedJobs.filter(j => j.status === 'quotes-in');
+
   const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
   const [reviewItem, setReviewItem] = useState<HistoryItem | null>(null);
   const [historyReviewed, setHistoryReviewed] = useState<Record<string, boolean>>(
@@ -178,12 +182,110 @@ export default function CustomerDashboard() {
 
         <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', marginTop: '-16px' }}>
 
-          {/* Quote Notifications */}
-          {mockNotifications.length > 0 && (
+          {/* 1. Accepted Jobs */}
+          {acceptedJobs.length > 0 && (
+            <div>
+              {sectionHeader('Accepted Jobs', 'Scheduled & currently in progress')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {acceptedJobs.map(job => {
+                  const sc = statusConfig[job.status];
+                  return (
+                    <Card key={job.id} style={{ padding: 'var(--space-4)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)' }}>
+                        <div style={{ flex: 1, marginRight: 'var(--space-3)' }}>
+                          <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{job.title}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            {job.property} · {job.tradeType} · {job.postedAt}
+                          </div>
+                        </div>
+                        <Badge variant={sc.variant} size="sm">{sc.label}</Badge>
+                      </div>
+                      {job.acceptedProvider && (
+                        <div style={{ marginTop: 'var(--space-2)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600', marginBottom: '4px' }}>
+                            <CheckCircle size={12} />
+                            {job.acceptedProvider} confirmed · ${job.acceptedPrice}
+                          </div>
+                          {job.confirmedDay && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                              <Calendar size={11} />
+                              {job.confirmedDay} · {job.confirmedSlot}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {job.acceptedProvider && (
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border)' }}>
+                          <button
+                            onClick={() => setMessagingJob(job)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              background: 'var(--primary-light)', border: '1px solid var(--primary)',
+                              borderRadius: 'var(--radius-sm)', padding: '6px 12px',
+                              color: 'var(--primary)', fontSize: '0.78rem', fontWeight: '700',
+                              cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            <MessageCircle size={14} />
+                            Message {job.acceptedProvider}
+                          </button>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 2. Pending Job Requests */}
+          {pendingJobs.length > 0 && (
             <div>
               {sectionHeader(
-                'New Quotes to Review',
-                `${mockNotifications.length} quotes waiting for your decision`,
+                'Pending Job Requests',
+                'Awaiting quotes from tradespeople',
+                { label: '+ New Job', onClick: () => navigate('/job-creation') }
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {pendingJobs.map(job => (
+                  <Card key={job.id} style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)' }}>
+                      <div style={{ flex: 1, marginRight: 'var(--space-3)' }}>
+                        <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{job.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {job.property} · {job.tradeType} · {job.postedAt}
+                        </div>
+                      </div>
+                      <Badge variant="neutral" size="sm">Open</Badge>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: 'var(--space-2)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <AlertCircle size={12} />
+                      Waiting for quotes · {job.expiresIn} remaining
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state — no jobs at all */}
+          {acceptedJobs.length === 0 && pendingJobs.length === 0 && quotesInJobs.length === 0 && (
+            <div>
+              {sectionHeader('Your Jobs', undefined, { label: '+ New Job', onClick: () => navigate('/job-creation') })}
+              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                <Home size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: '0 0 var(--space-4)' }}>No active jobs. Post your first service request.</p>
+                <Button variant="primary" onClick={() => navigate('/job-creation')} icon={<Plus size={16} />}>Create a Job</Button>
+              </Card>
+            </div>
+          )}
+
+          {/* 3. New Quotes */}
+          {(quotesInJobs.length > 0 || mockNotifications.length > 0) && (
+            <div>
+              {sectionHeader(
+                'New Quotes',
+                `${mockNotifications.length} quote${mockNotifications.length !== 1 ? 's' : ''} awaiting your decision`,
                 { label: 'View All', onClick: () => navigate('/job-board') }
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -213,34 +315,11 @@ export default function CustomerDashboard() {
                     </div>
                   </Card>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* Active Jobs */}
-          <div>
-            {sectionHeader(
-              'Active Jobs',
-              `Across ${userRole === 'property-manager' ? 'your properties' : 'your home'}`,
-              { label: '+ New Job', onClick: () => navigate('/job-creation') }
-            )}
-            {enrichedJobs.length === 0 ? (
-              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                <Home size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 'var(--space-4)', margin: '0 0 var(--space-4)' }}>No active jobs. Post your first service request.</p>
-                <Button variant="primary" onClick={() => navigate('/job-creation')} icon={<Plus size={16} />}>Create a Job</Button>
-              </Card>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {enrichedJobs.map(job => {
+                {quotesInJobs.filter(job => !mockNotifications.some(n => n.jobTitle === job.title)).map(job => {
                   const sc = statusConfig[job.status];
-                  const isAccepted = job.status === 'scheduled' || job.status === 'in-progress';
                   return (
-                    <Card key={job.id} style={{ padding: 'var(--space-4)' }}>
-                      <div
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)', cursor: 'pointer' }}
-                        onClick={() => navigate('/job-board')}
-                      >
+                    <Card key={job.id} style={{ padding: 'var(--space-4)', cursor: 'pointer' }} onClick={() => navigate('/job-board')}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)' }}>
                         <div style={{ flex: 1, marginRight: 'var(--space-3)' }}>
                           <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{job.title}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -249,68 +328,25 @@ export default function CustomerDashboard() {
                         </div>
                         <Badge variant={sc.variant} size="sm">{sc.label}</Badge>
                       </div>
-
-                      {/* Status-specific details */}
-                      {job.status === 'quotes-in' && (
-                        <div style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          background: 'var(--primary-light)', borderRadius: 'var(--radius-sm)',
-                          padding: 'var(--space-2) var(--space-3)', marginTop: 'var(--space-2)',
-                        }}>
-                          <span style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--primary)' }}>
-                            {job.quotesCount} quote{job.quotesCount !== 1 ? 's' : ''} received
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                            <Clock size={11} />
-                            {job.expiresIn} left
-                          </div>
+                      <div style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        background: 'var(--primary-light)', borderRadius: 'var(--radius-sm)',
+                        padding: 'var(--space-2) var(--space-3)', marginTop: 'var(--space-2)',
+                      }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--primary)' }}>
+                          {job.quotesCount} quote{job.quotesCount !== 1 ? 's' : ''} received
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                          <Clock size={11} />
+                          {job.expiresIn} left
                         </div>
-                      )}
-                      {job.status === 'open' && job.quotesCount === 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: 'var(--space-2)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          <AlertCircle size={12} />
-                          Waiting for quotes · {job.expiresIn} remaining
-                        </div>
-                      )}
-                      {job.status === 'scheduled' && job.acceptedProvider && (
-                        <div style={{ marginTop: 'var(--space-2)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600', marginBottom: '4px' }}>
-                            <CheckCircle size={12} />
-                            {job.acceptedProvider} confirmed · ${job.acceptedPrice}
-                          </div>
-                          {job.confirmedDay && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                              <Calendar size={11} />
-                              {job.confirmedDay} · {job.confirmedSlot}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Messaging icon — accepted jobs only */}
-                      {isAccepted && job.acceptedProvider && (
-                        <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border)' }}>
-                          <button
-                            onClick={() => setMessagingJob(job)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: '6px',
-                              background: 'var(--primary-light)', border: '1px solid var(--primary)',
-                              borderRadius: 'var(--radius-sm)', padding: '6px 12px',
-                              color: 'var(--primary)', fontSize: '0.78rem', fontWeight: '700',
-                              cursor: 'pointer', fontFamily: 'inherit',
-                            }}
-                          >
-                            <MessageCircle size={14} />
-                            Message {job.acceptedProvider}
-                          </button>
-                        </div>
-                      )}
+                      </div>
                     </Card>
                   );
                 })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Property Manager — Properties Overview */}
           {userRole === 'property-manager' && (
@@ -358,9 +394,9 @@ export default function CustomerDashboard() {
             </div>
           )}
 
-          {/* Payment & Job History */}
+          {/* 4. Payment History */}
           <div>
-            {sectionHeader('Job History & Payments', `${mockHistory.length} completed jobs`)}
+            {sectionHeader('Payment History', `${mockHistory.length} completed jobs`)}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               {mockHistory.map(item => (
                 <Card key={item.id} style={{ padding: 'var(--space-4)' }}>
@@ -381,8 +417,6 @@ export default function CustomerDashboard() {
                       <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: '600' }}>Paid</div>
                     </div>
                   </div>
-
-                  {/* Review button — job posters only, not yet reviewed */}
                   {isJobPoster && !historyReviewed[item.id] && (
                     <button
                       onClick={() => setReviewItem(item)}

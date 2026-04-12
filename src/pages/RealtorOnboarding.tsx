@@ -341,18 +341,6 @@ export default function RealtorOnboarding() {
                     Connect with PayBright
                   </button>
                 </Card>
-                <Card style={{ padding: 'var(--space-3) var(--space-4)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Stripe (Add Card)</span>
-                    <button style={{
-                      padding: '6px 14px', background: 'transparent', color: 'var(--primary)',
-                      border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', fontWeight: '700',
-                      fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                      Add Card
-                    </button>
-                  </div>
-                </Card>
               </div>
             </div>
           </div>

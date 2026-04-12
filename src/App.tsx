@@ -25,6 +25,10 @@ import JobExecution from './pages/JobExecution';
 import JobCompletion from './pages/JobCompletion';
 import Scheduling from './pages/Scheduling';
 import Settings from './pages/Settings';
+import ProfileSettings from './pages/ProfileSettings';
+import LocationSettings from './pages/LocationSettings';
+import PaymentSettings from './pages/PaymentSettings';
+import PrivacySettings from './pages/PrivacySettings';
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -167,6 +171,10 @@ function App() {
         <Route path="/job-execution" element={<JobExecution />} />
         <Route path="/completion" element={<JobCompletion />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/profile" element={<ProfileSettings />} />
+        <Route path="/location-settings" element={<LocationSettings />} />
+        <Route path="/payment-settings" element={<PaymentSettings />} />
+        <Route path="/privacy-settings" element={<PrivacySettings />} />
       </Routes>
       <BottomNav />
     </BrowserRouter>

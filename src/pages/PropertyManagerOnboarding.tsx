@@ -416,19 +416,6 @@ export default function PropertyManagerOnboarding() {
                   Connect with PayBright
                 </button>
               </Card>
-              <Card style={{ padding: 'var(--space-4)' }}>
-                <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Stripe</div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                  Secure card payments via Stripe.
-                </p>
-                <button style={{
-                  width: '100%', padding: '10px', background: 'transparent', color: 'var(--primary)',
-                  border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', fontWeight: '700',
-                  fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                  Add Card via Stripe
-                </button>
-              </Card>
             </div>
           </div>
         );
