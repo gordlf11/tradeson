@@ -49,6 +49,7 @@ const SERVICE_CATEGORIES = [
   'General Handyman', 'House Cleaning', 'Yard Work', 'Furniture Assembly',
   'Moving Services', 'Interior Painting', 'Basic Repairs', 'Organization',
   'Pet Services', 'Pressure Washing', 'Window Cleaning', 'Gutter Cleaning',
+  'Landscaping', 'Snow Removal',
 ];
 
 const SUBCATEGORIES: Record<string, string[]> = {
@@ -59,7 +60,6 @@ const SUBCATEGORIES: Record<string, string[]> = {
   'Interior Painting': ['Walls', 'Ceilings', 'Trim', 'Cabinets'],
 };
 
-const RADIUS_OPTIONS = ['5', '10', '25', '50'];
 const ENTITY_TYPES = ['Sole Proprietor', 'LLC', 'Partnership', 'Other'];
 
 const STEP_TOTAL = 6;
@@ -92,7 +92,7 @@ export default function UnlicensedTradespersonOnboarding() {
     serviceCategories: [],
     subcategories: [],
     additionalServices: '',
-    serviceRadius: '',
+    serviceRadius: '25',
     areasServed: [],
     newAreaZip: '',
     idUploaded: false,
@@ -331,18 +331,19 @@ export default function UnlicensedTradespersonOnboarding() {
             {stepHeader(<MapPin size={24} color="white" />, 'Coverage Area', 'Where do you work?')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
               {sectionLabel('Service Radius (miles from home)')}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)' }}>
-                {RADIUS_OPTIONS.map(r => (
-                  <button key={r} onClick={() => update('serviceRadius', r)} style={{
-                    padding: 'var(--space-3)',
-                    border: formData.serviceRadius === r ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: formData.serviceRadius === r ? 'var(--primary-light)' : 'var(--bg-surface)',
-                    cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
-                    color: formData.serviceRadius === r ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontFamily: 'inherit',
-                  }}>{r} mi</button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>5 mi</span>
+                  <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)' }}>{formData.serviceRadius} miles</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>50 mi</span>
+                </div>
+                <input
+                  type="range"
+                  min="5" max="50" step="1"
+                  value={formData.serviceRadius}
+                  onChange={e => update('serviceRadius', e.target.value)}
+                  style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
               </div>
 
               {sectionLabel('Areas Served (add zip codes)')}

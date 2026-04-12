@@ -41,9 +41,8 @@ interface HomeownerData {
   paymentDeferred: boolean;
 }
 
-const SERVICE_INTERESTS = ['Plumbing', 'Electrical', 'HVAC', 'General Repairs', 'Cleaning'];
+const SERVICE_INTERESTS = ['Plumbing', 'Electrical', 'HVAC', 'General Repairs', 'Cleaning', 'Landscaping', 'Snow Removal'];
 const PROPERTY_TYPES = ['House', 'Apartment', 'Condo', 'Townhouse'];
-const RADIUS_OPTIONS = ['5', '10', '25', '50', '100'];
 
 const STEP_TOTAL = 5;
 
@@ -75,7 +74,7 @@ export default function HomeownerOnboarding() {
     city: '',
     state: '',
     zipCode: '',
-    serviceRadius: '',
+    serviceRadius: '25',
     propertyAddressSameAsAccount: false,
     propertyAddress: '',
     propertyCity: '',
@@ -243,20 +242,21 @@ export default function HomeownerOnboarding() {
 
               {sectionLabel('GPS / Service Radius')}
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                How far are you willing to travel for services? (miles)
+                How far are you willing to travel for services?
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 'var(--space-2)' }}>
-                {RADIUS_OPTIONS.map(r => (
-                  <button key={r} onClick={() => update('serviceRadius', r)} style={{
-                    padding: 'var(--space-3) var(--space-2)',
-                    border: formData.serviceRadius === r ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: formData.serviceRadius === r ? 'var(--primary-light)' : 'var(--bg-surface)',
-                    cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
-                    color: formData.serviceRadius === r ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontFamily: 'inherit',
-                  }}>{r} mi</button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>5 mi</span>
+                  <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)' }}>{formData.serviceRadius} miles</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>50 mi</span>
+                </div>
+                <input
+                  type="range"
+                  min="5" max="50" step="1"
+                  value={formData.serviceRadius}
+                  onChange={e => update('serviceRadius', e.target.value)}
+                  style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
               </div>
             </div>
           </div>

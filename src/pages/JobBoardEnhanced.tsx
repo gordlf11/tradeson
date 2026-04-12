@@ -519,7 +519,12 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
                     {q.tradespersonName}
                     {q.verified && <CheckCircle size={13} color="var(--success)" style={{ display: 'inline', marginLeft: '6px', verticalAlign: 'middle' }} />}
                   </div>
-                  <StarRow rating={q.rating} count={q.reviewCount} />
+                  <button
+                    onClick={() => {}}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary)', textDecoration: 'underline' }}>{q.reviewCount} reviews</span>
+                  </button>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: '800', fontSize: '1.4rem', color: 'var(--primary)', lineHeight: 1 }}>${q.totalPrice}</div>
@@ -585,7 +590,10 @@ export default function JobBoardEnhanced() {
     { id: 'plumbing', label: 'Plumbing', count: jobs.filter(j => j.tradeId === 'plumbing').length },
     { id: 'electrical', label: 'Electrical', count: jobs.filter(j => j.tradeId === 'electrical').length },
     { id: 'hvac', label: 'HVAC', count: jobs.filter(j => j.tradeId === 'hvac').length },
-    { id: 'carpentry', label: 'Carpentry', count: jobs.filter(j => j.tradeId === 'carpentry').length },
+    { id: 'general', label: 'General Repairs', count: jobs.filter(j => j.tradeId === 'general').length },
+    { id: 'cleaning', label: 'Cleaning', count: jobs.filter(j => j.tradeId === 'cleaning').length },
+    { id: 'landscaping', label: 'Landscaping', count: jobs.filter(j => j.tradeId === 'landscaping').length },
+    { id: 'snow-removal', label: 'Snow Removal', count: jobs.filter(j => j.tradeId === 'snow-removal').length },
   ];
 
   const filteredJobs = jobs
@@ -830,6 +838,7 @@ export default function JobBoardEnhanced() {
                         onClick={() => setQuoteModalJob(job)}
                         icon={<DollarSign size={16} />}
                         disabled={job.status === 'accepted'}
+                        style={job.status === 'accepted' ? { background: 'var(--success)', borderColor: 'var(--success)', opacity: 1, cursor: 'default' } : undefined}
                       >
                         {job.status === 'accepted' ? 'Job Accepted' : 'Submit Quote'}
                       </Button>
@@ -855,6 +864,7 @@ export default function JobBoardEnhanced() {
                             onClick={() => setCompareModalJob(job)}
                             icon={<Users size={16} />}
                             disabled={job.status === 'accepted'}
+                            style={job.status === 'accepted' ? { background: 'var(--success)', borderColor: 'var(--success)', opacity: 1, cursor: 'default' } : undefined}
                           >
                             {job.status === 'accepted' ? 'Job Accepted' : 'Compare & Accept Quotes'}
                           </Button>

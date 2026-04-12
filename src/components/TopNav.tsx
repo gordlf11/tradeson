@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu, Settings, User, Briefcase, Plus, X, ChevronDown,
-  LayoutDashboard, Calendar, DollarSign, Users, Home, Building2
+  LayoutDashboard, Calendar, Users, Home, Building2
 } from 'lucide-react';
 import { TradesOnWordmark } from './Logo';
 
@@ -62,7 +62,7 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
 
   const userMenuItems = [
     { id: 'profile', title: 'Profile', icon: <User size={16} />, path: '/settings' },
-    { id: 'earnings', title: 'Earnings', icon: <DollarSign size={16} />, path: '/dashboard' },
+    { id: 'dashboard', title: 'Dashboard', icon: <LayoutDashboard size={16} />, path: '/dashboard' },
     {
       id: 'logout', title: 'Sign Out', icon: <X size={16} />,
       action: () => { localStorage.clear(); navigate('/login'); }

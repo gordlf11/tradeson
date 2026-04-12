@@ -53,7 +53,7 @@ interface LicensedTradespersonData {
   marketingOptIn: boolean;
 }
 
-const PRIMARY_TRADES = ['Plumbing', 'Electrical', 'HVAC', 'General Contracting', 'Roofing', 'Carpentry', 'Masonry', 'Flooring'];
+const PRIMARY_TRADES = ['Plumbing', 'Electrical', 'HVAC', 'General Contracting', 'Roofing', 'Carpentry', 'Masonry', 'Flooring', 'Cleaning', 'Landscaping', 'Snow Removal'];
 const SUBCATEGORIES: Record<string, string[]> = {
   Plumbing: ['Drain Cleaning', 'Leak Repair', 'Water Heater', 'Pipe Installation'],
   Electrical: ['Panel Upgrade', 'Outlet Installation', 'Lighting', 'Wiring'],
@@ -64,7 +64,6 @@ const SUBCATEGORIES: Record<string, string[]> = {
   Masonry: ['Brick Work', 'Concrete', 'Stone Laying', 'Foundation'],
   Flooring: ['Hardwood', 'Tile', 'Laminate', 'Carpet'],
 };
-const RADIUS_OPTIONS = ['10', '25', '50', '100'];
 const ENTITY_TYPES = ['Sole Proprietor', 'LLC', 'S-Corp', 'C-Corp', 'Partnership'];
 const LICENSE_TYPES = ['General Contractor', 'Electrician', 'Plumber', 'HVAC Technician', 'Roofer', 'Other'];
 
@@ -98,7 +97,7 @@ export default function LicensedTradespersonOnboarding() {
     primaryTrades: [],
     subcategories: [],
     additionalServices: '',
-    serviceRadius: '',
+    serviceRadius: '25',
     areasServed: [],
     newAreaZip: '',
     licenseType: '',
@@ -353,18 +352,19 @@ export default function LicensedTradespersonOnboarding() {
             {stepHeader(<MapPin size={24} color="white" />, 'Coverage Area', 'Where do you work?')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
               {sectionLabel('Service Radius (miles from base)')}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)' }}>
-                {RADIUS_OPTIONS.map(r => (
-                  <button key={r} onClick={() => update('serviceRadius', r)} style={{
-                    padding: 'var(--space-3)',
-                    border: formData.serviceRadius === r ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: formData.serviceRadius === r ? 'var(--primary-light)' : 'var(--bg-surface)',
-                    cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
-                    color: formData.serviceRadius === r ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontFamily: 'inherit',
-                  }}>{r} mi</button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>5 mi</span>
+                  <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)' }}>{formData.serviceRadius} miles</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>50 mi</span>
+                </div>
+                <input
+                  type="range"
+                  min="5" max="50" step="1"
+                  value={formData.serviceRadius}
+                  onChange={e => update('serviceRadius', e.target.value)}
+                  style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
               </div>
 
               {sectionLabel('Areas Served (add zip codes)')}

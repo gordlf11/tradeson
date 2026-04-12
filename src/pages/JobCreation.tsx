@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Camera, Sparkles, AlertCircle, CheckCircle,
   Wrench, Zap, Droplets, Thermometer,
-  Hammer, Home, ArrowRight, ArrowLeft, X
+  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
@@ -40,12 +40,13 @@ const ROOMS = [
 ];
 
 const TRADE_CATEGORIES = [
-  { id: 'plumbing',   label: 'Plumbing',   icon: <Droplets size={20} /> },
-  { id: 'electrical', label: 'Electrical', icon: <Zap size={20} /> },
-  { id: 'hvac',       label: 'HVAC',       icon: <Thermometer size={20} /> },
-  { id: 'carpentry',  label: 'Carpentry',  icon: <Hammer size={20} /> },
-  { id: 'general',    label: 'General',    icon: <Wrench size={20} /> },
-  { id: 'cleaning',   label: 'Cleaning',   icon: <Home size={20} /> },
+  { id: 'plumbing',      label: 'Plumbing',       icon: <Droplets size={20} /> },
+  { id: 'electrical',   label: 'Electrical',      icon: <Zap size={20} /> },
+  { id: 'hvac',         label: 'HVAC',            icon: <Thermometer size={20} /> },
+  { id: 'general',      label: 'General Repairs', icon: <Wrench size={20} /> },
+  { id: 'cleaning',     label: 'Cleaning',        icon: <Home size={20} /> },
+  { id: 'landscaping',  label: 'Landscaping',     icon: <TreePine size={20} /> },
+  { id: 'snow-removal', label: 'Snow Removal',    icon: <Snowflake size={20} /> },
 ];
 
 const SEVERITY_LEVELS = [
