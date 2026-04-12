@@ -1,425 +1,270 @@
 # 🤖 Claude Development Assistant Configuration
 
-## Welcome to the TradesOn Platform Development
+## Welcome to the TradesOn Platform
 
-This file configures your Claude instance to work on the **TradesOn** platform - a marketplace connecting homeowners with verified tradespeople for home repairs and maintenance.
+This file configures your Claude instance to work on the **TradesOn** platform — a two-sided marketplace connecting homeowners, realtors, and property managers with verified tradespeople for home repairs and maintenance.
 
-## 🚀 Initial Setup Questions
+## 🚀 Session Start Questions
 
 When you read this file, please ask the developer:
 
-1. **Role Confirmation**: Are you Kevin or Larry? (This determines task assignments)
-2. **Development Phase**: Which phase are we currently working on? (Pre-Launch, 1A, 1B, 1C, 1D, QA, or Phase 2)
-3. **Environment Access**: Do you have access to:
-   - [ ] GCP Project (frankly-data)
-   - [ ] GitHub repository (https://github.com/gordlf11/tradeson.git)
-   - [ ] Stripe test account
-   - [ ] Firebase project
-   - [ ] Figma designs
-4. **MCP Setup**: Have you installed the required MCPs?
-   - [ ] Figma MCP (for design access)
-   - [ ] Firebase MCP (for database operations)
-5. **Today's Focus**: What specific screens or features are we implementing today?
-
-## 📋 Project Overview
-
-**TradesOn** is a two-sided marketplace platform that:
-- Connects homeowners, realtors, and property managers with verified tradespeople
-- Uses AI to analyze job requests and estimate costs
-- Handles end-to-end job lifecycle: intake → quote → schedule → execute → payment
-- Ensures compliance through identity verification and license checking
-
-### Tech Stack
-- **Frontend**: Next.js 14+ (Web), FlutterFlow (iOS)
-- **Backend**: Node.js with Express
-- **Database**: Firebase Firestore / Supabase
-- **AI**: Google Vertex AI with ADK
-- **Payments**: Stripe Connect Express
-- **Cloud**: Google Cloud Platform (Cloud Run, Cloud Functions)
-- **Auth**: Firebase Auth / Supabase Auth
-- **File Storage**: Google Cloud Storage
-
-## 🎯 Current Development Phases
-
-### PRE-LAUNCH: Environment Setup ✅
-- GCP project setup with Cloud Run, Vertex AI, Cloud Functions
-- Payment Processor account (Stripe) in test mode
-- Repository structure defined
-
-### PHASE 1A - Foundation (Current Focus)
-**Database Schema** (Larry's responsibility):
-```typescript
-// Core tables needed:
-- users (multi-role: homeowner, realtor, property_manager, tradesperson)
-- jobs (status, category, severity, location, photos)
-- quotes (price, message, ETA, status)
-- compliance (licenses, insurance, identity_verification)
-- payments (stripe_customer_id, stripe_account_id, transactions)
-- audit_log (all system actions, immutable)
-```
-
-**Onboarding Screens** (Kevin's responsibility):
-- S-03: User type selection
-- S-04: Property Manager onboarding
-- S-05: Realtor onboarding
-- S-06: Homeowner onboarding
-- S-07/S-08: Tradesperson onboarding (licensed/non-licensed)
-
-**Authentication** (Larry's responsibility):
-- S-01: Login page
-- S-02: Account creation + email verification
-- JWT session management
-
-**Payment Setup** (Kevin's responsibility):
-- S-45: Customer payment method (Stripe Elements)
-- S-46: Tradesperson payout (Stripe Connect Express)
-- Identity verification integration
-
-### PHASE 1B - AI & Job Board
-- Job intake with AI analysis
-- Job board with filtering
-- Quote submission and comparison
-
-### PHASE 1C - Scheduling & Execution
-- Calendar management
-- Live tracking
-- Payment processing
-
-### PHASE 1D - Dashboards & Admin
-- Role-specific dashboards
-- Admin portal
-- Analytics
-
-## 🛠 Development Guidelines
-
-### File Structure
-```
-/tradeson
-├── app/                    # Next.js app router
-│   ├── api/               # API routes
-│   ├── auth/              # Auth pages
-│   ├── onboarding/        # Onboarding flows
-│   ├── dashboard/         # Role-specific dashboards
-│   ├── jobs/              # Job management
-│   └── admin/             # Admin portal
-├── components/            # Reusable components
-├── lib/                   # Utilities and helpers
-│   ├── stripe/           # Stripe integration
-│   ├── firebase/         # Firebase config
-│   └── vertex-ai/        # AI agents
-├── public/               # Static assets
-└── docs/                 # Documentation
-```
-
-### Database Conventions
-- Use snake_case for table and column names
-- Include created_at, updated_at timestamps on all tables
-- Implement soft deletes with deleted_at field
-- Use UUIDs for primary keys
-- Add proper indexes for query optimization
-
-### API Conventions
-- RESTful endpoints: `/api/v1/resource`
-- Use proper HTTP methods (GET, POST, PUT, DELETE)
-- Return consistent error responses
-- Implement rate limiting
-- Add request validation middleware
-
-### Security Requirements
-- Implement Row Level Security (RLS)
-- Validate all user inputs
-- Sanitize data before storage
-- Use environment variables for secrets
-- Implement proper CORS policies
-- Add audit logging for sensitive operations
-
-## 📊 Screen Reference Guide
-
-The platform consists of 49 screens organized by user role:
-
-### Authentication & Onboarding (S-01 to S-08)
-- Login, registration, role selection
-- Role-specific onboarding forms
-- Document upload for verification
-
-### Brokerage Management (S-09 to S-16)
-- Brokerage profile setup
-- Agent management
-- Referral tracking
-
-### Admin Portal (S-17 to S-23)
-- Compliance review
-- Account monitoring
-- Metrics dashboard
-
-### Tradesperson Dashboard (S-24)
-- Job management
-- Earnings tracking
-- Availability calendar
-
-### Realtor Dashboard (S-25)
-- Client management
-- Job history
-- Commission tracking
-
-### Job Creation (S-26 to S-28)
-- Issue input with photos
-- AI analysis results
-- Summary confirmation
-
-### Job Board (S-29 to S-32)
-- Browse available jobs
-- Submit quotes
-- Compare quotes
-
-### Scheduling (S-33 to S-36)
-- Availability management
-- Time slot selection
-- Route planning
-
-### Execution (S-37 to S-41)
-- Live tracking
-- Scope adjustments
-- Completion docs
-
-### Invoicing (S-42 to S-44)
-- Line items
-- PDF generation
-- Payment approval
-
-### Payments (S-45 to S-47)
-- Payment methods
-- Payout setup
-- Cancellations
-
-### Support (S-48 to S-49)
-- Contact form
-- Ticket tracking
-
-## 🔄 Git Workflow
-
-### Branch Strategy
-```bash
-master                  # Main integration branch (default)
-├── production         # Production deployments (auto-deploys to Cloud Run)
-├── feature/1a-*       # Phase 1A features
-├── feature/1b-*       # Phase 1B features
-└── hotfix/*           # Emergency fixes
-```
-
-### Production Deployment (Cloud Run via Cloud Build)
-
-**Live Production URL**: https://tradeson-app-63629008205.us-central1.run.app
-
-The project uses **Google Cloud Build** with an automated trigger to deploy to **Cloud Run** whenever code is pushed to the `production` branch. The build is fully automated — no manual steps needed in GCP.
-
-**Deployment Flow:**
-```
-feature branch → PR to master → merge → push master to production → auto-deploys to Cloud Run
-```
-
-**Quick Deploy (one command):**
-```bash
-# Make sure you're up to date, then deploy
-git pull origin master && git push origin master:production
-```
-
-**Step-by-step deploy:**
-```bash
-# 1. Ensure your local branch is up to date
-git fetch origin
-git pull origin master
-
-# 2. Verify the build passes locally before deploying
-npm run build
-
-# 3. Push to production (this triggers the deploy)
-git push origin master:production
-
-# 4. Monitor the build
-#    → GCP Console > Cloud Build > History
-#    → Or check: https://console.cloud.google.com/cloud-build/builds?project=frankly-data
-```
-
-**How the pipeline works:**
-1. Push to `production` branch triggers Cloud Build (`tradesonproduction` trigger)
-2. `cloudbuild.yaml` orchestrates: Docker build → push to Container Registry → deploy to Cloud Run
-3. `Dockerfile` runs a multi-stage build: Node 20 compiles the Vite/React app, nginx serves it on port 8080
-4. Cloud Run serves the app at the production URL above
-
-**Before you deploy — pre-flight checklist:**
-- [ ] Run `npm run build` locally — if TypeScript fails, the Cloud Build will also fail
-- [ ] Test your changes in the browser (`npm run dev`)
-- [ ] Ensure your code is committed and pushed to `master`
-- [ ] Coordinate with your partner if deploying shared changes
-
-**Infrastructure details:**
-| Setting | Value |
-|---|---|
-| GCP Project | `frankly-data` (project ID: `tradeson-491518`) |
-| Trigger Name | `tradesonproduction` |
-| Region | `us-central1` (Iowa) |
-| Cloud Run Service | `tradeson-app` |
-| Service Account | `63629008205-compute@developer.gserviceaccount.com` |
-| Build Config | `cloudbuild.yaml` (auto-detected) |
-| Repository | `gordlf11/tradeson` (GitHub App, 1st gen) |
-| Access | Public (`--allow-unauthenticated`) |
-| Memory | 512Mi |
-| Port | 8080 |
-
-**Troubleshooting failed builds:**
-1. Check Cloud Build logs: GCP Console > Cloud Build > History > click the failed build
-2. Most common failure: **TypeScript errors** — always run `npm run build` locally first
-3. If the build passes locally but fails in Cloud Build, check for files missing from git (not committed)
-4. To skip a build on a trivial push, include `[skip ci]` in the commit message
-
-**Notes for Claude:** When a developer asks to "deploy to production", "push to prod", or "go live":
-1. Pull latest from `origin/master`
-2. Run `npm run build` to verify TypeScript compiles
-3. If there are errors, fix them before pushing
-4. Push to production: `git push origin <current-branch>:production`
-5. Keep `master` in sync: `git push origin <current-branch>:master`
-6. Confirm the build started in Cloud Build
-
-### Commit Convention
-```
-[PHASE-SCREEN] Brief description
-
-- Detailed point 1
-- Detailed point 2
-
-Refs: #ticket-number
-```
-
-Example:
-```
-[1A-S03] Add user type selection screen
-
-- Implement role routing logic
-- Add animations for card selection
-- Connect to onboarding flows
-
-Refs: #12
-```
-
-### Pull Request Template
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-
-## Phase & Screen
-- Phase: 1A
-- Screen(s): S-03, S-04
-
-## Testing
-- [ ] Manual testing completed
-- [ ] Unit tests added/updated
-- [ ] E2E tests passing
-
-## Checklist
-- [ ] Code follows project conventions
-- [ ] Self-review completed
-- [ ] Documentation updated
-- [ ] No console errors
-```
-
-## 🚦 Development Status Tracker
-
-### Decision Gates (Must Complete)
-- [ ] Requirements Document approval
-- [ ] Tech stack finalization (Scenario A-F)
-- [ ] AI model selection
-- [ ] Identity verification vendor (Stripe Identity vs Persona)
-- [ ] Platform fee % and payment processor type
-
-### Current Sprint Tasks
-Track your daily progress in `/docs/DEVELOPMENT_TRACKER.md`
-
-## 🔗 Important Links
-
-- **GitHub Repository**: https://github.com/gordlf11/tradeson.git
-- **PRD Document**: `/TradesOn - Product Requirements Document.pdf`
-- **Figma Designs**: [Request access from team]
-- **GCP Console**: https://console.cloud.google.com/home/dashboard?project=frankly-data
-- **Stripe Dashboard**: https://dashboard.stripe.com/test
-- **Firebase Console**: https://console.firebase.google.com
-
-## 💬 Communication Protocol
-
-### Daily Standups
-Answer these questions in GitHub Discussions:
-1. What did you complete yesterday?
-2. What are you working on today?
-3. Any blockers?
-
-### Code Reviews
-- All PRs require one approval
-- Response time: within 4 hours during work hours
-- Use GitHub comments for discussions
-
-### Emergency Escalation
-1. Slack: #tradeson-dev
-2. Phone: [Exchange numbers privately]
-3. Email: [Exchange emails privately]
-
-## 🎓 Getting Started Checklist
-
-When starting development:
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/gordlf11/tradeson.git
-cd tradeson
-
-# 2. Install dependencies
-npm install
-
-# 3. Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your credentials
-
-# 4. Initialize Firebase
-firebase init
-
-# 5. Set up Stripe CLI
-stripe login
-
-# 6. Run development server
-npm run dev
-
-# 7. Check current phase tasks
-cat docs/DEVELOPMENT_TRACKER.md
-```
-
-## 📝 Notes for Claude
-
-When assisting with this project:
-
-1. **Always ask which phase and screen** the developer is working on
-2. **Reference the PRD** for detailed requirements
-3. **Follow the established conventions** for code style and structure
-4. **Consider the multi-role nature** of the platform (4 user types)
-5. **Ensure proper security** for payment and compliance features
-6. **Track progress** in the development tracker
-7. **Test across all user roles** before marking complete
-8. **Document any deviations** from the original plan
-
-## 🤝 Collaboration Rules
-
-1. **No direct commits to main** - always use feature branches
-2. **Update DEVELOPMENT_TRACKER.md** after completing each task
-3. **Comment your code** for complex business logic
-4. **Write tests** for critical paths (payments, auth, compliance)
-5. **Document API changes** in `/docs/API.md`
-6. **Share blockers immediately** - don't wait for standups
+1. **Role Confirmation**: Are you Kevin or Larry?
+   - Kevin → frontend, onboarding, UI/UX, payments
+   - Larry → backend, auth wiring, Firestore integration, API
+2. **Today's Focus**: What specific screen, feature, or infrastructure item are we working on?
+3. **Environment Access** (confirm as needed):
+   - GCP Project: `frankly-data` (project ID: `tradeson-491518`)
+   - GitHub: https://github.com/gordlf11/tradeson.git
+   - Firebase Console: https://console.firebase.google.com (project: `tradeson-491518`)
+   - PayBright sandbox credentials in `.env`
+   - Figma designs: [Request access from team]
 
 ---
 
-**Remember**: This is a compliance-heavy platform dealing with payments and identity verification. Security and proper documentation are not optional.
+## 📋 Project Overview
 
-Ready to build? Let's create something amazing! 🚀
+**TradesOn** is a two-sided marketplace that:
+- Connects homeowners, realtors, and property managers with verified tradespeople
+- Handles end-to-end job lifecycle: intake → quote → schedule → execute → payment
+- Uses AI (Vertex AI / Gemini) to analyze job requests and estimate costs
+- Enforces compliance via identity verification, license checks, and insurance validation
+
+### Actual Tech Stack (as built)
+- **Frontend**: React 18 + TypeScript + Vite (NOT Next.js)
+- **Styling**: Inline CSS with CSS custom properties (`var(--primary)`, etc.) — no Tailwind, no CSS modules
+- **Routing**: React Router v6 (`BrowserRouter`, `Routes`, `Route`)
+- **Icons**: Lucide React
+- **Real-time messaging**: Firebase Firestore (`onSnapshot`)
+- **Auth**: Firebase Auth (wired in `src/services/firebase.ts` — login/signup currently mocked in UI)
+- **Database**: Firebase Firestore (project: `tradeson-491518`)
+- **File Storage**: Firebase Storage (photos, insurance docs, government IDs)
+- **Push Notifications**: Firebase Cloud Messaging (FCM)
+- **AI**: Google Vertex AI / Gemini Flash (mocked in UI — not yet wired)
+- **Payments**: PayBright (BNPL, primary) + Stripe Connect Express (card processing)
+- **Cloud**: GCP Cloud Run (production) + Cloud Build (CI/CD)
+- **Container**: Docker multi-stage build → nginx serves on port 8080
+
+### File Structure (actual)
+```
+/tradeson
+├── src/
+│   ├── pages/              # All screen components (one file per screen)
+│   ├── components/         # Reusable components
+│   │   ├── ui/             # Button, Card, Badge, Input, etc.
+│   │   ├── TopNav.tsx      # Role-aware top navigation bar
+│   │   ├── MessagingModal.tsx  # Real-time chat (Firebase)
+│   │   └── Logo.tsx        # TradesOn logo (uses public/logo.png)
+│   ├── services/
+│   │   ├── firebase.ts     # Firebase app init (auth, db, analytics, FCM)
+│   │   ├── messagingService.ts  # Firestore messaging helpers
+│   │   ├── api.ts          # API service layer
+│   │   └── mockData.ts     # Synthetic data (pre-Firestore wiring)
+│   ├── App.tsx             # Router + BottomNav + role routing
+│   └── index.css           # Global CSS variables and base styles
+├── public/
+│   └── logo.png            # TradesOn brand mark (orange wrench+check)
+├── scripts/
+│   └── seedFirestore.mjs   # Seeds all Firestore collections (run once)
+├── Dockerfile              # Multi-stage build: Node 20 + nginx
+├── cloudbuild.yaml         # GCP Cloud Build pipeline config
+└── CLAUDE.md               # This file
+```
+
+---
+
+## 🎯 Phase Completion Status
+
+### ✅ PHASE 1A — Foundation (COMPLETE)
+- Login page with user/admin toggle
+- Account creation (Signup)
+- Role selection screen
+- All 5 onboarding flows: Homeowner, Property Manager, Realtor, Licensed Tradesperson, Unlicensed Tradesperson
+- Settings sub-pages: Profile, Location, Payment, Privacy
+- Insurance Upload page
+- Firebase project configured (`src/services/firebase.ts`)
+- Backend infrastructure: Cloud SQL schema, API routes, Firebase integration
+
+### ✅ PHASE 1B — Job Board & Quotes (COMPLETE)
+- Job Creation (5-step form with AI summary mock, photo upload, severity, trade category)
+- Job Board (`JobBoardEnhanced.tsx`) — dual view: customer sees their jobs, tradesperson sees open jobs
+- Quote submission modal (tradesperson)
+- Quote comparison + acceptance modal (customer)
+- 7 trade categories: Plumbing, Electrical, HVAC, General Repairs, Cleaning, Landscaping, Snow Removal
+- Category filtering, distance filter, sort options
+
+### ✅ PHASE 1C — Scheduling, Messaging & Execution (COMPLETE)
+- Scheduling page: 30-min slots 8 AM–5 PM, unlimited selection
+- Job Execution page with checklist and status tracking
+- Job Completion + review submission
+- Messaging modal: real-time Firebase chat with local fallback
+- PayBright BNPL integration (sandbox)
+
+### ✅ PHASE 1D — Dashboards & Admin (COMPLETE)
+- Customer Dashboard: Accepted Jobs → Pending → New Quotes → Payment History
+- Tradesperson Dashboard: earnings, active jobs, compliance alerts → insurance upload
+- Admin Dashboard: Compliance Review, Account Monitoring (flag/notify buttons), Admin Resolutions, Audit Log, Platform Metrics
+- TopNav: role-aware with logo, user dropdown (Profile, Dashboard, Sign Out)
+- BottomNav: role-specific tabs (3-tab for all roles)
+
+### 🔲 NEXT PRIORITY — Auth & Data Wiring (Pre-Launch Critical)
+These items are the gap between demo and production-ready:
+
+1. **Real Firebase Auth** (Larry)
+   - Wire `signInWithEmailAndPassword` / `createUserWithEmailAndPassword` in Login + Signup
+   - On login, load user Firestore profile to get actual role (not `localStorage`)
+   - Auth guard: redirect unauthenticated users to `/login` via `onAuthStateChanged`
+
+2. **Firestore Rules** (Larry)
+   - Users can only read/write their own documents
+   - Tradespersons can read open jobs; customers can read their own jobs
+   - Admins have elevated access via custom claims
+
+3. **Firestore Data Wiring** (Larry)
+   - Replace `mockData.ts` arrays with real Firestore `getDocs` / `onSnapshot` calls
+   - Run seed script: `node scripts/seedFirestore.mjs` (needs service account key)
+   - Priority screens: JobBoard, CustomerDashboard, TradespersonDashboard
+
+4. **Firestore Composite Indexes** (Larry)
+   - `jobs` collection: `(tradeId ASC, status ASC, createdAt DESC)`
+   - `quotes` collection: `(jobId ASC, totalPrice ASC)`
+   - `messaging_threads` collection: `(customerId ASC, updatedAt DESC)`
+
+5. **Firebase Storage** (Kevin)
+   - Wire photo upload in Job Creation (currently no-op)
+   - Wire insurance doc upload in InsuranceUpload page
+   - Wire government ID upload in tradesperson onboarding
+
+6. **Vertex AI Job Analysis** (Larry)
+   - Replace mocked AI summary in JobCreation step 3 with real Gemini Flash call
+   - Input: job title + description + category + severity
+   - Output: summary, estimated cost range, estimated hours
+
+---
+
+## 🗄️ Firestore Collections (Schema)
+
+All collections seeded via `scripts/seedFirestore.mjs`. Schema below:
+
+| Collection | Key Fields |
+|---|---|
+| `users` | `id, fullName, email, role, phone, serviceRadius, isVerified, isActive, createdAt` |
+| `jobs` | `id, customerId, title, category, tradeId, severity, status, address, quotesCount, createdAt` |
+| `quotes` | `id, jobId, tradespersonId, totalPrice, estimatedHours, message, status, createdAt` |
+| `compliance_submissions` | `id, tradespersonId, licenseNumber, hasGovId, hasLicenseDoc, hasInsuranceDoc, status, adminNote` |
+| `flagged_accounts` | `id, userId, flagType, severity, flagReason, resolved, flaggedAt` |
+| `audit_log` | `id, adminEmail, actionType, targetUserId, reason, timestamp` |
+| `messaging_threads` | `id, jobId, customerId, tradespersonId, lastMessage, lastMessageAt` |
+| `messages` | subcollection of `messaging_threads/{threadId}/messages` |
+| `reviews` | `id, jobId, reviewerId, tradespersonId, rating, body, createdAt` |
+| `platform_metrics` | `id, period, users, jobs, revenue, activationRate` |
+
+**To seed Firestore:**
+```bash
+npm install firebase-admin
+# Download service account key: Firebase Console → Project Settings → Service Accounts → Generate new private key
+# Save as: scripts/serviceAccountKey.json  (DO NOT commit this file)
+node scripts/seedFirestore.mjs
+```
+
+---
+
+## 🔑 Key Design Decisions (Do Not Revert)
+
+- **PayBright is the primary payment method** — Stripe is secondary (card fallback). Never show Stripe branding during onboarding.
+- **No star ratings on quote cards** — display `# reviews` as a clickable link instead. Stars only appear in the tradesperson's own profile preview.
+- **Service radius is a slider (5–50 mi)**, not buttons, on all onboarding location pages.
+- **Accepted job button stays green** (`var(--success)`) even after navigating away. Use `style` prop override on Button component.
+- **Admin does not use BottomNav** — excluded via `hideNavPaths` in `App.tsx`.
+- **Logo uses `public/logo.png`** (real brand mark) — do not regenerate SVG paths.
+- **Messaging uses Firebase with local fallback** — if Firebase throws, messages are stored in local state only (demo mode).
+- **Full services list**: Plumbing, Electrical, HVAC, General Repairs, Cleaning, Landscaping, Snow Removal — use this exact list everywhere services appear.
+
+---
+
+## 🏗️ Production Deployment
+
+**Live URL**: https://tradeson-app-63629008205.us-central1.run.app
+
+**Deploy flow** (push master to production branch — Cloud Build handles the rest):
+```bash
+# Standard deploy
+git pull origin master
+npm run build          # must pass TypeScript — Cloud Build will fail if this fails
+git push origin master:production
+
+# One-liner
+git pull origin master && git push origin master:production
+```
+
+**Infrastructure:**
+| Setting | Value |
+|---|---|
+| GCP Project | `frankly-data` (project ID: `tradeson-491518`) |
+| Cloud Build Trigger | `tradesonproduction` |
+| Region | `us-central1` |
+| Cloud Run Service | `tradeson-app` |
+| Memory | 512Mi |
+| Port | 8080 |
+| Access | Public (no auth) |
+
+**Troubleshooting:**
+- Build fails → almost always TypeScript errors. Run `npm run build` locally first.
+- Build passes locally but fails in Cloud Build → check for uncommitted files.
+- To skip CI on a trivial push → add `[skip ci]` to commit message.
+
+---
+
+## 💻 Local Development
+
+```bash
+git clone https://github.com/gordlf11/tradeson.git
+cd tradeson
+npm install
+npm run dev       # http://localhost:5173
+
+# Login shortcut for testing:
+# 1. Any email + any password → lands on role selection
+# 2. Toggle to "Admin Login" → lands on admin dashboard directly
+# 3. "Reset User State" button on login page clears localStorage
+```
+
+---
+
+## 📝 Commit Convention
+
+```
+[PHASE] Brief description
+
+- Detail 1
+- Detail 2
+```
+
+Examples from this project:
+```
+[1C-1D] UX polish — sliders, services expansion, quote review count, accepted state
+[1D] Admin UX — section titles, flag/notify buttons, resolution alignment + Firestore seed
+[UI] Fix login logo, messaging modal, insurance alert, scheduling slots
+```
+
+---
+
+## 🔗 Quick Links
+
+| Resource | URL |
+|---|---|
+| Production App | https://tradeson-app-63629008205.us-central1.run.app |
+| GitHub Repo | https://github.com/gordlf11/tradeson.git |
+| GCP Console | https://console.cloud.google.com/home/dashboard?project=frankly-data |
+| Cloud Build History | https://console.cloud.google.com/cloud-build/builds?project=frankly-data |
+| Firebase Console | https://console.firebase.google.com/project/tradeson-491518 |
+| Stripe Dashboard | https://dashboard.stripe.com/test |
+
+---
+
+## 🤝 Collaboration
+
+- **Kevin** → all frontend / UI / screens / components
+- **Larry** → Firebase auth wiring, Firestore rules, data layer, backend API, Vertex AI
+- Always pull latest master before starting work
+- Run `npm run build` before pushing — TypeScript errors block the production deploy
+- Coordinate before pushing to `production` branch
