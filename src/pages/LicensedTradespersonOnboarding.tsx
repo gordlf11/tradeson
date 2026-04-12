@@ -170,13 +170,28 @@ export default function LicensedTradespersonOnboarding() {
     </div>
   );
 
-  const uploadButton = (uploaded: boolean, field: keyof LicensedTradespersonData, label: string) => (
+  const uploadButton = (uploaded: boolean, field: keyof LicensedTradespersonData, label: string, accept: string) => (
     <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
       {!uploaded ? (
         <>
           <Upload size={32} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>{label}</p>
-          <Button variant="outline" onClick={() => update(field, true)} icon={<Upload size={16} />}>Upload</Button>
+          <label style={{ display: 'inline-block', cursor: 'pointer' }}>
+            <input
+              type="file"
+              accept={accept}
+              style={{ display: 'none' }}
+              onChange={() => update(field, true)}
+            />
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+              fontWeight: '600', fontSize: '0.875rem', color: 'var(--text-primary)',
+              background: 'var(--bg-surface)', fontFamily: 'inherit',
+            }}>
+              <Upload size={16} /> Upload
+            </span>
+          </label>
         </>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
@@ -433,7 +448,7 @@ export default function LicensedTradespersonOnboarding() {
                 onChange={e => update('licenseExpirationDate', e.target.value)} />
 
               {sectionLabel('License Document Upload')}
-              {uploadButton(formData.licenseDocUploaded, 'licenseDocUploaded', 'Upload your license (PDF, JPG, PNG — max 10MB)')}
+              {uploadButton(formData.licenseDocUploaded, 'licenseDocUploaded', 'Upload your license (PDF, DOCX, JPG, PNG — max 10MB)', '.pdf,.docx,.jpg,.jpeg,.png')}
             </div>
           </div>
         );
@@ -461,12 +476,12 @@ export default function LicensedTradespersonOnboarding() {
               {formData.hasInsurance === 'yes' && (
                 <>
                   {sectionLabel('Proof of Insurance')}
-                  {uploadButton(formData.insuranceDocUploaded, 'insuranceDocUploaded', 'Upload your insurance certificate (PDF, JPG, PNG)')}
+                  {uploadButton(formData.insuranceDocUploaded, 'insuranceDocUploaded', 'Upload your insurance certificate (PDF, DOCX, JPG, PNG)', '.pdf,.docx,.jpg,.jpeg,.png')}
                 </>
               )}
 
               {sectionLabel('Identity Verification (required)')}
-              {uploadButton(formData.idUploaded, 'idUploaded', 'Upload a government-issued ID (Driver\'s license, Passport)')}
+              {uploadButton(formData.idUploaded, 'idUploaded', 'Upload a government-issued ID (Driver\'s license, Passport)', '.pdf,.jpg,.jpeg,.png')}
             </div>
           </div>
         );

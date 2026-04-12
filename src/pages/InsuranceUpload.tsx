@@ -130,7 +130,7 @@ export default function InsuranceUpload() {
           </div>
 
           <label style={{ display: 'block', cursor: 'pointer' }}>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} style={{ display: 'none' }} />
+            <input type="file" accept=".pdf,.docx,.jpg,.jpeg,.png" onChange={handleFileChange} style={{ display: 'none' }} />
             <div style={{
               border: `2px dashed ${fileUploaded ? 'var(--success)' : 'var(--border)'}`,
               borderRadius: 'var(--radius-md)', padding: 'var(--space-6)',

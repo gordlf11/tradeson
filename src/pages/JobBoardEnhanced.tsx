@@ -179,14 +179,7 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
         background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
         width: '100%', maxWidth: '600px', padding: '24px 20px 32px', maxHeight: '90vh', overflowY: 'auto',
       }}>
-        {submitted ? (
-          <div style={{ textAlign: 'center', padding: 'var(--space-8) 0' }}>
-            <CheckCircle size={48} color="var(--success)" style={{ margin: '0 auto var(--space-4)' }} />
-            <h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Quote Submitted!</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>The customer will be notified and can accept your quote within the 72-hour window.</p>
-          </div>
-        ) : (
-          <>
+        <>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
               <div>
@@ -334,11 +327,20 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
               This job expires in {formatExpiry(job.expiresInHours)}
             </div>
 
-            <Button variant="primary" size="lg" fullWidth onClick={handleSubmit} disabled={!isValid}>
-              Submit Quote
-            </Button>
+            {submitted ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'center',
+                padding: 'var(--space-3)', background: 'var(--success)', borderRadius: 'var(--radius-md)',
+              }}>
+                <CheckCircle size={18} color="white" />
+                <span style={{ color: 'white', fontWeight: '700' }}>Quote Submitted</span>
+              </div>
+            ) : (
+              <Button variant="primary" size="lg" fullWidth onClick={handleSubmit} disabled={!isValid}>
+                Submit Quote
+              </Button>
+            )}
           </>
-        )}
       </div>
     </div>
   );
@@ -576,7 +578,7 @@ export default function JobBoardEnhanced() {
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('Likelihood Match');
-  const [distanceFilter, setDistanceFilter] = useState<number | null>(null);
+  const [distanceFilter, setDistanceFilter] = useState<number>(60);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [quoteModalJob, setQuoteModalJob] = useState<Job | null>(null);
@@ -598,7 +600,7 @@ export default function JobBoardEnhanced() {
 
   const filteredJobs = jobs
     .filter(j => selectedCategory === 'all' || j.tradeId === selectedCategory)
-    .filter(j => distanceFilter === null || j.distance <= distanceFilter)
+    .filter(j => j.distance <= distanceFilter)
     .sort((a, b) => {
       if (sortBy === 'Likelihood Match') return b.likelihoodScore - a.likelihoodScore;
       if (sortBy === 'Newest') return a.postedAt.localeCompare(b.postedAt);
@@ -658,51 +660,61 @@ export default function JobBoardEnhanced() {
               <MapPin size={13} />
               {isTradeUser ? 'Your service area' : 'Your posted jobs'}
             </div>
-            <div style={{ display: 'flex', gap: 'var(--space-2)', position: 'relative' }}>
-              {isTradeUser && (
-                <>
-                  {/* Distance filter */}
-                  {[5, 10, 25].map(d => (
-                    <button key={d} onClick={() => setDistanceFilter(distanceFilter === d ? null : d)} style={{
-                      padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
-                      background: distanceFilter === d ? 'var(--primary)' : 'var(--bg-surface)',
-                      color: distanceFilter === d ? 'white' : 'var(--text-secondary)',
-                      border: `1px solid ${distanceFilter === d ? 'var(--primary)' : 'var(--border)'}`,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                      {d}mi
-                    </button>
-                  ))}
-                  {/* Sort */}
-                  <button onClick={() => setShowSortMenu(v => !v)} style={{
-                    padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
-                    background: 'var(--bg-surface)', color: 'var(--text-secondary)',
-                    border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'flex', alignItems: 'center', gap: '4px',
+            {isTradeUser && (
+              <div style={{ display: 'flex', gap: 'var(--space-2)', position: 'relative' }}>
+                {/* Sort */}
+                <button onClick={() => setShowSortMenu(v => !v)} style={{
+                  padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
+                  background: 'var(--bg-surface)', color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                }}>
+                  <SortAsc size={12} /> Sort
+                </button>
+                {showSortMenu && (
+                  <div style={{
+                    position: 'absolute', top: '36px', right: 0, background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                    zIndex: 50, minWidth: '180px', overflow: 'hidden',
                   }}>
-                    <SortAsc size={12} /> Sort
-                  </button>
-                  {showSortMenu && (
-                    <div style={{
-                      position: 'absolute', top: '36px', right: 0, background: 'var(--bg-surface)',
-                      border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
-                      zIndex: 50, minWidth: '180px', overflow: 'hidden',
-                    }}>
-                      {SORT_OPTIONS.map(opt => (
-                        <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false); }} style={{
-                          display: 'block', width: '100%', padding: 'var(--space-3) var(--space-4)',
-                          background: sortBy === opt ? 'var(--primary-light)' : 'transparent',
-                          color: sortBy === opt ? 'var(--primary)' : 'var(--text-primary)',
-                          border: 'none', cursor: 'pointer', textAlign: 'left',
-                          fontSize: '0.85rem', fontWeight: sortBy === opt ? '700' : '500', fontFamily: 'inherit',
-                        }}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
+                    {SORT_OPTIONS.map(opt => (
+                      <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false); }} style={{
+                        display: 'block', width: '100%', padding: 'var(--space-3) var(--space-4)',
+                        background: sortBy === opt ? 'var(--primary-light)' : 'transparent',
+                        color: sortBy === opt ? 'var(--primary)' : 'var(--text-primary)',
+                        border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: '0.85rem', fontWeight: sortBy === opt ? '700' : '500', fontFamily: 'inherit',
+                      }}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Distance slider — visible for both roles */}
+          <div style={{ marginBottom: 'var(--space-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Filter size={12} /> Distance
+              </span>
+              <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--primary)' }}>
+                {distanceFilter === 60 ? 'Any distance' : `Within ${distanceFilter} mi`}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={60}
+              value={distanceFilter}
+              onChange={e => setDistanceFilter(Number(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              <span>1 mi</span>
+              <span>60 mi</span>
             </div>
           </div>
 
