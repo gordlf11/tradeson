@@ -278,6 +278,9 @@ function ComplianceSection() {
 
 function AccountMonitoringSection() {
   const [search, setSearch] = useState('');
+  const [notified, setNotified] = useState<Record<string, boolean>>({});
+  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
+
   const filtered = mockFlaggedAccounts.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.email.toLowerCase().includes(search.toLowerCase())
@@ -288,6 +291,15 @@ function AccountMonitoringSection() {
     if (type === 'poor_reviews') return <Flag size={16} color="var(--warning)" />;
     if (type === 'expired_insurance') return <Shield size={16} color="var(--warning)" />;
     return <AlertOctagon size={16} color="var(--danger)" />;
+  };
+
+  const handleNotify = (id: string) => {
+    setNotified(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => setNotified(prev => ({ ...prev, [id]: false })), 2500);
+  };
+
+  const handleFlag = (id: string) => {
+    setFlagged(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -331,7 +343,41 @@ function AccountMonitoringSection() {
                 Avg Rating: {account.avgRating} / 5 over {account.reviewCount} reviews
               </div>
             )}
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>Flagged {account.flaggedAt}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: 'var(--space-3)' }}>Flagged {account.flaggedAt}</div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button
+                onClick={() => handleFlag(account.id)}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: '700',
+                  border: flagged[account.id] ? '2px solid var(--danger)' : '1px solid var(--border)',
+                  background: flagged[account.id] ? 'rgba(255,59,48,0.08)' : 'var(--bg-base)',
+                  color: flagged[account.id] ? 'var(--danger)' : 'var(--text-secondary)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Flag size={13} />
+                {flagged[account.id] ? 'Flagged' : 'Flag Account'}
+              </button>
+              <button
+                onClick={() => handleNotify(account.id)}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: '700',
+                  border: 'none',
+                  background: notified[account.id] ? 'var(--success)' : 'var(--primary)',
+                  color: 'white',
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                {notified[account.id] ? <CheckCircle size={13} /> : <AlertTriangle size={13} />}
+                {notified[account.id] ? 'Notice Sent' : 'Send Notice'}
+              </button>
+            </div>
           </Card>
         ))}
       </div>
@@ -408,20 +454,28 @@ function ResolutionsSection() {
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                 {actions.map(a => (
-                  <label key={a.value} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer',
-                    padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)',
-                    border: action === a.value ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    background: action === a.value ? 'var(--primary-light)' : 'var(--bg-surface)',
-                  }}>
-                    <input type="radio" name="action" value={a.value}
-                      checked={action === a.value} onChange={() => setAction(a.value)}
-                      style={{ marginTop: '2px', accentColor: 'var(--primary)' }} />
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => setAction(a.value)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer',
+                      padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', textAlign: 'left',
+                      border: action === a.value ? '2px solid var(--primary)' : '1.5px solid var(--border)',
+                      background: action === a.value ? 'var(--primary-light)' : 'var(--bg-surface)',
+                      fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{
+                      width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                      border: action === a.value ? '5px solid var(--primary)' : '2px solid var(--border)',
+                      background: 'var(--bg-surface)', transition: 'all 0.15s ease',
+                    }} />
                     <div>
                       <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{a.label}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{a.desc}</div>
                     </div>
-                  </label>
+                  </button>
                 ))}
               </div>
             </div>
@@ -837,11 +891,46 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeSection === 'compliance' && <ComplianceSection />}
-        {activeSection === 'accounts' && <AccountMonitoringSection />}
-        {activeSection === 'resolutions' && <ResolutionsSection />}
-        {activeSection === 'audit' && <AuditLogSection />}
-        {activeSection === 'metrics' && <MetricsSection />}
+        {activeSection === 'compliance' && (
+          <>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
+              Compliance Review
+            </h2>
+            <ComplianceSection />
+          </>
+        )}
+        {activeSection === 'accounts' && (
+          <>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
+              Account Monitoring
+            </h2>
+            <AccountMonitoringSection />
+          </>
+        )}
+        {activeSection === 'resolutions' && (
+          <>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
+              Admin Resolutions
+            </h2>
+            <ResolutionsSection />
+          </>
+        )}
+        {activeSection === 'audit' && (
+          <>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
+              Audit Log
+            </h2>
+            <AuditLogSection />
+          </>
+        )}
+        {activeSection === 'metrics' && (
+          <>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
+              Platform Metrics
+            </h2>
+            <MetricsSection />
+          </>
+        )}
       </div>
     </div>
   );
