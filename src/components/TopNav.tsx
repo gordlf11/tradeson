@@ -125,7 +125,7 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
           {/* Center — Logo + page title */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: showMenu ? 'center' : 'flex-start', gap: '8px' }}>
             {showTitle && (
-              <img src="/logo.png" alt="" width={26} height={26} style={{ objectFit: 'contain', flexShrink: 0 }} />
+              <img src="/logo.png" alt="" width={31} height={31} style={{ objectFit: 'contain', flexShrink: 0 }} />
             )}
             {showTitle
               ? <span style={{ fontSize: '1rem', fontWeight: '700', color: 'white', letterSpacing: '-0.02em' }}>{getPageTitle()}</span>

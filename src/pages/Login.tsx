@@ -52,7 +52,7 @@ export default function Login() {
       {/* Logo Section */}
       <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-3)' }}>
-          <TradesOnIcon size={86} variant="icon-light" />
+          <TradesOnIcon size={103} variant="icon-light" />
         </div>
         <h1 style={{
           fontSize: '2rem',
