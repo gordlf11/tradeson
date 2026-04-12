@@ -72,6 +72,159 @@ When you read this file, please ask the developer:
 
 ---
 
+## 🚀 Scale Target: 10,000+ Users — Launch Readiness Tracker
+
+This section tracks every item required to take TradesOn from demo to a production platform capable of handling 10,000+ users. Each item has an owner, priority, and status. Claude should reference this list at the start of every session and update statuses as items are completed.
+
+**Status key:** `[ ]` Not started · `[~]` In progress · `[x]` Complete
+
+---
+
+### 🔴 CRITICAL — Blockers (App cannot safely launch without these)
+
+#### Authentication & Session Management
+- [ ] **Wire Firebase Auth login** — replace `localStorage` mock with `signInWithEmailAndPassword` · *Larry*
+- [ ] **Wire Firebase Auth signup** — replace mock with `createUserWithEmailAndPassword` + write user doc to Firestore · *Larry*
+- [ ] **On login, load Firestore user profile** — derive role, name, and settings from `users/{uid}` not `localStorage` · *Larry*
+- [ ] **Auth guard on all protected routes** — `onAuthStateChanged` listener; redirect unauthenticated users to `/login` · *Larry*
+- [ ] **Persist session across page refresh** — Firebase Auth handles this via `setPersistence(browserLocalPersistence)` · *Larry*
+- [ ] **Remove debug tools from Login page** — delete the "Debug:" line and "Reset User State" button before launch · *Kevin*
+
+#### Firestore Security Rules
+- [ ] **Users collection** — users can only read/write their own `users/{uid}` document · *Larry*
+- [ ] **Jobs collection** — customers read/write their own jobs; tradespeople read all `status=open` jobs; no public write · *Larry*
+- [ ] **Quotes collection** — tradespeople write their own quotes; job owner reads all quotes on their job · *Larry*
+- [ ] **Messages collection** — only thread participants can read/write messages in `messaging_threads/{threadId}/messages` · *Larry*
+- [ ] **Reviews collection** — authenticated users write; all authenticated users read · *Larry*
+- [ ] **Compliance / Audit / Flagged** — admin-only read/write via Firebase custom claims · *Larry*
+- [ ] **Admin custom claim** — set `role: 'admin'` on the admin Firebase Auth user via Admin SDK; verify claim server-side · *Larry*
+
+#### Data Layer — Replace Mock Data with Firestore
+- [ ] **JobBoard** — replace `mockJobs` array with `getDocs(query(collection(db, 'jobs'), where('status', '==', 'open')))` · *Larry*
+- [ ] **CustomerDashboard** — load jobs where `customerId == currentUser.uid` · *Larry*
+- [ ] **TradespersonDashboard** — load accepted/active jobs where `acceptedTradespersonId == currentUser.uid` · *Larry*
+- [ ] **Quote submission** — write new quote doc to `quotes` collection on submit · *Larry*
+- [ ] **Quote acceptance** — update job `status`, `acceptedQuoteId`, `acceptedTradespersonId` in Firestore on accept · *Larry*
+- [ ] **Job creation** — write full job doc to Firestore on form completion · *Larry*
+- [ ] **Admin dashboard** — load compliance, flagged accounts, audit log from Firestore (not mock arrays) · *Larry*
+- [ ] **Reviews** — write review doc on completion; load tradesperson reviews from `reviews` collection · *Larry*
+- [ ] **Run Firestore seed script** — `node scripts/seedFirestore.mjs` against production Firestore to pre-populate data · *Larry*
+
+---
+
+### 🟠 HIGH PRIORITY — Required for a Trustworthy Launch
+
+#### File Uploads (Firebase Storage)
+- [ ] **Job photos** — wire photo picker in JobCreation step 1 to upload to `gs://tradeson/jobs/{jobId}/photos/` · *Kevin*
+- [ ] **Insurance certificate** — wire file upload in InsuranceUpload page to `gs://tradeson/compliance/{userId}/insurance/` · *Kevin*
+- [ ] **Government ID** — wire file upload in tradesperson onboarding to `gs://tradeson/compliance/{userId}/govid/` · *Kevin*
+- [ ] **Profile photo** — wire camera button in ProfileSettings to upload to `gs://tradeson/users/{userId}/avatar/` · *Kevin*
+- [ ] **Firebase Storage security rules** — users can only write to their own path; compliance docs readable by admins only · *Larry*
+
+#### Firestore Indexes (queries will fail in production without these)
+- [ ] **jobs index** — `(status ASC, tradeId ASC, createdAt DESC)` · *Larry*
+- [ ] **jobs index** — `(customerId ASC, status ASC, createdAt DESC)` · *Larry*
+- [ ] **quotes index** — `(jobId ASC, totalPrice ASC)` · *Larry*
+- [ ] **messaging_threads index** — `(customerId ASC, updatedAt DESC)` · *Larry*
+- [ ] **messaging_threads index** — `(tradespersonId ASC, updatedAt DESC)` · *Larry*
+- [ ] **reviews index** — `(tradespersonId ASC, createdAt DESC)` · *Larry*
+
+#### Payment Flow Completion
+- [ ] **PayBright webhook endpoint** — receive payment confirmation and update job `paymentStatus` in Firestore · *Larry*
+- [ ] **Stripe Connect onboarding** — complete tradesperson Stripe Express account creation flow (currently PayBright-only UI) · *Kevin/Larry*
+- [ ] **Payout trigger** — on job completion + payment confirmed, initiate tradesperson payout via Stripe Connect · *Larry*
+- [ ] **Payment history** — load real transaction records into CustomerDashboard Payment History section · *Larry*
+- [ ] **Platform fee calculation** — enforce platform fee % in payment logic (not just displayed in UI) · *Larry*
+
+#### Error Handling & Resilience
+- [ ] **Error boundaries** — wrap `<JobBoard>`, `<CustomerDashboard>`, `<TradespersonDashboard>`, `<AdminDashboard>` in `<ErrorBoundary>` · *Kevin*
+- [ ] **Loading skeletons** — add skeleton/spinner states for all Firestore data fetches (currently instant mock renders) · *Kevin*
+- [ ] **Empty states** — confirm all lists handle zero results gracefully (job board, dashboard, reviews) · *Kevin*
+- [ ] **Network failure handling** — show user-friendly message if Firestore read fails; retry logic for sends · *Kevin*
+
+---
+
+### 🟡 IMPORTANT — Needed Before 10K Users
+
+#### AI Integration (Vertex AI / Gemini)
+- [ ] **Job analysis endpoint** — Cloud Function or Cloud Run endpoint: POST `{title, description, category, severity}` → `{summary, estimatedCost, estimatedHours}` · *Larry*
+- [ ] **Wire AI summary in JobCreation** — call endpoint in step 3; show real Gemini output instead of hardcoded mock · *Kevin/Larry*
+- [ ] **AI cost guardrails** — cache analysis per job (don't re-call on page refresh); store result in Firestore · *Larry*
+
+#### Push Notifications (FCM)
+- [ ] **FCM service worker** — register `firebase-messaging-sw.js` in `public/` for background push support · *Kevin*
+- [ ] **Store FCM token** — on login, save user's FCM token to `users/{uid}.fcmToken` · *Larry*
+- [ ] **Send notification on new quote** — trigger FCM message to job owner when a tradesperson submits a quote · *Larry*
+- [ ] **Send notification on job accepted** — trigger FCM to tradesperson when their quote is accepted · *Larry*
+- [ ] **Send notification on new message** — trigger FCM when a message arrives and recipient is not in the thread · *Larry*
+- [ ] **Send notification on compliance decision** — trigger FCM to tradesperson on approval/rejection/more-docs · *Larry*
+
+#### Performance & Bundle Size
+- [ ] **Route-level code splitting** — wrap all page imports in `React.lazy()` + `<Suspense>` in `App.tsx` · *Kevin*
+- [ ] **Reduce bundle size** — currently 875KB (gzipped: 235KB); target <400KB gzipped with lazy loading · *Kevin*
+- [ ] **Image optimization** — compress `public/logo.png`; use `loading="lazy"` on job photo thumbnails · *Kevin*
+- [ ] **Firestore query pagination** — add `limit(20)` + "Load More" to JobBoard and dashboard lists · *Larry*
+
+#### Mobile Polish
+- [ ] **Safe area insets** — audit all screens for `env(safe-area-inset-*)` on iOS notch/home indicator · *Kevin*
+- [ ] **Keyboard pushes content up** — ensure chat input and form fields scroll above keyboard on mobile · *Kevin*
+- [ ] **Touch targets** — all tap targets minimum 44×44px (audit small icon buttons) · *Kevin*
+- [ ] **No horizontal scroll** — test every screen in 375px viewport (iPhone SE) · *Kevin*
+- [ ] **Pull-to-refresh** — add on JobBoard and dashboard lists · *Kevin*
+
+---
+
+### 🟢 LAUNCH ENHANCEMENTS — Nice-to-Have Before Full Rollout
+
+#### User Experience
+- [ ] **Forgot password flow** — wire Firebase `sendPasswordResetEmail` (link exists in Login page, currently goes to `/forgot-password` 404) · *Kevin/Larry*
+- [ ] **Email verification** — send verification email on signup; block full access until verified · *Larry*
+- [ ] **Onboarding progress persistence** — save onboarding state to Firestore so users can resume if they close the app mid-flow · *Kevin/Larry*
+- [ ] **Review moderation** — admin can flag/hide reviews from the admin dashboard · *Kevin/Larry*
+- [ ] **In-app notification bell** — show unread count for quotes, messages, compliance updates · *Kevin*
+
+#### Tradesperson Experience
+- [ ] **Earnings page** — real payout history from Stripe Connect; monthly earnings chart · *Kevin/Larry*
+- [ ] **Availability calendar sync** — persist selected time slots to Firestore; customer sees available windows · *Larry*
+- [ ] **License expiry alerts** — auto-flag tradesperson account 30 days before license/insurance expiry · *Larry*
+
+#### Platform Operations
+- [ ] **Rate limiting on Cloud Run** — configure Cloud Armor or nginx rate limiting (prevent abuse at scale) · *Larry*
+- [ ] **Monitoring & alerting** — Cloud Monitoring dashboard; alert on Cloud Run error rate >1% or p99 latency >2s · *Larry*
+- [ ] **Backup strategy** — enable Firestore automated daily backups to Cloud Storage · *Larry*
+- [ ] **GDPR / Privacy** — "Delete my account" in PrivacySettings must actually delete user data from Firestore + Auth · *Larry*
+- [ ] **Analytics events** — fire GA4 / Firebase Analytics events for key funnel steps (signup, first job, quote accepted) · *Kevin*
+
+#### Infrastructure Scaling
+- [ ] **Cloud Run min instances = 1** — prevents cold start latency for first user of the day · *Larry*
+- [ ] **Cloud Run max instances = 20** — cap to control runaway cost at unexpected traffic spike · *Larry*
+- [ ] **Firebase Blaze plan** — confirm project is on Blaze (pay-as-you-go); Spark plan will hit limits at ~300 active users · *Larry*
+- [ ] **CDN for static assets** — serve `logo.png` and other static files via Firebase Hosting or Cloud CDN · *Kevin/Larry*
+
+---
+
+### 📊 Progress Summary
+
+| Category | Total Items | Complete | Remaining |
+|---|---|---|---|
+| Critical — Auth & Security | 13 | 0 | 13 |
+| Critical — Data Layer | 9 | 0 | 9 |
+| High — File Uploads | 5 | 0 | 5 |
+| High — Firestore Indexes | 6 | 0 | 6 |
+| High — Payments | 5 | 0 | 5 |
+| High — Error Handling | 4 | 0 | 4 |
+| Important — AI | 3 | 0 | 3 |
+| Important — Notifications | 6 | 0 | 6 |
+| Important — Performance | 4 | 0 | 4 |
+| Important — Mobile | 5 | 0 | 5 |
+| Launch Enhancements | 14 | 0 | 14 |
+| **TOTAL** | **74** | **0** | **74** |
+
+> When Claude completes an item, update `[ ]` → `[x]` and update the Progress Summary counts.
+> When an item is in progress, update `[ ]` → `[~]`.
+
+---
+
 ## 🎯 Phase Completion Status
 
 ### ✅ PHASE 1A — Foundation (COMPLETE)
