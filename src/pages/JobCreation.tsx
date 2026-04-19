@@ -9,6 +9,7 @@ import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { api } from '../services/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,7 @@ export default function JobCreation() {
   const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<JobFormData>({
     room: '',
@@ -142,20 +144,37 @@ export default function JobCreation() {
     else navigate(-1);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsSubmitting(true);
-    const jobData = {
-      ...formData,
-      photos: formData.photos.map(f => f.name),
-      createdAt: new Date().toISOString(),
+    setSubmitError(null);
+
+    // Derive a short title from the affected part (no dedicated title field in the UI).
+    const derivedTitle = (formData.affectedPart || formData.description)
+      .trim()
+      .slice(0, 120) || `${formData.room} — ${formData.tradeType}`;
+
+    const payload: Record<string, unknown> = {
+      title: derivedTitle,
+      description: formData.description,
+      category: formData.tradeType,
+      room: formData.room,
+      severity: formData.severity,
+      job_nature: formData.jobNature,
+      affected_part: formData.affectedPart,
+      adjacent_impact: formData.adjacentImpact,
+      housewide_impact: formData.housewideImpact,
     };
-    const existing = JSON.parse(localStorage.getItem('submittedJobs') || '[]');
-    localStorage.setItem('submittedJobs', JSON.stringify([...existing, { id: Date.now().toString(), ...jobData }]));
-    setTimeout(() => {
+
+    try {
+      await api.createJob(payload);
       setIsSubmitting(false);
       setStep(6 as any);
       setTimeout(() => navigate('/dashboard'), 2500);
-    }, 1500);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to post job. Please try again.';
+      setSubmitError(message);
+      setIsSubmitting(false);
+    }
   };
 
   // ── Step renderers ──────────────────────────────────────────────────────
@@ -524,9 +543,32 @@ export default function JobCreation() {
             {step === 5 && renderStep5()}
           </Card>
 
+          {/* Submit error */}
+          {submitError && (
+            <div
+              role="alert"
+              style={{
+                display: 'flex', gap: 'var(--space-3)', alignItems: 'center',
+                background: 'var(--danger-light)', border: '1px solid var(--danger)',
+                borderRadius: 'var(--radius-md)', padding: 'var(--space-3)',
+                marginBottom: 'var(--space-3)',
+              }}
+            >
+              <AlertCircle size={18} color="var(--danger)" />
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--danger)' }}>
+                  Could not post job
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  {submitError}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Navigation buttons */}
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <Button variant="outline" onClick={handleBack} icon={<ArrowLeft size={18} />} style={{ flex: 1 }}>
+            <Button variant="outline" onClick={handleBack} icon={<ArrowLeft size={18} />} style={{ flex: 1 }} disabled={isSubmitting}>
               Back
             </Button>
             <Button
@@ -538,7 +580,7 @@ export default function JobCreation() {
               icon={step === TOTAL_STEPS ? <CheckCircle size={18} /> : <ArrowRight size={18} />}
               style={{ flex: 2 }}
             >
-              {step === TOTAL_STEPS ? 'Post Job' : 'Continue'}
+              {step === TOTAL_STEPS ? (isSubmitting ? 'Posting…' : 'Post Job') : 'Continue'}
             </Button>
           </div>
         </div>
