@@ -51,15 +51,9 @@ interface Job {
   likelihoodScore: number; // 0-100
 }
 
-// ── Mock quotes ────────────────────────────────────────────────────────────
-// TODO: wire quotes via api.getJob(id) when opening job detail; the quote
-// submission modal still reads from this placeholder (it'll be wired in a
-// follow-up task).
-const mockQuotes: Quote[] = [
-  { id: 'q1', tradespersonId: 'tp1', tradespersonName: 'Maria Plumbing LLC', rating: 4.9, reviewCount: 87, totalPrice: 195, estimatedHours: 2, hourlyOverage: 75, message: 'I can fix this today. P-trap replacement and reseal — have parts on the truck.', submittedAt: '22 min ago', verified: true },
-  { id: 'q2', tradespersonId: 'tp2', tradespersonName: 'Pipe Masters Inc.', rating: 4.6, reviewCount: 52, totalPrice: 175, estimatedHours: 3, hourlyOverage: 65, message: 'Likely a P-trap or drain seal issue. Will inspect and quote on-site if scope changes.', submittedAt: '1 hr ago', verified: true },
-  { id: 'q3', tradespersonId: 'tp3', tradespersonName: 'QuickFix Plumbing', rating: 4.2, reviewCount: 31, totalPrice: 220, estimatedHours: 2.5, hourlyOverage: 80, message: 'Available tomorrow morning. Will bring full toolkit.', submittedAt: '2 hrs ago', verified: false },
-];
+// Jobs arrive with an empty quotes[] from listJobs(); quotes are lazy-loaded
+// via api.getJob(id) when the customer opens the comparison modal.
+// TODO: wire that getJob call when expanding a job card.
 
 // ── API → component Job mapping ────────────────────────────────────────────
 // The API returns Postgres rows (snake_case); the UI expects the rich Job type
