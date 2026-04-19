@@ -1,5 +1,14 @@
 rules_version = '2';
 
+// TradesOn Firestore Security Rules
+//
+// Architecture (see CLAUDE.md "🏗️ Architecture"):
+//   Source of truth for users/jobs/quotes/compliance is Postgres, via the
+//   Cloud Run API. This ruleset scopes Firestore client access to messaging,
+//   FCM token storage, and a few admin-writable audit paths. Everything
+//   else is admin-only, both to harden the surface and to keep future
+//   Firestore→BigQuery mirrors read-safe.
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -21,62 +30,35 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid in participants;
     }
 
+    // Return the set of fields the request is trying to change.
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
     // ── users ──────────────────────────────────────────────────────────────
-    // Source of truth for user profile is PostgreSQL (via Cloud Run API).
-    // This collection holds client-written fields (e.g., FCM token) only.
+    // Profile data lives in Postgres. Firestore holds FCM token only —
+    // owner may read their doc and update `fcmToken` (for push notifications).
 
     match /users/{uid} {
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
-      allow create, update: if isOwner(uid) || isAdmin();
-      allow delete: if isAdmin();
-    }
 
-    // ── jobs ───────────────────────────────────────────────────────────────
+      // Owner may create their own doc but only with fcmToken (and empty
+      // or missing is fine). Admin may create anything.
+      allow create: if isAdmin()
+        || (isOwner(uid) && request.resource.data.keys().hasOnly(['fcmToken']));
 
-    match /jobs/{jobId} {
-      allow get: if isAdmin()
-        || (isSignedIn() && resource.data.customerId == request.auth.uid)
-        || (isSignedIn() && resource.data.acceptedTradespersonId == request.auth.uid)
-        || (isSignedIn() && resource.data.status == 'open');
-
-      // List queries are constrained by the client's where() clauses.
-      // Each returned doc is re-checked by the rule above via `resource.data`.
-      allow list: if isSignedIn();
-
-      allow create: if isSignedIn()
-        && request.resource.data.customerId == request.auth.uid;
-
+      // Owner may update ONLY fcmToken. Everything else must go through the
+      // Cloud Run API, which uses the Admin SDK and bypasses rules.
       allow update: if isAdmin()
-        || (isSignedIn() && resource.data.customerId == request.auth.uid)
-        || (isSignedIn() && resource.data.acceptedTradespersonId == request.auth.uid);
-
-      allow delete: if isAdmin();
-    }
-
-    // ── quotes ─────────────────────────────────────────────────────────────
-
-    match /quotes/{quoteId} {
-      allow get: if isAdmin()
-        || (isSignedIn() && resource.data.tradespersonId == request.auth.uid)
-        || (isSignedIn() &&
-            get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.customerId == request.auth.uid);
-
-      allow list: if isSignedIn();
-
-      allow create: if isSignedIn()
-        && request.resource.data.tradespersonId == request.auth.uid;
-
-      allow update: if isAdmin()
-        || (isSignedIn() && resource.data.tradespersonId == request.auth.uid)
-        || (isSignedIn() &&
-            get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.customerId == request.auth.uid);
+        || (isOwner(uid) && changedKeys().hasOnly(['fcmToken']));
 
       allow delete: if isAdmin();
     }
 
     // ── threads (messaging) ────────────────────────────────────────────────
-    // Matches src/services/messagingService.ts
+    // Only path where clients hold live listeners. Schema enforced by
+    // src/services/messagingService.ts.
 
     match /threads/{threadId} {
       allow get, list: if isAdmin() || isParticipant(resource.data.participants);
@@ -96,15 +78,17 @@ service cloud.firestore {
           && request.resource.data.senderId == request.auth.uid
           && isParticipant(get(/databases/$(database)/documents/threads/$(threadId)).data.participants);
 
-        // Only allow marking as read; no edit/delete by users.
+        // Only the `read` flag can be toggled by participants.
         allow update: if isParticipant(get(/databases/$(database)/documents/threads/$(threadId)).data.participants)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+          && changedKeys().hasOnly(['read']);
 
         allow delete: if isAdmin();
       }
     }
 
-    // ── reviews ────────────────────────────────────────────────────────────
+    // ── reviews (client-written today, migrating to Postgres) ──────────────
+    // `messagingService.submitReview` still writes here. Once reviews move
+    // to the Cloud Run API, tighten this to admin-only write.
 
     match /reviews/{reviewId} {
       allow get, list: if isSignedIn();
@@ -115,31 +99,9 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // ── compliance_submissions ────────────────────────────────────────────
-
-    match /compliance_submissions/{subId} {
-      allow get: if isAdmin()
-        || (isSignedIn() && resource.data.tradespersonId == request.auth.uid);
-
-      allow list: if isAdmin();
-
-      allow create: if isSignedIn()
-        && request.resource.data.tradespersonId == request.auth.uid;
-
-      allow update: if isAdmin();
-
-      allow delete: if isAdmin();
-    }
-
-    // ── flagged_accounts ──────────────────────────────────────────────────
-
-    match /flagged_accounts/{flagId} {
-      allow read, write: if isAdmin();
-    }
-
     // ── audit_log ─────────────────────────────────────────────────────────
-    // Writable by any authenticated user (admin actions logged from client
-    // via logAdminAction); readable only by admins.
+    // Admin actions written from the client via logAdminAction. Reads are
+    // admin-only so non-admins can't enumerate audit entries.
 
     match /audit_log/{logId} {
       allow read: if isAdmin();
@@ -147,15 +109,35 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── platform_metrics ──────────────────────────────────────────────────
+    // ── PG-backed collections (admin-only on Firestore) ────────────────────
+    // Clients reach these entities through the Cloud Run API. Firestore
+    // copies exist only as future BigQuery mirror targets; locking them to
+    // admin prevents accidental dual-write from future client code.
+
+    match /jobs/{jobId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /quotes/{quoteId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /compliance_submissions/{subId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /flagged_accounts/{flagId} {
+      allow read, write: if isAdmin();
+    }
 
     match /platform_metrics/{metricId} {
       allow read, write: if isAdmin();
     }
 
-    // ── Legacy collections ────────────────────────────────────────────────
-    // `messaging_threads` is written by the seed script but the runtime
-    // uses `threads`. Locked down until the seed is migrated.
+    // ── Legacy / deprecated ──────────────────────────────────────────────
+    // Pre-architecture-split collections that nothing currently reads or
+    // writes. Kept admin-accessible so an admin can inspect / clean them,
+    // closed to everyone else.
 
     match /messaging_threads/{threadId} {
       allow read, write: if isAdmin();
@@ -171,6 +153,9 @@ service cloud.firestore {
       }
     }
 
+    // Live tracking — reserved for future tradesperson en-route feature.
+    // Any signed-in user can read; only the tradesperson can write their
+    // own location.
     match /tracking/{jobId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn()
