@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu, Settings, User, Briefcase, Plus, X, ChevronDown,
-  LayoutDashboard, Calendar, DollarSign, Users, Home, Building2
+  LayoutDashboard, Calendar, Users, Home, Building2
 } from 'lucide-react';
 import { TradesOnWordmark } from './Logo';
 
@@ -62,7 +62,7 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
 
   const userMenuItems = [
     { id: 'profile', title: 'Profile', icon: <User size={16} />, path: '/settings' },
-    { id: 'earnings', title: 'Earnings', icon: <DollarSign size={16} />, path: '/dashboard' },
+    { id: 'dashboard', title: 'Dashboard', icon: <LayoutDashboard size={16} />, path: '/dashboard' },
     {
       id: 'logout', title: 'Sign Out', icon: <X size={16} />,
       action: () => { localStorage.clear(); navigate('/login'); }
@@ -122,8 +122,11 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
             </button>
           )}
 
-          {/* Center — Logo wordmark or page title */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: showMenu ? 'center' : 'flex-start' }}>
+          {/* Center — Logo + page title */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: showMenu ? 'center' : 'flex-start', gap: '8px' }}>
+            {showTitle && (
+              <img src="/logo.png" alt="" width={31} height={31} style={{ objectFit: 'contain', flexShrink: 0 }} />
+            )}
             {showTitle
               ? <span style={{ fontSize: '1rem', fontWeight: '700', color: 'white', letterSpacing: '-0.02em' }}>{getPageTitle()}</span>
               : <TradesOnWordmark height={32} variant="wordmark-dark" />
@@ -220,9 +223,10 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
       {/* User Dropdown */}
       {isUserMenuOpen && (
         <div style={{
-          position: 'fixed', top: '64px', right: 'var(--space-4)',
+          position: 'fixed', top: '64px',
+          right: 'max(var(--space-4), calc((100vw - 428px) / 2 + var(--space-4)))',
           background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: '200px',
+          boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: '200px', maxWidth: '260px',
         }}>
           <div style={{ padding: 'var(--space-4)' }}>
             <div style={{ paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border)', marginBottom: 'var(--space-3)' }}>

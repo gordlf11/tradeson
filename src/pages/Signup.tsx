@@ -161,22 +161,31 @@ export default function Signup() {
             <label style={{
               display: 'flex',
               alignItems: 'flex-start',
+              gap: '10px',
               fontSize: '0.875rem',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              lineHeight: '1.5'
             }}>
               <input
                 type="checkbox"
                 checked={formData.acceptTerms}
                 onChange={(e) => setFormData({...formData, acceptTerms: e.target.checked})}
-                style={{ marginRight: '8px', marginTop: '2px' }}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  marginTop: '2px',
+                  accentColor: 'var(--primary)',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
               />
               <span style={{ color: 'var(--text-secondary)' }}>
                 I agree to the{' '}
-                <Link to="/terms" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                <Link to="/terms" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
                   Terms of Service
                 </Link>
                 {' '}and{' '}
-                <Link to="/privacy" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                <Link to="/privacy" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
                   Privacy Policy
                 </Link>
               </span>

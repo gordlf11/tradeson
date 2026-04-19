@@ -39,7 +39,6 @@ interface RealtorData {
   newClientEmail: string;
 }
 
-const RADIUS_OPTIONS = ['25', '50', '75', '100'];
 const STEP_TOTAL = 4;
 
 const sectionLabel = (text: string) => (
@@ -67,7 +66,7 @@ export default function RealtorOnboarding() {
     city: '',
     state: '',
     zipCode: '',
-    serviceRadius: '',
+    serviceRadius: '25',
     brokerageName: '',
     licenseNumber: '',
     notifySMS: true,
@@ -186,18 +185,19 @@ export default function RealtorOnboarding() {
               </div>
 
               {sectionLabel('Service Radius (Client Area)')}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)' }}>
-                {RADIUS_OPTIONS.map(r => (
-                  <button key={r} onClick={() => update('serviceRadius', r)} style={{
-                    padding: 'var(--space-3)',
-                    border: formData.serviceRadius === r ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: formData.serviceRadius === r ? 'var(--primary-light)' : 'var(--bg-surface)',
-                    cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
-                    color: formData.serviceRadius === r ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontFamily: 'inherit',
-                  }}>{r} mi</button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>5 mi</span>
+                  <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)' }}>{formData.serviceRadius} miles</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>50 mi</span>
+                </div>
+                <input
+                  type="range"
+                  min="5" max="50" step="1"
+                  value={formData.serviceRadius}
+                  onChange={e => update('serviceRadius', e.target.value)}
+                  style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
               </div>
             </div>
           </div>
@@ -288,6 +288,35 @@ export default function RealtorOnboarding() {
                   You can also invite clients anytime from your dashboard. This step is optional.
                 </p>
               </Card>
+
+              {/* Payment Setup */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)' }}>
+                <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+                  Payment Method
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                  Set up billing for your client service jobs. Charged only after jobs are completed.
+                </p>
+                <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>PayBright</div>
+                    <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                    Flexible payment options via PayBright Gateway.
+                  </p>
+                  <button
+                    onClick={() => window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank')}
+                    style={{
+                      width: '100%', padding: '10px', background: 'var(--primary)', color: 'white',
+                      border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700',
+                      fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Connect with PayBright
+                  </button>
+                </Card>
+              </div>
             </div>
           </div>
         );

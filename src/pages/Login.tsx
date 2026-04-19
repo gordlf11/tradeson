@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Shield } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -12,6 +12,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState<'user' | 'admin'>('user');
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -44,7 +45,7 @@ export default function Login() {
       {/* Logo Section */}
       <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-3)' }}>
-          <TradesOnIcon size={72} variant="icon-light" />
+          <TradesOnIcon size={103} variant="icon-light" />
         </div>
         <h1 style={{
           fontSize: '2rem',
@@ -59,11 +60,53 @@ export default function Login() {
         </p>
       </div>
 
+      {/* User / Admin toggle */}
+      <div style={{
+        display: 'flex', gap: '4px', padding: '4px',
+        background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border)', maxWidth: '400px', margin: '0 auto var(--space-4)',
+        width: '100%',
+      }}>
+        {(['user', 'admin'] as const).map(m => (
+          <button
+            key={m}
+            onClick={() => { setMode(m); setError(''); }}
+            style={{
+              flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)',
+              border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: '0.85rem', fontWeight: '700', transition: 'all 0.15s',
+              background: mode === m ? (m === 'admin' ? 'var(--navy)' : 'var(--primary)') : 'transparent',
+              color: mode === m ? 'white' : 'var(--text-secondary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            }}
+          >
+            {m === 'admin' && <Shield size={14} />}
+            {m === 'user' ? 'User Login' : 'Admin Login'}
+          </button>
+        ))}
+      </div>
+
       {/* Login Card */}
       <Card elevated className="animate-slideUp" style={{ maxWidth: '400px', margin: '0 auto', width: '100%' }}>
-        <h2 style={{ fontSize: '1.5rem', marginBottom: 'var(--space-2)' }}>Welcome Back</h2>
+        {mode === 'admin' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: 'rgba(0,28,60,0.06)', borderRadius: 'var(--radius-sm)',
+            padding: 'var(--space-3)', marginBottom: 'var(--space-4)',
+            border: '1px solid var(--navy)',
+          }}>
+            <Shield size={16} color="var(--navy)" />
+            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--navy)' }}>
+              Admin Portal — Restricted Access
+            </span>
+          </div>
+        )}
+
+        <h2 style={{ fontSize: '1.5rem', marginBottom: 'var(--space-2)' }}>
+          {mode === 'admin' ? 'Admin Sign In' : 'Welcome Back'}
+        </h2>
         <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-6)', fontSize: '0.9rem' }}>
-          Sign in to continue to your account
+          {mode === 'admin' ? 'Sign in to access the admin control center' : 'Sign in to continue to your account'}
         </p>
 
         <form onSubmit={handleLogin}>
@@ -127,28 +170,31 @@ export default function Login() {
             fullWidth
             loading={isLoading}
             icon={!isLoading ? <ArrowRight size={20} /> : undefined}
+            style={mode === 'admin' ? { background: 'var(--navy)' } : undefined}
           >
-            Sign In
+            {mode === 'admin' ? 'Sign In to Admin' : 'Sign In'}
           </Button>
         </form>
 
-        <div style={{
-          marginTop: 'var(--space-6)',
-          paddingTop: 'var(--space-6)',
-          borderTop: '1px solid var(--border)',
-          textAlign: 'center'
-        }}>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            Don't have an account?{' '}
-            <Link to="/signup" style={{
-              color: 'var(--primary)',
-              fontWeight: 600,
-              textDecoration: 'none'
-            }}>
-              Create Account
-            </Link>
-          </p>
-        </div>
+        {mode === 'user' && (
+          <div style={{
+            marginTop: 'var(--space-6)',
+            paddingTop: 'var(--space-6)',
+            borderTop: '1px solid var(--border)',
+            textAlign: 'center'
+          }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+              Don't have an account?{' '}
+              <Link to="/signup" style={{
+                color: 'var(--primary)',
+                fontWeight: 600,
+                textDecoration: 'none'
+              }}>
+                Create Account
+              </Link>
+            </p>
+          </div>
+        )}
       </Card>
 
       <p className="text-center mt-4" style={{

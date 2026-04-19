@@ -51,6 +51,7 @@ const SERVICE_CATEGORIES = [
   'General Handyman', 'House Cleaning', 'Yard Work', 'Furniture Assembly',
   'Moving Services', 'Interior Painting', 'Basic Repairs', 'Organization',
   'Pet Services', 'Pressure Washing', 'Window Cleaning', 'Gutter Cleaning',
+  'Landscaping', 'Snow Removal',
 ];
 
 const SUBCATEGORIES: Record<string, string[]> = {
@@ -61,7 +62,6 @@ const SUBCATEGORIES: Record<string, string[]> = {
   'Interior Painting': ['Walls', 'Ceilings', 'Trim', 'Cabinets'],
 };
 
-const RADIUS_OPTIONS = ['5', '10', '25', '50'];
 const ENTITY_TYPES = ['Sole Proprietor', 'LLC', 'Partnership', 'Other'];
 
 const STEP_TOTAL = 5;
@@ -94,7 +94,7 @@ export default function UnlicensedTradespersonOnboarding() {
     serviceCategories: [],
     subcategories: [],
     additionalServices: '',
-    serviceRadius: '',
+    serviceRadius: '25',
     areasServed: [],
     newAreaZip: '',
     idUploaded: false,
@@ -319,18 +319,19 @@ export default function UnlicensedTradespersonOnboarding() {
             {stepHeader(<MapPin size={24} color="white" />, 'Coverage Area', 'Where do you work?')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
               {sectionLabel('Service Radius (miles from home)')}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)' }}>
-                {RADIUS_OPTIONS.map(r => (
-                  <button key={r} onClick={() => update('serviceRadius', r)} style={{
-                    padding: 'var(--space-3)',
-                    border: formData.serviceRadius === r ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: formData.serviceRadius === r ? 'var(--primary-light)' : 'var(--bg-surface)',
-                    cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
-                    color: formData.serviceRadius === r ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontFamily: 'inherit',
-                  }}>{r} mi</button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>5 mi</span>
+                  <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)' }}>{formData.serviceRadius} miles</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>50 mi</span>
+                </div>
+                <input
+                  type="range"
+                  min="5" max="50" step="1"
+                  value={formData.serviceRadius}
+                  onChange={e => update('serviceRadius', e.target.value)}
+                  style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
               </div>
 
               {sectionLabel('Areas Served (add zip codes)')}
@@ -405,24 +406,30 @@ export default function UnlicensedTradespersonOnboarding() {
                 ))}
               </div>
 
-              {sectionLabel('Payout Setup (Stripe Connect)')}
-              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
-                {!formData.stripeConnectSetup ? (
-                  <>
-                    <CreditCard size={32} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                      Connect your bank account via Stripe to receive payments
-                    </p>
-                    <Button variant="primary" onClick={() => update('stripeConnectSetup', true)}>
-                      Connect Bank Account
-                    </Button>
-                  </>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
-                    <CheckCircle size={20} color="var(--success)" />
-                    <p style={{ color: 'var(--success)', fontWeight: '600', margin: 0 }}>Payout account connected ✓</p>
-                  </div>
-                )}
+              {sectionLabel('Payout Setup')}
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 var(--space-3)' }}>
+                Choose how you'd like to receive your earnings.
+              </p>
+
+              {/* PayBright Sandbox */}
+              <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)', marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>PayBright</div>
+                  <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                  Set up payouts via the PayBright Gateway sandbox environment.
+                </p>
+                <button
+                  onClick={() => window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank')}
+                  style={{
+                    width: '100%', padding: '10px', background: 'var(--primary)', color: 'white',
+                    border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700',
+                    fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Connect PayBright Payout
+                </button>
               </Card>
 
               {sectionLabel('Notification Preferences')}

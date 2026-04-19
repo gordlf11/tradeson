@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Camera, Sparkles, AlertCircle, CheckCircle,
   Wrench, Zap, Droplets, Thermometer,
-  Hammer, Home, ArrowRight, ArrowLeft, X
+  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
@@ -40,12 +40,13 @@ const ROOMS = [
 ];
 
 const TRADE_CATEGORIES = [
-  { id: 'plumbing',   label: 'Plumbing',   icon: <Droplets size={20} /> },
-  { id: 'electrical', label: 'Electrical', icon: <Zap size={20} /> },
-  { id: 'hvac',       label: 'HVAC',       icon: <Thermometer size={20} /> },
-  { id: 'carpentry',  label: 'Carpentry',  icon: <Hammer size={20} /> },
-  { id: 'general',    label: 'General',    icon: <Wrench size={20} /> },
-  { id: 'cleaning',   label: 'Cleaning',   icon: <Home size={20} /> },
+  { id: 'plumbing',      label: 'Plumbing',       icon: <Droplets size={20} /> },
+  { id: 'electrical',   label: 'Electrical',      icon: <Zap size={20} /> },
+  { id: 'hvac',         label: 'HVAC',            icon: <Thermometer size={20} /> },
+  { id: 'general',      label: 'General Repairs', icon: <Wrench size={20} /> },
+  { id: 'cleaning',     label: 'Cleaning',        icon: <Home size={20} /> },
+  { id: 'landscaping',  label: 'Landscaping',     icon: <TreePine size={20} /> },
+  { id: 'snow-removal', label: 'Snow Removal',    icon: <Snowflake size={20} /> },
 ];
 
 const SEVERITY_LEVELS = [
@@ -101,10 +102,15 @@ export default function JobCreation() {
   const set = (field: keyof JobFormData, value: any) =>
     setFormData(prev => ({ ...prev, [field]: value }));
 
+  const PHOTO_LIMIT = 5;
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setFormData(prev => ({ ...prev, photos: [...prev.photos, ...files] }));
+      setFormData(prev => {
+        const remaining = PHOTO_LIMIT - prev.photos.length;
+        return { ...prev, photos: [...prev.photos, ...files.slice(0, remaining)] };
+      });
     }
   };
 
@@ -379,14 +385,25 @@ export default function JobCreation() {
       {sectionLabel('Photos (strongly recommended)')}
       <label style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-3)',
-        padding: 'var(--space-4)', background: 'var(--bg-surface)',
-        border: '2px dashed var(--border)', borderRadius: 'var(--radius-md)',
-        cursor: 'pointer', transition: 'all 0.15s ease', marginBottom: 'var(--space-3)',
+        padding: 'var(--space-4)', background: formData.photos.length >= PHOTO_LIMIT ? 'var(--bg-base)' : 'var(--bg-surface)',
+        border: `2px dashed ${formData.photos.length >= PHOTO_LIMIT ? 'var(--border)' : 'var(--primary)'}`,
+        borderRadius: 'var(--radius-md)',
+        cursor: formData.photos.length >= PHOTO_LIMIT ? 'not-allowed' : 'pointer',
+        transition: 'all 0.15s ease', marginBottom: 'var(--space-3)',
+        opacity: formData.photos.length >= PHOTO_LIMIT ? 0.5 : 1,
       }}>
-        <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+        <input
+          type="file" accept="image/*" multiple capture="environment"
+          onChange={handlePhotoUpload} style={{ display: 'none' }}
+          disabled={formData.photos.length >= PHOTO_LIMIT}
+        />
         <Camera size={22} color="var(--primary)" />
-        <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>Add Photos</span>
-        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Camera or file upload</span>
+        <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+          {formData.photos.length >= PHOTO_LIMIT ? 'Photo limit reached' : 'Add Photos'}
+        </span>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+          {formData.photos.length}/{PHOTO_LIMIT} photos
+        </span>
       </label>
 
       {formData.photos.length > 0 && (

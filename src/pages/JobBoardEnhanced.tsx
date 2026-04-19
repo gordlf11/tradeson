@@ -8,6 +8,11 @@ import { Input } from '../components/ui/Input';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+interface Availability {
+  day: string;
+  slots: string[];
+}
+
 interface Quote {
   id: string;
   tradespersonId: string;
@@ -20,6 +25,7 @@ interface Quote {
   message: string;
   submittedAt: string;
   verified: boolean;
+  availability?: Availability[];
 }
 
 interface Job {
@@ -121,25 +127,44 @@ function StarRow({ rating, count }: { rating: number; count?: number }) {
 interface QuoteModalProps {
   job: Job;
   onClose: () => void;
-  onSubmit: (quote: { price: number; hours: number; overage: number; message: string }) => void;
+  onSubmit: (quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => void;
 }
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const TIME_SLOTS = ['7 AM – 10 AM', '10 AM – 1 PM', '1 PM – 4 PM', '4 PM – 7 PM'];
 
 function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
   const [price, setPrice] = useState('');
   const [hours, setHours] = useState('');
   const [overage, setOverage] = useState('');
   const [message, setMessage] = useState('');
+  const [availability, setAvailability] = useState<Availability[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
   const tradespersonData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
   const rating = 4.8;
   const reviewCount = 47;
 
-  const isValid = price && hours && overage && message.trim().length >= 10;
+  const isValid = price && hours && overage && message.trim().length >= 10 && availability.length > 0;
+
+  const toggleDay = (day: string) => {
+    setAvailability(prev => {
+      if (prev.find(a => a.day === day)) return prev.filter(a => a.day !== day);
+      return [...prev, { day, slots: [] }];
+    });
+  };
+
+  const toggleSlot = (day: string, slot: string) => {
+    setAvailability(prev => prev.map(a => {
+      if (a.day !== day) return a;
+      const slots = a.slots.includes(slot) ? a.slots.filter(s => s !== slot) : [...a.slots, slot];
+      return { ...a, slots };
+    }));
+  };
 
   const handleSubmit = () => {
     if (!isValid) return;
-    onSubmit({ price: parseFloat(price), hours: parseFloat(hours), overage: parseFloat(overage), message });
+    onSubmit({ price: parseFloat(price), hours: parseFloat(hours), overage: parseFloat(overage), message, availability });
     setSubmitted(true);
     setTimeout(onClose, 1800);
   };
@@ -154,14 +179,7 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
         background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
         width: '100%', maxWidth: '600px', padding: '24px 20px 32px', maxHeight: '90vh', overflowY: 'auto',
       }}>
-        {submitted ? (
-          <div style={{ textAlign: 'center', padding: 'var(--space-8) 0' }}>
-            <CheckCircle size={48} color="var(--success)" style={{ margin: '0 auto var(--space-4)' }} />
-            <h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Quote Submitted!</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>The customer will be notified and can accept your quote within the 72-hour window.</p>
-          </div>
-        ) : (
-          <>
+        <>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
               <div>
@@ -242,6 +260,65 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
                   }}
                 />
               </div>
+
+              {/* Availability */}
+              <div>
+                <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+                  Your Weekly Availability <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                  Select the days and time windows you're available. The customer will pick from these.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  {DAYS.map(day => {
+                    const dayEntry = availability.find(a => a.day === day);
+                    const selected = !!dayEntry;
+                    return (
+                      <div key={day}>
+                        <button
+                          onClick={() => toggleDay(day)}
+                          style={{
+                            width: '100%', padding: '8px 12px', textAlign: 'left',
+                            border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: selected ? 'var(--primary-light)' : 'var(--bg-surface)',
+                            color: selected ? 'var(--primary)' : 'var(--text-secondary)',
+                            fontWeight: '600', fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          {selected ? '✓' : '+'} {day}
+                        </button>
+                        {selected && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px 4px 4px' }}>
+                            {TIME_SLOTS.map(slot => {
+                              const slotSelected = dayEntry.slots.includes(slot);
+                              return (
+                                <button
+                                  key={slot}
+                                  onClick={() => toggleSlot(day, slot)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    border: slotSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                    borderRadius: 'var(--radius-full)',
+                                    background: slotSelected ? 'var(--primary)' : 'var(--bg-surface)',
+                                    color: slotSelected ? 'white' : 'var(--text-secondary)',
+                                    fontSize: '0.72rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit',
+                                  }}
+                                >
+                                  {slot}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {availability.length === 0 && (
+                  <p style={{ fontSize: '0.72rem', color: 'var(--danger)', marginTop: '6px' }}>Select at least one available day to submit your quote.</p>
+                )}
+              </div>
             </div>
 
             {/* Expiry notice */}
@@ -250,11 +327,20 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
               This job expires in {formatExpiry(job.expiresInHours)}
             </div>
 
-            <Button variant="primary" size="lg" fullWidth onClick={handleSubmit}>
-              Submit Quote
-            </Button>
+            {submitted ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'center',
+                padding: 'var(--space-3)', background: 'var(--success)', borderRadius: 'var(--radius-md)',
+              }}>
+                <CheckCircle size={18} color="white" />
+                <span style={{ color: 'white', fontWeight: '700' }}>Quote Submitted</span>
+              </div>
+            ) : (
+              <Button variant="primary" size="lg" fullWidth onClick={handleSubmit} disabled={!isValid}>
+                Submit Quote
+              </Button>
+            )}
           </>
-        )}
       </div>
     </div>
   );
@@ -270,13 +356,37 @@ interface ComparisonModalProps {
 
 function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) {
   const [acceptedId, setAcceptedId] = useState<string | null>(null);
-  const [acceptedPrice, setAcceptedPrice] = useState<number | null>(null);
+  const [acceptedQuote, setAcceptedQuote] = useState<Quote | null>(null);
+  const [schedulingStep, setSchedulingStep] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ day: string; slot: string } | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
 
   const handleAccept = (qid: string) => {
     const quote = job.quotes.find(q => q.id === qid);
     setAcceptedId(qid);
-    setAcceptedPrice(quote?.totalPrice ?? null);
-    setTimeout(() => { onAccept(qid); onClose(); }, 2000);
+    setAcceptedQuote(quote ?? null);
+    // If the quote has availability, go to scheduling step
+    if (quote?.availability && quote.availability.length > 0) {
+      setSchedulingStep(true);
+    } else {
+      setTimeout(() => { onAccept(qid); onClose(); }, 2000);
+    }
+  };
+
+  const handleConfirmSlot = () => {
+    if (!selectedSlot || !acceptedId) return;
+    setConfirmed(true);
+    // Store confirmed schedule in localStorage for dashboard display
+    const confirmed_jobs = JSON.parse(localStorage.getItem('confirmedSchedules') || '{}');
+    confirmed_jobs[job.id] = {
+      jobTitle: job.title,
+      tradespersonName: acceptedQuote?.tradespersonName,
+      price: acceptedQuote?.totalPrice,
+      day: selectedSlot.day,
+      slot: selectedSlot.slot,
+    };
+    localStorage.setItem('confirmedSchedules', JSON.stringify(confirmed_jobs));
+    setTimeout(() => { onAccept(acceptedId); onClose(); }, 2000);
   };
 
   const sorted = [...job.quotes].sort((a, b) => b.rating - a.rating);
@@ -314,8 +424,80 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
           </span>
         </div>
 
+        {/* Scheduling step — shown after accepting a quote with availability */}
+        {schedulingStep && acceptedQuote && (
+          <div>
+            {confirmed ? (
+              <div style={{ textAlign: 'center', padding: 'var(--space-8) 0' }}>
+                <CheckCircle size={48} color="var(--success)" style={{ margin: '0 auto var(--space-4)' }} />
+                <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Appointment Confirmed!</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                  {acceptedQuote.tradespersonName} is booked for <strong>{selectedSlot?.day}</strong> during <strong>{selectedSlot?.slot}</strong>. You can message them from your dashboard.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: 'var(--space-3)', background: 'rgba(52,199,89,0.08)',
+                  border: '1px solid var(--success)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-4)',
+                }}>
+                  <CheckCircle size={18} color="var(--success)" />
+                  <div>
+                    <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                      Quote Accepted — {acceptedQuote.tradespersonName}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      Now pick an available time slot below.
+                    </div>
+                  </div>
+                </div>
+
+                <h4 style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: 'var(--space-3)' }}>
+                  Select a Time Slot
+                </h4>
+
+                {(acceptedQuote.availability ?? []).map(avail => (
+                  <div key={avail.day} style={{ marginBottom: 'var(--space-3)' }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px' }}>{avail.day}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {avail.slots.map(slot => {
+                        const isSelected = selectedSlot?.day === avail.day && selectedSlot?.slot === slot;
+                        return (
+                          <button
+                            key={slot}
+                            onClick={() => setSelectedSlot({ day: avail.day, slot })}
+                            style={{
+                              padding: '8px 14px', borderRadius: 'var(--radius-sm)',
+                              border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                              background: isSelected ? 'var(--primary)' : 'var(--bg-surface)',
+                              color: isSelected ? 'white' : 'var(--text-primary)',
+                              fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            {slot}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  variant="primary" size="lg" fullWidth
+                  onClick={handleConfirmSlot}
+                  disabled={!selectedSlot}
+                  style={{ marginTop: 'var(--space-4)' }}
+                >
+                  Confirm This Time Slot
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Quote cards */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {!schedulingStep && <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {sorted.map((q, idx) => (
             <Card key={q.id} style={{
               padding: 'var(--space-4)',
@@ -339,7 +521,12 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
                     {q.tradespersonName}
                     {q.verified && <CheckCircle size={13} color="var(--success)" style={{ display: 'inline', marginLeft: '6px', verticalAlign: 'middle' }} />}
                   </div>
-                  <StarRow rating={q.rating} count={q.reviewCount} />
+                  <button
+                    onClick={() => {}}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary)', textDecoration: 'underline' }}>{q.reviewCount} reviews</span>
+                  </button>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: '800', fontSize: '1.4rem', color: 'var(--primary)', lineHeight: 1 }}>${q.totalPrice}</div>
@@ -370,7 +557,7 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
               {acceptedId === q.id ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'center', padding: 'var(--space-3)', background: 'var(--success)', borderRadius: 'var(--radius-md)' }}>
                   <CheckCircle size={18} color="white" />
-                  <span style={{ color: 'white', fontWeight: '700' }}>Job Accepted — ${acceptedPrice}</span>
+                  <span style={{ color: 'white', fontWeight: '700' }}>Job Accepted — ${acceptedQuote?.totalPrice}</span>
                 </div>
               ) : (
                 <Button variant={idx === 0 ? 'primary' : 'outline'} fullWidth onClick={() => handleAccept(q.id)} disabled={!!acceptedId}>
@@ -379,7 +566,7 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
               )}
             </Card>
           ))}
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -391,7 +578,7 @@ export default function JobBoardEnhanced() {
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('Likelihood Match');
-  const [distanceFilter, setDistanceFilter] = useState<number | null>(null);
+  const [distanceFilter, setDistanceFilter] = useState<number>(60);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [quoteModalJob, setQuoteModalJob] = useState<Job | null>(null);
@@ -405,12 +592,15 @@ export default function JobBoardEnhanced() {
     { id: 'plumbing', label: 'Plumbing', count: jobs.filter(j => j.tradeId === 'plumbing').length },
     { id: 'electrical', label: 'Electrical', count: jobs.filter(j => j.tradeId === 'electrical').length },
     { id: 'hvac', label: 'HVAC', count: jobs.filter(j => j.tradeId === 'hvac').length },
-    { id: 'carpentry', label: 'Carpentry', count: jobs.filter(j => j.tradeId === 'carpentry').length },
+    { id: 'general', label: 'General Repairs', count: jobs.filter(j => j.tradeId === 'general').length },
+    { id: 'cleaning', label: 'Cleaning', count: jobs.filter(j => j.tradeId === 'cleaning').length },
+    { id: 'landscaping', label: 'Landscaping', count: jobs.filter(j => j.tradeId === 'landscaping').length },
+    { id: 'snow-removal', label: 'Snow Removal', count: jobs.filter(j => j.tradeId === 'snow-removal').length },
   ];
 
   const filteredJobs = jobs
     .filter(j => selectedCategory === 'all' || j.tradeId === selectedCategory)
-    .filter(j => distanceFilter === null || j.distance <= distanceFilter)
+    .filter(j => j.distance <= distanceFilter)
     .sort((a, b) => {
       if (sortBy === 'Likelihood Match') return b.likelihoodScore - a.likelihoodScore;
       if (sortBy === 'Newest') return a.postedAt.localeCompare(b.postedAt);
@@ -425,7 +615,7 @@ export default function JobBoardEnhanced() {
     ));
   };
 
-  const handleSubmitQuote = (jobId: string, quote: { price: number; hours: number; overage: number; message: string }) => {
+  const handleSubmitQuote = (jobId: string, quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => {
     const tpData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
     const newQuote: Quote = {
       id: Date.now().toString(),
@@ -434,6 +624,7 @@ export default function JobBoardEnhanced() {
       rating: 4.8, reviewCount: 47,
       totalPrice: quote.price, estimatedHours: quote.hours, hourlyOverage: quote.overage,
       message: quote.message, submittedAt: 'just now', verified: true,
+      availability: quote.availability,
     };
     setJobs(prev => prev.map(j =>
       j.id === jobId ? { ...j, quotes: [...j.quotes, newQuote], status: 'quoted' as const } : j
@@ -469,51 +660,61 @@ export default function JobBoardEnhanced() {
               <MapPin size={13} />
               {isTradeUser ? 'Your service area' : 'Your posted jobs'}
             </div>
-            <div style={{ display: 'flex', gap: 'var(--space-2)', position: 'relative' }}>
-              {isTradeUser && (
-                <>
-                  {/* Distance filter */}
-                  {[5, 10, 25].map(d => (
-                    <button key={d} onClick={() => setDistanceFilter(distanceFilter === d ? null : d)} style={{
-                      padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
-                      background: distanceFilter === d ? 'var(--primary)' : 'var(--bg-surface)',
-                      color: distanceFilter === d ? 'white' : 'var(--text-secondary)',
-                      border: `1px solid ${distanceFilter === d ? 'var(--primary)' : 'var(--border)'}`,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                      {d}mi
-                    </button>
-                  ))}
-                  {/* Sort */}
-                  <button onClick={() => setShowSortMenu(v => !v)} style={{
-                    padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
-                    background: 'var(--bg-surface)', color: 'var(--text-secondary)',
-                    border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'flex', alignItems: 'center', gap: '4px',
+            {isTradeUser && (
+              <div style={{ display: 'flex', gap: 'var(--space-2)', position: 'relative' }}>
+                {/* Sort */}
+                <button onClick={() => setShowSortMenu(v => !v)} style={{
+                  padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
+                  background: 'var(--bg-surface)', color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                }}>
+                  <SortAsc size={12} /> Sort
+                </button>
+                {showSortMenu && (
+                  <div style={{
+                    position: 'absolute', top: '36px', right: 0, background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                    zIndex: 50, minWidth: '180px', overflow: 'hidden',
                   }}>
-                    <SortAsc size={12} /> Sort
-                  </button>
-                  {showSortMenu && (
-                    <div style={{
-                      position: 'absolute', top: '36px', right: 0, background: 'var(--bg-surface)',
-                      border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
-                      zIndex: 50, minWidth: '180px', overflow: 'hidden',
-                    }}>
-                      {SORT_OPTIONS.map(opt => (
-                        <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false); }} style={{
-                          display: 'block', width: '100%', padding: 'var(--space-3) var(--space-4)',
-                          background: sortBy === opt ? 'var(--primary-light)' : 'transparent',
-                          color: sortBy === opt ? 'var(--primary)' : 'var(--text-primary)',
-                          border: 'none', cursor: 'pointer', textAlign: 'left',
-                          fontSize: '0.85rem', fontWeight: sortBy === opt ? '700' : '500', fontFamily: 'inherit',
-                        }}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
+                    {SORT_OPTIONS.map(opt => (
+                      <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false); }} style={{
+                        display: 'block', width: '100%', padding: 'var(--space-3) var(--space-4)',
+                        background: sortBy === opt ? 'var(--primary-light)' : 'transparent',
+                        color: sortBy === opt ? 'var(--primary)' : 'var(--text-primary)',
+                        border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: '0.85rem', fontWeight: sortBy === opt ? '700' : '500', fontFamily: 'inherit',
+                      }}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Distance slider — visible for both roles */}
+          <div style={{ marginBottom: 'var(--space-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Filter size={12} /> Distance
+              </span>
+              <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--primary)' }}>
+                {distanceFilter === 60 ? 'Any distance' : `Within ${distanceFilter} mi`}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={60}
+              value={distanceFilter}
+              onChange={e => setDistanceFilter(Number(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              <span>1 mi</span>
+              <span>60 mi</span>
             </div>
           </div>
 
@@ -649,6 +850,7 @@ export default function JobBoardEnhanced() {
                         onClick={() => setQuoteModalJob(job)}
                         icon={<DollarSign size={16} />}
                         disabled={job.status === 'accepted'}
+                        style={job.status === 'accepted' ? { background: 'var(--success)', borderColor: 'var(--success)', opacity: 1, cursor: 'default' } : undefined}
                       >
                         {job.status === 'accepted' ? 'Job Accepted' : 'Submit Quote'}
                       </Button>
@@ -674,6 +876,7 @@ export default function JobBoardEnhanced() {
                             onClick={() => setCompareModalJob(job)}
                             icon={<Users size={16} />}
                             disabled={job.status === 'accepted'}
+                            style={job.status === 'accepted' ? { background: 'var(--success)', borderColor: 'var(--success)', opacity: 1, cursor: 'default' } : undefined}
                           >
                             {job.status === 'accepted' ? 'Job Accepted' : 'Compare & Accept Quotes'}
                           </Button>

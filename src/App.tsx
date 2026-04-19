@@ -17,6 +17,7 @@ import UnlicensedTradespersonOnboarding from './pages/UnlicensedTradespersonOnbo
 // Dashboards
 import TradespersonDashboard from './pages/TradespersonDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 // Main App
 import JobCreation from './pages/JobCreation';
@@ -25,6 +26,11 @@ import JobExecution from './pages/JobExecution';
 import JobCompletion from './pages/JobCompletion';
 import Scheduling from './pages/Scheduling';
 import Settings from './pages/Settings';
+import ProfileSettings from './pages/ProfileSettings';
+import LocationSettings from './pages/LocationSettings';
+import PaymentSettings from './pages/PaymentSettings';
+import PrivacySettings from './pages/PrivacySettings';
+import InsuranceUpload from './pages/InsuranceUpload';
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -34,6 +40,7 @@ function isTradeRole(role: string) {
 }
 
 function getDashboardPath(role: string) {
+  if (role === 'admin') return '/dashboard/admin';
   return isTradeRole(role) ? '/dashboard/tradesperson' : '/dashboard/customer';
 }
 
@@ -45,8 +52,8 @@ const BottomNav = () => {
   const { userProfile } = useAuth();
   const userRole = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
 
-  // Hide nav on auth and onboarding screens
-  const hideNavPaths = ['/login', '/signup', '/onboarding', '/role-selection'];
+  // Hide nav on auth, onboarding, and admin screens
+  const hideNavPaths = ['/login', '/signup', '/onboarding', '/role-selection', '/dashboard/admin'];
   if (path === '/' || hideNavPaths.some(p => path.startsWith(p))) return null;
 
   const dashPath = getDashboardPath(userRole);
@@ -189,6 +196,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<RequireAuth><DashboardRedirect /></RequireAuth>} />
         <Route path="/dashboard/tradesperson" element={<RequireAuth><TradespersonDashboard /></RequireAuth>} />
         <Route path="/dashboard/customer" element={<RequireAuth><CustomerDashboard /></RequireAuth>} />
+        <Route path="/dashboard/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
 
         {/* Main App — requires auth */}
         <Route path="/job-creation" element={<RequireAuth><JobCreation /></RequireAuth>} />
@@ -197,6 +205,11 @@ function AppRoutes() {
         <Route path="/job-execution" element={<RequireAuth><JobExecution /></RequireAuth>} />
         <Route path="/completion" element={<RequireAuth><JobCompletion /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+        <Route path="/profile" element={<RequireAuth><ProfileSettings /></RequireAuth>} />
+        <Route path="/location-settings" element={<RequireAuth><LocationSettings /></RequireAuth>} />
+        <Route path="/payment-settings" element={<RequireAuth><PaymentSettings /></RequireAuth>} />
+        <Route path="/privacy-settings" element={<RequireAuth><PrivacySettings /></RequireAuth>} />
+        <Route path="/insurance-upload" element={<RequireAuth><InsuranceUpload /></RequireAuth>} />
       </Routes>
       <BottomNav />
     </>
