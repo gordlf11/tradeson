@@ -400,21 +400,29 @@ const auditLog = [
   },
 ];
 
-// ── Collection: messaging_threads ────────────────────────────────────────
+// ── Collection: threads (messaging) ──────────────────────────────────────
+// Schema matches src/services/messagingService.ts — participants array,
+// not the customerId/tradespersonId columns used in the PG schema.
+
+function buildThreadId(jobId, userId1, userId2) {
+  const sorted = [userId1, userId2].sort().join('_');
+  return `${jobId}__${sorted}`;
+}
 
 const threads = [
   {
-    id: 'thread-job003-001',
+    id: buildThreadId('job-003', 'user-property-manager-1', 'user-tradesperson-2'),
     jobId: 'job-003',
     jobTitle: 'AC Unit Not Cooling — Unit 4B',
-    customerId: 'user-property-manager-1',
-    customerName: 'Diana Chen',
-    tradespersonId: 'user-tradesperson-2',
-    tradespersonName: 'Amy Watts',
+    participants: ['user-property-manager-1', 'user-tradesperson-2'],
+    participantNames: {
+      'user-property-manager-1': 'Diana Chen',
+      'user-tradesperson-2': 'Amy Watts',
+    },
     lastMessage: 'See you tomorrow at 9 AM!',
     lastMessageAt: hoursAgo(4),
     createdAt: hoursAgo(6),
-    updatedAt: hoursAgo(4),
+    jobStatus: 'accepted',
   },
 ];
 
@@ -492,7 +500,16 @@ async function main() {
   await upsertCollection('compliance_submissions', complianceSubmissions);
   await upsertCollection('flagged_accounts', flaggedAccounts);
   await upsertCollection('audit_log', auditLog);
-  await upsertCollection('messaging_threads', threads);
+  await upsertCollection('threads', threads);
+
+  // Delete the stranded doc from the legacy messaging_threads collection,
+  // if an earlier seed placed it there.
+  try {
+    await db.collection('messaging_threads').doc('thread-job003-001').delete();
+    console.log('   ✓  removed legacy messaging_threads/thread-job003-001');
+  } catch {
+    // Already absent — nothing to do
+  }
   await upsertCollection('reviews', reviews);
   await upsertCollection('platform_metrics', platformMetrics);
 
@@ -504,7 +521,7 @@ async function main() {
   console.log('    • compliance_submissions (3 docs)');
   console.log('    • flagged_accounts (3 docs)');
   console.log('    • audit_log (3 docs)');
-  console.log('    • messaging_threads (1 doc)');
+  console.log('    • threads (1 doc)');
   console.log('    • reviews (3 docs)');
   console.log('    • platform_metrics (1 doc)');
   process.exit(0);
