@@ -22,24 +22,41 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 
   try {
-    const existing = await pool.query('SELECT id FROM users WHERE firebase_uid = $1', [firebase_uid]);
+    // Short-circuit if this Firebase user already has a PG row (re-click signup).
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE firebase_uid = $1',
+      [firebase_uid]
+    );
     if (existing.rows.length > 0) {
       res.status(409).json({ error: 'User already exists', id: existing.rows[0].id });
       return;
     }
 
+    // Upsert by email: if the email is already associated with a prior Firebase
+    // user (they deleted + recreated their account, or signed up with a provider
+    // that's since been unlinked), reassign firebase_uid to the new one and treat
+    // the row as fresh. Prevents a stale PG row from permanently locking out the
+    // email.
     const result = await pool.query(
       `INSERT INTO users (firebase_uid, email, full_name, phone_number, role)
        VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email) DO UPDATE SET
+         firebase_uid = EXCLUDED.firebase_uid,
+         full_name    = EXCLUDED.full_name,
+         phone_number = COALESCE(EXCLUDED.phone_number, users.phone_number),
+         role         = EXCLUDED.role,
+         deleted_at   = NULL,
+         updated_at   = now()
        RETURNING id, firebase_uid, email, full_name, role, created_at`,
       [firebase_uid, email || req.body.email, full_name, phone_number, role]
     );
 
     const user = result.rows[0];
 
-    // Create default notification preferences
+    // Idempotent for re-signup — existing prefs row stays untouched.
     await pool.query(
-      `INSERT INTO user_notification_preferences (user_id) VALUES ($1)`,
+      `INSERT INTO user_notification_preferences (user_id) VALUES ($1)
+       ON CONFLICT (user_id) DO NOTHING`,
       [user.id]
     );
 
