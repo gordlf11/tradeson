@@ -170,7 +170,7 @@ function StarRow({ rating, count }: { rating: number; count?: number }) {
 interface QuoteModalProps {
   job: Job;
   onClose: () => void;
-  onSubmit: (quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => void;
+  onSubmit: (quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => Promise<void>;
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -183,6 +183,8 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
   const [message, setMessage] = useState('');
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const tradespersonData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
   const rating = 4.8;
@@ -205,11 +207,26 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
     }));
   };
 
-  const handleSubmit = () => {
-    if (!isValid) return;
-    onSubmit({ price: parseFloat(price), hours: parseFloat(hours), overage: parseFloat(overage), message, availability });
-    setSubmitted(true);
-    setTimeout(onClose, 1800);
+  const handleSubmit = async () => {
+    if (!isValid || isSubmitting) return;
+    setSubmitError(null);
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        price: parseFloat(price),
+        hours: parseFloat(hours),
+        overage: parseFloat(overage),
+        message,
+        availability,
+      });
+      setSubmitted(true);
+      setTimeout(onClose, 1800);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to submit quote. Please try again.';
+      setSubmitError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -370,6 +387,23 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
               This job expires in {formatExpiry(job.expiresInHours)}
             </div>
 
+            {submitError && (
+              <div style={{
+                padding: 'var(--space-3)',
+                background: 'var(--danger-light)',
+                border: '1px solid var(--danger)',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: 'var(--space-3)',
+              }}>
+                <p style={{ color: 'var(--danger)', fontSize: '0.82rem', fontWeight: 700, margin: 0 }}>
+                  Could not submit quote
+                </p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', margin: '4px 0 0' }}>
+                  {submitError}
+                </p>
+              </div>
+            )}
+
             {submitted ? (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'center',
@@ -379,8 +413,15 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
                 <span style={{ color: 'white', fontWeight: '700' }}>Quote Submitted</span>
               </div>
             ) : (
-              <Button variant="primary" size="lg" fullWidth onClick={handleSubmit} disabled={!isValid}>
-                Submit Quote
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                onClick={handleSubmit}
+                disabled={!isValid || isSubmitting}
+                loading={isSubmitting}
+              >
+                {isSubmitting ? 'Submitting…' : 'Submit Quote'}
               </Button>
             )}
           </>
@@ -394,7 +435,7 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
 interface ComparisonModalProps {
   job: Job;
   onClose: () => void;
-  onAccept: (quoteId: string) => void;
+  onAccept: (quoteId: string) => Promise<void>;
 }
 
 function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) {
@@ -403,33 +444,61 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
   const [schedulingStep, setSchedulingStep] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ day: string; slot: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
-  const handleAccept = (qid: string) => {
+  const handleAccept = async (qid: string) => {
+    if (isAccepting) return;
     const quote = job.quotes.find(q => q.id === qid);
-    setAcceptedId(qid);
-    setAcceptedQuote(quote ?? null);
-    // If the quote has availability, go to scheduling step
+    setAcceptError(null);
+
+    // If the quote has availability, enter the scheduling step first; the
+    // API call fires after the customer picks a slot. Otherwise accept now.
     if (quote?.availability && quote.availability.length > 0) {
+      setAcceptedId(qid);
+      setAcceptedQuote(quote);
       setSchedulingStep(true);
-    } else {
-      setTimeout(() => { onAccept(qid); onClose(); }, 2000);
+      return;
+    }
+
+    setIsAccepting(true);
+    try {
+      await onAccept(qid);
+      setAcceptedId(qid);
+      setAcceptedQuote(quote ?? null);
+      setTimeout(() => { onClose(); }, 2000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to accept quote. Please try again.';
+      setAcceptError(msg);
+    } finally {
+      setIsAccepting(false);
     }
   };
 
-  const handleConfirmSlot = () => {
-    if (!selectedSlot || !acceptedId) return;
-    setConfirmed(true);
-    // Store confirmed schedule in localStorage for dashboard display
-    const confirmed_jobs = JSON.parse(localStorage.getItem('confirmedSchedules') || '{}');
-    confirmed_jobs[job.id] = {
-      jobTitle: job.title,
-      tradespersonName: acceptedQuote?.tradespersonName,
-      price: acceptedQuote?.totalPrice,
-      day: selectedSlot.day,
-      slot: selectedSlot.slot,
-    };
-    localStorage.setItem('confirmedSchedules', JSON.stringify(confirmed_jobs));
-    setTimeout(() => { onAccept(acceptedId); onClose(); }, 2000);
+  const handleConfirmSlot = async () => {
+    if (!selectedSlot || !acceptedId || isAccepting) return;
+    setAcceptError(null);
+    setIsAccepting(true);
+    try {
+      await onAccept(acceptedId);
+      setConfirmed(true);
+      // Store confirmed schedule in localStorage for dashboard display
+      const confirmed_jobs = JSON.parse(localStorage.getItem('confirmedSchedules') || '{}');
+      confirmed_jobs[job.id] = {
+        jobTitle: job.title,
+        tradespersonName: acceptedQuote?.tradespersonName,
+        price: acceptedQuote?.totalPrice,
+        day: selectedSlot.day,
+        slot: selectedSlot.slot,
+      };
+      localStorage.setItem('confirmedSchedules', JSON.stringify(confirmed_jobs));
+      setTimeout(() => { onClose(); }, 2000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to accept quote. Please try again.';
+      setAcceptError(msg);
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   const sorted = [...job.quotes].sort((a, b) => b.rating - a.rating);
@@ -526,16 +595,52 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
                   </div>
                 ))}
 
+                {acceptError && (
+                  <div style={{
+                    padding: 'var(--space-3)',
+                    background: 'var(--danger-light)',
+                    border: '1px solid var(--danger)',
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: 'var(--space-3)',
+                  }}>
+                    <p style={{ color: 'var(--danger)', fontSize: '0.82rem', fontWeight: 700, margin: 0 }}>
+                      Could not accept quote
+                    </p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', margin: '4px 0 0' }}>
+                      {acceptError}
+                    </p>
+                  </div>
+                )}
+
                 <Button
                   variant="primary" size="lg" fullWidth
                   onClick={handleConfirmSlot}
-                  disabled={!selectedSlot}
+                  disabled={!selectedSlot || isAccepting}
+                  loading={isAccepting}
                   style={{ marginTop: 'var(--space-4)' }}
                 >
-                  Confirm This Time Slot
+                  {isAccepting ? 'Accepting…' : 'Confirm This Time Slot'}
                 </Button>
               </>
             )}
+          </div>
+        )}
+
+        {/* Inline error banner for the quote-list path */}
+        {!schedulingStep && acceptError && (
+          <div style={{
+            padding: 'var(--space-3)',
+            background: 'var(--danger-light)',
+            border: '1px solid var(--danger)',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: 'var(--space-3)',
+          }}>
+            <p style={{ color: 'var(--danger)', fontSize: '0.82rem', fontWeight: 700, margin: 0 }}>
+              Could not accept quote
+            </p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', margin: '4px 0 0' }}>
+              {acceptError}
+            </p>
           </div>
         )}
 
@@ -603,8 +708,14 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
                   <span style={{ color: 'white', fontWeight: '700' }}>Job Accepted — ${acceptedQuote?.totalPrice}</span>
                 </div>
               ) : (
-                <Button variant={idx === 0 ? 'primary' : 'outline'} fullWidth onClick={() => handleAccept(q.id)} disabled={!!acceptedId}>
-                  Accept This Quote
+                <Button
+                  variant={idx === 0 ? 'primary' : 'outline'}
+                  fullWidth
+                  onClick={() => handleAccept(q.id)}
+                  disabled={!!acceptedId || isAccepting}
+                  loading={isAccepting && acceptedId === null}
+                >
+                  {isAccepting && acceptedId === null ? 'Accepting…' : 'Accept This Quote'}
                 </Button>
               )}
             </Card>
@@ -629,6 +740,7 @@ export default function JobBoardEnhanced() {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [quoteModalJob, setQuoteModalJob] = useState<Job | null>(null);
   const [compareModalJob, setCompareModalJob] = useState<Job | null>(null);
+  const [refetchKey, setRefetchKey] = useState(0);
 
   // Prefer the server-truth role from Postgres (AuthContext.getMe); fall back
   // to the legacy localStorage flag for signed-out dev sessions.
@@ -663,7 +775,7 @@ export default function JobBoardEnhanced() {
       });
 
     return () => { cancelled = true; };
-  }, [userProfile]);
+  }, [userProfile, refetchKey]);
 
   const categories = [
     { id: 'all', label: 'All', count: jobs.length },
@@ -687,26 +799,26 @@ export default function JobBoardEnhanced() {
       return 0;
     });
 
-  const handleAcceptQuote = (jobId: string, _quoteId: string) => {
-    setJobs(prev => prev.map(j =>
-      j.id === jobId ? { ...j, status: 'accepted' as const } : j
-    ));
+  const handleAcceptQuote = async (_jobId: string, quoteId: string) => {
+    // Hit the Cloud Run API. The backend writes PG + fans out FCM to the
+    // tradesperson; we just refetch the job list on success.
+    await api.acceptQuote(quoteId);
+    setRefetchKey(k => k + 1);
   };
 
-  const handleSubmitQuote = (jobId: string, quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => {
-    const tpData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
-    const newQuote: Quote = {
-      id: Date.now().toString(),
-      tradespersonId: 'me',
-      tradespersonName: tpData.businessName || tpData.fullName || 'Your Business',
-      rating: 4.8, reviewCount: 47,
-      totalPrice: quote.price, estimatedHours: quote.hours, hourlyOverage: quote.overage,
-      message: quote.message, submittedAt: 'just now', verified: true,
-      availability: quote.availability,
-    };
-    setJobs(prev => prev.map(j =>
-      j.id === jobId ? { ...j, quotes: [...j.quotes, newQuote], status: 'quoted' as const } : j
-    ));
+  const handleSubmitQuote = async (jobId: string, quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => {
+    // TODO: `availability` is captured in the modal but not yet accepted by
+    // the API. Once the backend adds an availability payload we can pass
+    // `quote.availability` through as well.
+    void quote.availability;
+
+    await api.submitQuote(jobId, {
+      price: quote.price,
+      estimated_hours: quote.hours,
+      hourly_overage_rate: quote.overage,
+      message: quote.message,
+    });
+    setRefetchKey(k => k + 1);
   };
 
   return (
@@ -718,7 +830,7 @@ export default function JobBoardEnhanced() {
         <QuoteSubmissionModal
           job={quoteModalJob}
           onClose={() => setQuoteModalJob(null)}
-          onSubmit={q => { handleSubmitQuote(quoteModalJob.id, q); }}
+          onSubmit={q => handleSubmitQuote(quoteModalJob.id, q)}
         />
       )}
       {compareModalJob && (
