@@ -36,6 +36,11 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 
+# Firebase Admin SDK service account keys — NEVER commit these
+*-firebase-adminsdk-*.json
+**/serviceAccountKey.json
+scripts/serviceAccountKey.json
+
 # Next.js
 .next/
 out/
