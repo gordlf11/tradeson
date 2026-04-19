@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { Briefcase, Calendar, Plus, LayoutDashboard, Home, Building2, Users } from 'lucide-react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Auth
 import Login from './pages/Login';
@@ -28,7 +29,8 @@ import Settings from './pages/Settings';
 // ── Role helpers ──────────────────────────────────────────────────────────
 
 function isTradeRole(role: string) {
-  return role === 'licensed-trade' || role === 'non-licensed-trade';
+  return role === 'licensed-trade' || role === 'non-licensed-trade'
+    || role === 'licensed_tradesperson' || role === 'unlicensed_tradesperson';
 }
 
 function getDashboardPath(role: string) {
@@ -40,7 +42,8 @@ function getDashboardPath(role: string) {
 const BottomNav = () => {
   const location = useLocation();
   const path = location.pathname;
-  const userRole = localStorage.getItem('userRole') || 'homeowner';
+  const { userProfile } = useAuth();
+  const userRole = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
 
   // Hide nav on auth and onboarding screens
   const hideNavPaths = ['/login', '/signup', '/onboarding', '/role-selection'];
@@ -50,7 +53,6 @@ const BottomNav = () => {
   const isOnDash = path.includes('/dashboard');
 
   if (isTradeRole(userRole)) {
-    // Tradesperson nav: Job Board | Schedule | Dashboard
     return (
       <nav className="bottom-nav">
         <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
@@ -69,7 +71,7 @@ const BottomNav = () => {
     );
   }
 
-  if (userRole === 'property-manager') {
+  if (userRole === 'property-manager' || userRole === 'property_manager') {
     return (
       <nav className="bottom-nav">
         <Link to="/job-creation" className={`nav-item ${path === '/job-creation' ? 'active' : ''}`}>
@@ -129,44 +131,84 @@ const BottomNav = () => {
 // ── Smart Dashboard redirect ───────────────────────────────────────────────
 
 const DashboardRedirect = () => {
-  const userRole = localStorage.getItem('userRole') || 'homeowner';
+  const { userProfile } = useAuth();
+  const userRole = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
   return <Navigate to={getDashboardPath(userRole)} replace />;
+};
+
+// ── Protected Route wrapper ────────────────────────────────────────────────
+
+const RequireAuth = ({ children }: { children: React.ReactNode }) => {
+  const { firebaseUser, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-base)',
+      }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+          <div className="spinner" style={{ margin: '0 auto 16px' }} />
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
 };
 
 // ── App ───────────────────────────────────────────────────────────────────
 
-function App() {
+function AppRoutes() {
   return (
-    <BrowserRouter>
+    <>
       <Routes>
-        {/* Auth */}
+        {/* Auth — public */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
 
-        {/* Onboarding */}
-        <Route path="/onboarding" element={<RoleSelection />} />
-        <Route path="/role-selection" element={<RoleSelection />} />
-        <Route path="/onboarding/homeowner" element={<HomeownerOnboarding />} />
-        <Route path="/onboarding/property-manager" element={<PropertyManagerOnboarding />} />
-        <Route path="/onboarding/realtor" element={<RealtorOnboarding />} />
-        <Route path="/onboarding/licensed-trade" element={<LicensedTradespersonOnboarding />} />
-        <Route path="/onboarding/non-licensed-trade" element={<UnlicensedTradespersonOnboarding />} />
+        {/* Onboarding — requires auth */}
+        <Route path="/onboarding" element={<RequireAuth><RoleSelection /></RequireAuth>} />
+        <Route path="/role-selection" element={<RequireAuth><RoleSelection /></RequireAuth>} />
+        <Route path="/onboarding/homeowner" element={<RequireAuth><HomeownerOnboarding /></RequireAuth>} />
+        <Route path="/onboarding/property-manager" element={<RequireAuth><PropertyManagerOnboarding /></RequireAuth>} />
+        <Route path="/onboarding/realtor" element={<RequireAuth><RealtorOnboarding /></RequireAuth>} />
+        <Route path="/onboarding/licensed-trade" element={<RequireAuth><LicensedTradespersonOnboarding /></RequireAuth>} />
+        <Route path="/onboarding/non-licensed-trade" element={<RequireAuth><UnlicensedTradespersonOnboarding /></RequireAuth>} />
 
-        {/* Dashboards — role-specific */}
-        <Route path="/dashboard" element={<DashboardRedirect />} />
-        <Route path="/dashboard/tradesperson" element={<TradespersonDashboard />} />
-        <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+        {/* Dashboards — requires auth */}
+        <Route path="/dashboard" element={<RequireAuth><DashboardRedirect /></RequireAuth>} />
+        <Route path="/dashboard/tradesperson" element={<RequireAuth><TradespersonDashboard /></RequireAuth>} />
+        <Route path="/dashboard/customer" element={<RequireAuth><CustomerDashboard /></RequireAuth>} />
 
-        {/* Main App */}
-        <Route path="/job-creation" element={<JobCreation />} />
-        <Route path="/job-board" element={<JobBoard />} />
-        <Route path="/scheduling" element={<Scheduling />} />
-        <Route path="/job-execution" element={<JobExecution />} />
-        <Route path="/completion" element={<JobCompletion />} />
-        <Route path="/settings" element={<Settings />} />
+        {/* Main App — requires auth */}
+        <Route path="/job-creation" element={<RequireAuth><JobCreation /></RequireAuth>} />
+        <Route path="/job-board" element={<RequireAuth><JobBoard /></RequireAuth>} />
+        <Route path="/scheduling" element={<RequireAuth><Scheduling /></RequireAuth>} />
+        <Route path="/job-execution" element={<RequireAuth><JobExecution /></RequireAuth>} />
+        <Route path="/completion" element={<RequireAuth><JobCompletion /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
       </Routes>
       <BottomNav />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }

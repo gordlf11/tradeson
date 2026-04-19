@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ArrowRight, User, MapPin, Wrench, Shield, CreditCard,
-  Upload, Eye, EyeOff, Plus, Trash2, CheckCircle
+  ChevronLeft, ArrowRight, MapPin, Wrench, Shield, CreditCard,
+  Upload, Plus, Trash2, CheckCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UnlicensedData {
   // Step 1 – Account Info
@@ -62,7 +64,7 @@ const SUBCATEGORIES: Record<string, string[]> = {
 const RADIUS_OPTIONS = ['5', '10', '25', '50'];
 const ENTITY_TYPES = ['Sole Proprietor', 'LLC', 'Partnership', 'Other'];
 
-const STEP_TOTAL = 6;
+const STEP_TOTAL = 5;
 
 const sectionLabel = (text: string) => (
   <p style={{
@@ -74,10 +76,10 @@ const sectionLabel = (text: string) => (
 
 export default function UnlicensedTradespersonOnboarding() {
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
+  const [submitError, setSubmitError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-
   const [formData, setFormData] = useState<UnlicensedData>({
     fullName: '',
     businessName: '',
@@ -127,13 +129,43 @@ export default function UnlicensedTradespersonOnboarding() {
     setFormData(prev => ({ ...prev, areasServed: prev.areasServed.filter(z => z !== zip) }));
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < STEP_TOTAL) setCurrentStep(s => s + 1);
     else {
-      localStorage.setItem('userRole', 'non-licensed-trade');
-      localStorage.setItem('unlicensedTradespersonData', JSON.stringify(formData));
-      localStorage.setItem('hasOnboarded', 'true');
-      navigate('/job-board');
+      setIsSubmitting(true);
+      setSubmitError('');
+      try {
+        await api.onboardUnlicensedTrade({
+          business_name: formData.businessName,
+          service_address: formData.primaryAddress,
+          service_city: formData.city,
+          service_state: formData.state,
+          service_zip: formData.zipCode,
+          service_radius_miles: parseInt(formData.serviceRadius) || 25,
+          primary_trades: formData.serviceCategories,
+          subcategories: formData.subcategories,
+          additional_services: formData.additionalServices,
+          business_entity_type: formData.businessEntityType,
+          areas_served: formData.areasServed,
+          address_line_1: formData.primaryAddress,
+          city: formData.city,
+          state: formData.state,
+          zip_code: formData.zipCode,
+          notify_sms: formData.notifySMS,
+          notify_email: formData.notifyEmail,
+          notify_push: formData.notifyPush,
+          marketing_opt_in: formData.marketingOptIn,
+        });
+        await api.updateMe({ full_name: formData.fullName, phone_number: formData.phoneNumber });
+        await refreshProfile();
+        localStorage.setItem('userRole', 'non-licensed-trade');
+        localStorage.setItem('hasOnboarded', 'true');
+        navigate('/job-board');
+      } catch (err: any) {
+        setSubmitError(err.message || 'Failed to save profile');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -203,50 +235,6 @@ export default function UnlicensedTradespersonOnboarding() {
       case 1:
         return (
           <div>
-            {stepHeader(<User size={24} color="white" />, 'Your Account', 'Profile photo required')}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <Input label="Full Name" placeholder="John Smith" value={formData.fullName}
-                onChange={e => update('fullName', e.target.value)} />
-              <Input label="Business Name (optional)" placeholder="Smith Home Services" value={formData.businessName}
-                onChange={e => update('businessName', e.target.value)} />
-              <Input label="Phone Number" placeholder="(555) 123-4567" value={formData.phoneNumber}
-                onChange={e => update('phoneNumber', e.target.value)} />
-              <div style={{ position: 'relative' }}>
-                <Input label="Password" type={showPassword ? 'text' : 'password'}
-                  placeholder="Minimum 8 characters" value={formData.password}
-                  onChange={e => update('password', e.target.value)} />
-                <button type="button" onClick={() => setShowPassword(v => !v)} style={{
-                  position: 'absolute', right: '12px', top: '36px',
-                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-                }}>
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <Input label="Confirm Password" type={showConfirm ? 'text' : 'password'}
-                  placeholder="Re-enter password" value={formData.confirmPassword}
-                  onChange={e => update('confirmPassword', e.target.value)} />
-                <button type="button" onClick={() => setShowConfirm(v => !v)} style={{
-                  position: 'absolute', right: '12px', top: '36px',
-                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-                }}>
-                  {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                <p style={{ color: 'var(--danger)', fontSize: '0.8rem', margin: 0 }}>Passwords do not match</p>
-              )}
-
-              {sectionLabel('Profile Photo (required)')}
-              {uploadCard(formData.profilePhotoUploaded, 'profilePhotoUploaded',
-                'A profile photo is required to build trust with clients', true)}
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div>
             {stepHeader(<MapPin size={24} color="white" />, 'Your Location', 'Where are you based?')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               <Input label="Primary Address" placeholder="123 Main Street" value={formData.primaryAddress}
@@ -263,7 +251,7 @@ export default function UnlicensedTradespersonOnboarding() {
           </div>
         );
 
-      case 3:
+      case 2:
         return (
           <div>
             {stepHeader(<Wrench size={24} color="white" />, 'Services Offered', 'What do you specialize in?')}
@@ -325,7 +313,7 @@ export default function UnlicensedTradespersonOnboarding() {
           </div>
         );
 
-      case 4:
+      case 3:
         return (
           <div>
             {stepHeader(<MapPin size={24} color="white" />, 'Coverage Area', 'Where do you work?')}
@@ -379,7 +367,7 @@ export default function UnlicensedTradespersonOnboarding() {
           </div>
         );
 
-      case 5:
+      case 4:
         return (
           <div>
             {stepHeader(<Shield size={24} color="white" />, 'Trust Signals', 'Build client confidence')}
@@ -397,7 +385,7 @@ export default function UnlicensedTradespersonOnboarding() {
           </div>
         );
 
-      case 6:
+      case 5:
         return (
           <div>
             {stepHeader(<CreditCard size={24} color="white" />, 'Payout & Preferences', 'Get paid and stay connected')}
@@ -460,7 +448,7 @@ export default function UnlicensedTradespersonOnboarding() {
     }
   };
 
-  const stepTitles = ['Account', 'Location', 'Services', 'Coverage', 'Verification', 'Payout'];
+  const stepTitles = ['Location', 'Services', 'Coverage', 'Verification', 'Payout'];
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem' }}>
@@ -495,7 +483,8 @@ export default function UnlicensedTradespersonOnboarding() {
         {renderStep()}
       </Card>
 
-      <Button variant="primary" size="lg" fullWidth onClick={handleNext}
+      {submitError && (<div style={{ padding: '12px', background: 'rgba(255,74,107,0.1)', border: '1px solid var(--danger)', borderRadius: '8px', color: 'var(--danger)', fontSize: '0.875rem', marginBottom: '12px' }}>{submitError}</div>)}
+      <Button variant="primary" size="lg" fullWidth onClick={handleNext} loading={isSubmitting}
         icon={<ArrowRight size={20} />}>
         {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>

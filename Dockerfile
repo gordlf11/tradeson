@@ -12,6 +12,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Set production API URL for Vite build
+ENV VITE_API_URL=https://tradeson-api-63629008205.us-central1.run.app
+
 # Build the application
 RUN npm run build
 

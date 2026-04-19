@@ -25,9 +25,18 @@ export async function requireAuth(
 
   const token = authHeader.split('Bearer ')[1];
 
+  // Step 1: Verify Firebase token
+  let decoded;
   try {
-    const decoded = await auth.verifyIdToken(token);
+    decoded = await auth.verifyIdToken(token);
+  } catch (err) {
+    console.error('Firebase token verification failed:', err);
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
 
+  // Step 2: Look up user in PostgreSQL (separate try/catch so DB errors don't mask as auth errors)
+  try {
     const result = await pool.query(
       'SELECT id, firebase_uid, email, role, full_name FROM users WHERE firebase_uid = $1 AND deleted_at IS NULL',
       [decoded.uid]
@@ -47,8 +56,8 @@ export async function requireAuth(
     }
 
     next();
-  } catch (err) {
-    console.error('Auth error:', err);
-    res.status(401).json({ error: 'Invalid or expired token' });
+  } catch (dbErr) {
+    console.error('Database error during auth lookup:', dbErr);
+    res.status(503).json({ error: 'Database temporarily unavailable. Please try again.' });
   }
 }

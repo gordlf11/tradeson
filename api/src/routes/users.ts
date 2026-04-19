@@ -112,7 +112,16 @@ router.put('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { id } = req.user!;
   if (!id) { res.status(404).json({ error: 'User not found' }); return; }
 
-  const { full_name, phone_number, profile_photo_url } = req.body;
+  const { full_name, phone_number, profile_photo_url, role } = req.body;
+
+  // Validate role if provided
+  if (role) {
+    const validRoles = ['homeowner', 'property_manager', 'realtor', 'licensed_tradesperson', 'unlicensed_tradesperson'];
+    if (!validRoles.includes(role)) {
+      res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+      return;
+    }
+  }
 
   try {
     const result = await pool.query(
@@ -120,10 +129,11 @@ router.put('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
         full_name = COALESCE($1, full_name),
         phone_number = COALESCE($2, phone_number),
         profile_photo_url = COALESCE($3, profile_photo_url),
+        role = COALESCE($5, role),
         updated_at = now()
        WHERE id = $4
        RETURNING *`,
-      [full_name, phone_number, profile_photo_url, id]
+      [full_name, phone_number, profile_photo_url, id, role || null]
     );
 
     res.json(result.rows[0]);

@@ -5,7 +5,8 @@ npm-debug.log
 .github
 README.md
 .env
-.env.*
+.env.local
+.env.development
 dist
 .vscode
 .idea

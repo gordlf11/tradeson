@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { User, Wrench, Building, Home, Briefcase, ArrowRight, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 type UserRole = 'homeowner' | 'property-manager' | 'realtor' | 'licensed-trade' | 'non-licensed-trade';
 
@@ -56,11 +58,29 @@ export default function RoleSelection() {
     }
   ];
 
-  const handleContinue = () => {
+  const { setRole } = useAuth();
+
+  const handleContinue = async () => {
     if (!selectedRole) return;
 
-    // Store the selected role
-    localStorage.setItem('userRole', selectedRole);
+    // Map frontend role names to backend role names
+    const roleMap: Record<UserRole, string> = {
+      'homeowner': 'homeowner',
+      'property-manager': 'property_manager',
+      'realtor': 'realtor',
+      'licensed-trade': 'licensed_tradesperson',
+      'non-licensed-trade': 'unlicensed_tradesperson',
+    };
+
+    try {
+      // Update role in backend
+      await api.updateMe({ role: roleMap[selectedRole] });
+      setRole(roleMap[selectedRole]);
+      // Also keep localStorage in sync for components that still read it
+      localStorage.setItem('userRole', selectedRole);
+    } catch (err) {
+      console.error('Failed to update role:', err);
+    }
 
     // Navigate to role-specific onboarding
     switch (selectedRole) {

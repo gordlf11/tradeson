@@ -5,21 +5,55 @@ import { logAuditEvent } from '../middleware/audit';
 
 const router = Router();
 
+// Helper: ensure user exists in PG (auto-create if only in Firebase)
+async function ensureUser(req: AuthenticatedRequest): Promise<string> {
+  if (req.user!.id) return req.user!.id;
+
+  // User exists in Firebase but not PG — create them now
+  const { firebase_uid, email } = req.user!;
+
+  // Check if user already exists (avoid ON CONFLICT issues)
+  const existing = await pool.query('SELECT id FROM users WHERE firebase_uid = $1', [firebase_uid]);
+  if (existing.rows.length > 0) {
+    req.user!.id = existing.rows[0].id;
+    return existing.rows[0].id;
+  }
+
+  const result = await pool.query(
+    `INSERT INTO users (firebase_uid, email, full_name, role)
+     VALUES ($1, $2, $3, 'homeowner')
+     RETURNING id`,
+    [firebase_uid, email, email.split('@')[0]]
+  );
+  const userId = result.rows[0].id;
+
+  try {
+    await pool.query('INSERT INTO user_notification_preferences (user_id) VALUES ($1)', [userId]);
+  } catch {
+    // Already exists — fine
+  }
+
+  req.user!.id = userId;
+  return userId;
+}
+
 // Helper: save address + notification prefs
 async function saveAddressAndPrefs(userId: string, body: any) {
   if (body.address_line_1) {
-    await pool.query(
-      `INSERT INTO user_addresses (user_id, address_line_1, city, state, zip_code, service_radius_miles)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (user_id) DO UPDATE SET
-         address_line_1 = EXCLUDED.address_line_1,
-         city = EXCLUDED.city,
-         state = EXCLUDED.state,
-         zip_code = EXCLUDED.zip_code,
-         service_radius_miles = EXCLUDED.service_radius_miles,
-         updated_at = now()`,
-      [userId, body.address_line_1, body.city, body.state, body.zip_code, body.service_radius_miles]
-    );
+    const existing = await pool.query('SELECT id FROM user_addresses WHERE user_id = $1', [userId]);
+    if (existing.rows.length > 0) {
+      await pool.query(
+        `UPDATE user_addresses SET address_line_1 = $2, city = $3, state = $4, zip_code = $5,
+         service_radius_miles = $6, updated_at = now() WHERE user_id = $1`,
+        [userId, body.address_line_1, body.city, body.state, body.zip_code, body.service_radius_miles]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO user_addresses (user_id, address_line_1, city, state, zip_code, service_radius_miles)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, body.address_line_1, body.city, body.state, body.zip_code, body.service_radius_miles]
+      );
+    }
   }
 
   await pool.query(
@@ -39,8 +73,7 @@ async function saveAddressAndPrefs(userId: string, body: any) {
 
 // POST /api/v1/onboarding/homeowner
 router.post('/homeowner', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { id } = req.user!;
-  if (!id) { res.status(401).json({ error: 'User not found' }); return; }
+  const id = await ensureUser(req);
 
   try {
     const { property_address, property_city, property_state, property_zip,
@@ -54,7 +87,8 @@ router.post('/homeowner', requireAuth, async (req: AuthenticatedRequest, res) =>
          property_state = EXCLUDED.property_state, property_zip = EXCLUDED.property_zip,
          property_type = EXCLUDED.property_type, service_interests = EXCLUDED.service_interests,
          updated_at = now()`,
-      [id, property_address, property_city, property_state, property_zip, property_type, service_interests || []]
+      [id, property_address, property_city, property_state, property_zip,
+       property_type ? property_type.toLowerCase() : null, service_interests || []]
     );
 
     await saveAddressAndPrefs(id, req.body);
@@ -69,8 +103,7 @@ router.post('/homeowner', requireAuth, async (req: AuthenticatedRequest, res) =>
 
 // POST /api/v1/onboarding/property-manager
 router.post('/property-manager', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { id } = req.user!;
-  if (!id) { res.status(401).json({ error: 'User not found' }); return; }
+  const id = await ensureUser(req);
 
   try {
     const { company_name, job_title, business_email, property_count_range,
@@ -114,8 +147,7 @@ router.post('/property-manager', requireAuth, async (req: AuthenticatedRequest, 
 
 // POST /api/v1/onboarding/realtor
 router.post('/realtor', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { id } = req.user!;
-  if (!id) { res.status(401).json({ error: 'User not found' }); return; }
+  const id = await ensureUser(req);
 
   try {
     const { brokerage_name, license_number, service_radius_miles, client_emails } = req.body;
@@ -132,11 +164,16 @@ router.post('/realtor', requireAuth, async (req: AuthenticatedRequest, res) => {
 
     if (client_emails?.length) {
       for (const email of client_emails) {
-        await pool.query(
-          `INSERT INTO realtor_clients (realtor_profile_id, client_email) VALUES ($1, $2)
-           ON CONFLICT DO NOTHING`,
+        const exists = await pool.query(
+          'SELECT id FROM realtor_clients WHERE realtor_profile_id = $1 AND client_email = $2',
           [result.rows[0].id, email]
         );
+        if (exists.rows.length === 0) {
+          await pool.query(
+            'INSERT INTO realtor_clients (realtor_profile_id, client_email) VALUES ($1, $2)',
+            [result.rows[0].id, email]
+          );
+        }
       }
     }
 
@@ -152,8 +189,7 @@ router.post('/realtor', requireAuth, async (req: AuthenticatedRequest, res) => {
 
 // POST /api/v1/onboarding/licensed-trade
 router.post('/licensed-trade', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { id } = req.user!;
-  if (!id) { res.status(401).json({ error: 'User not found' }); return; }
+  const id = await ensureUser(req);
 
   try {
     const { business_name, service_address, service_city, service_state, service_zip,
@@ -208,8 +244,7 @@ router.post('/licensed-trade', requireAuth, async (req: AuthenticatedRequest, re
 
 // POST /api/v1/onboarding/non-licensed-trade
 router.post('/non-licensed-trade', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { id } = req.user!;
-  if (!id) { res.status(401).json({ error: 'User not found' }); return; }
+  const id = await ensureUser(req);
 
   try {
     const { business_name, service_address, service_city, service_state, service_zip,

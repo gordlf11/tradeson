@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { TradesOnIcon } from '../components/Logo';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -12,30 +13,23 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    // Simulate login - in production, this would call an auth API
-    setTimeout(() => {
-      if (email && password) {
-        // TEMPORARY: Clear any existing state for testing
-        localStorage.clear();
-        
-        // Store user session (mock)
-        localStorage.setItem('userEmail', email);
-        localStorage.setItem('isAuthenticated', 'true');
-        
-        // FORCE ROUTE TO ROLE SELECTION FOR TESTING
-        console.log('TESTING MODE: Always routing to role selection');
-        navigate('/role-selection');
-      } else {
-        setError('Please enter both email and password');
-      }
+    try {
+      await login(email, password);
+      // login() now waits for profile fetch to complete
+      // Navigate to role-selection — it will redirect to dashboard if onboarding is done
+      navigate('/role-selection');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -156,41 +150,6 @@ export default function Login() {
           </p>
         </div>
       </Card>
-
-      {/* Dev Tool - Remove in production */}
-      <div style={{ textAlign: 'center', marginTop: 'var(--space-4)' }}>
-        <div style={{ 
-          fontSize: '0.7rem', 
-          color: 'var(--text-tertiary)', 
-          marginBottom: '8px',
-          fontFamily: 'monospace'
-        }}>
-          Debug: userRole={localStorage.getItem('userRole')} | hasOnboarded={localStorage.getItem('hasOnboarded')}
-        </div>
-        <button
-          onClick={() => {
-            console.log('Clearing localStorage:', {
-              userRole: localStorage.getItem('userRole'),
-              hasOnboarded: localStorage.getItem('hasOnboarded'),
-              userEmail: localStorage.getItem('userEmail')
-            });
-            localStorage.clear();
-            window.location.reload();
-          }}
-          style={{
-            background: 'var(--danger-light)',
-            border: '1px solid var(--danger)',
-            color: 'var(--danger)',
-            padding: '6px 16px',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.75rem',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-        >
-          🗑️ Reset User State (Dev)
-        </button>
-      </div>
 
       <p className="text-center mt-4" style={{
         fontSize: '0.75rem',

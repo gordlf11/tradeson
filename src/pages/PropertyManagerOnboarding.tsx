@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import {
-  ChevronLeft, ArrowRight, User, MapPin, Building, Layers, Wrench, Sliders,
-  Plus, Trash2, Upload, Eye, EyeOff
+  ChevronLeft, ArrowRight, MapPin, Building, Layers, Wrench, Sliders,
+  Plus, Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -57,7 +59,7 @@ const SERVICE_TYPE_OPTIONS = ['Plumbing', 'Electrical', 'HVAC', 'General Contrac
 const URGENCY_OPTIONS = ['Emergency', 'Routine', 'Turnover'];
 const RADIUS_OPTIONS = ['10', '25', '50', '100'];
 
-const STEP_TOTAL = 6;
+const STEP_TOTAL = 5;
 
 const sectionLabel = (text: string) => (
   <p style={{
@@ -69,9 +71,10 @@ const sectionLabel = (text: string) => (
 
 export default function PropertyManagerOnboarding() {
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
+  const [submitError, setSubmitError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   const [formData, setFormData] = useState<PropertyManagerData>({
     fullName: '',
@@ -129,13 +132,43 @@ export default function PropertyManagerOnboarding() {
     }));
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < STEP_TOTAL) setCurrentStep(s => s + 1);
     else {
-      localStorage.setItem('userRole', 'property-manager');
-      localStorage.setItem('propertyManagerData', JSON.stringify(formData));
-      localStorage.setItem('hasOnboarded', 'true');
-      navigate('/job-creation');
+      setIsSubmitting(true);
+      setSubmitError('');
+      try {
+        await api.onboardPropertyManager({
+          company_name: formData.companyName,
+          job_title: formData.jobTitle,
+          business_email: formData.businessEmail,
+          property_count_range: formData.propertyCount,
+          property_types: formData.propertyTypes,
+          preferred_service_types: formData.preferredServiceTypes,
+          urgency_types: formData.urgencyTypes,
+          managed_properties: formData.propertyLocations.map(p => ({
+            address: p.address, city: p.city, state: p.state, zip_code: p.zipCode,
+          })),
+          address_line_1: formData.primaryAddress,
+          city: formData.city,
+          state: formData.state,
+          zip_code: formData.zipCode,
+          service_radius_miles: parseInt(formData.serviceRadius) || 25,
+          notify_sms: formData.notifySMS,
+          notify_email: formData.notifyEmail,
+          notify_push: formData.notifyPush,
+          marketing_opt_in: formData.marketingOptIn,
+        });
+        await api.updateMe({ full_name: formData.fullName, phone_number: formData.phoneNumber });
+        await refreshProfile();
+        localStorage.setItem('userRole', 'property-manager');
+        localStorage.setItem('hasOnboarded', 'true');
+        navigate('/job-creation');
+      } catch (err: any) {
+        setSubmitError(err.message || 'Failed to save profile');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -195,57 +228,6 @@ export default function PropertyManagerOnboarding() {
       case 1:
         return (
           <div>
-            {stepHeader(<User size={24} color="white" />, 'Your Account', 'Set up your login credentials')}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <Input label="Full Name" placeholder="Jane Smith" value={formData.fullName}
-                onChange={e => update('fullName', e.target.value)} />
-              <Input label="Phone Number" placeholder="(555) 123-4567" value={formData.phoneNumber}
-                onChange={e => update('phoneNumber', e.target.value)} />
-              <div style={{ position: 'relative' }}>
-                <Input label="Password" type={showPassword ? 'text' : 'password'}
-                  placeholder="Minimum 8 characters" value={formData.password}
-                  onChange={e => update('password', e.target.value)} />
-                <button type="button" onClick={() => setShowPassword(v => !v)} style={{
-                  position: 'absolute', right: '12px', top: '36px',
-                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-                }}>
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <Input label="Confirm Password" type={showConfirm ? 'text' : 'password'}
-                  placeholder="Re-enter password" value={formData.confirmPassword}
-                  onChange={e => update('confirmPassword', e.target.value)} />
-                <button type="button" onClick={() => setShowConfirm(v => !v)} style={{
-                  position: 'absolute', right: '12px', top: '36px',
-                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-                }}>
-                  {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                <p style={{ color: 'var(--danger)', fontSize: '0.8rem', margin: 0 }}>Passwords do not match</p>
-              )}
-
-              {sectionLabel('Profile Photo (optional)')}
-              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
-                {!formData.profilePhotoUploaded ? (
-                  <>
-                    <Upload size={32} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>Upload a profile photo</p>
-                    <Button variant="outline" onClick={() => update('profilePhotoUploaded', true)} icon={<Upload size={16} />}>Upload Photo</Button>
-                  </>
-                ) : (
-                  <p style={{ color: 'var(--success)', fontWeight: '600' }}>Photo uploaded ✓</p>
-                )}
-              </Card>
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div>
             {stepHeader(<MapPin size={24} color="white" />, 'Your Location', 'Where are you based?')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               <Input label="Primary Address" placeholder="123 Office Blvd" value={formData.primaryAddress}
@@ -276,7 +258,7 @@ export default function PropertyManagerOnboarding() {
           </div>
         );
 
-      case 3:
+      case 2:
         return (
           <div>
             {stepHeader(<Building size={24} color="white" />, 'Company Info', 'Tell us about your business')}
@@ -291,7 +273,7 @@ export default function PropertyManagerOnboarding() {
           </div>
         );
 
-      case 4:
+      case 3:
         return (
           <div>
             {stepHeader(<Layers size={24} color="white" />, 'Portfolio Details', 'Tell us about your properties')}
@@ -348,7 +330,7 @@ export default function PropertyManagerOnboarding() {
           </div>
         );
 
-      case 5:
+      case 4:
         return (
           <div>
             {stepHeader(<Wrench size={24} color="white" />, 'Operational Preferences', 'What services do you need?')}
@@ -374,7 +356,7 @@ export default function PropertyManagerOnboarding() {
           </div>
         );
 
-      case 6:
+      case 5:
         return (
           <div>
             {stepHeader(<Sliders size={24} color="white" />, 'Notifications', 'How should we reach you?')}
@@ -401,7 +383,7 @@ export default function PropertyManagerOnboarding() {
     }
   };
 
-  const stepTitles = ['Account', 'Location', 'Company', 'Portfolio', 'Operations', 'Notifications'];
+  const stepTitles = ['Location', 'Company', 'Portfolio', 'Operations', 'Notifications'];
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem' }}>
@@ -436,7 +418,8 @@ export default function PropertyManagerOnboarding() {
         {renderStep()}
       </Card>
 
-      <Button variant="primary" size="lg" fullWidth onClick={handleNext}
+      {submitError && (<div style={{ padding: '12px', background: 'rgba(255,74,107,0.1)', border: '1px solid var(--danger)', borderRadius: '8px', color: 'var(--danger)', fontSize: '0.875rem', marginBottom: '12px' }}>{submitError}</div>)}
+      <Button variant="primary" size="lg" fullWidth onClick={handleNext} loading={isSubmitting}
         icon={<ArrowRight size={20} />}>
         {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ArrowRight, User, MapPin, Briefcase, Sliders, UserPlus, Upload, Mail, Trash2, Eye, EyeOff
+  ChevronLeft, ArrowRight, MapPin, Briefcase, Sliders, UserPlus, Mail, Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RealtorData {
   // Step 1 – Account Info
@@ -38,7 +40,7 @@ interface RealtorData {
 }
 
 const RADIUS_OPTIONS = ['25', '50', '75', '100'];
-const STEP_TOTAL = 5;
+const STEP_TOTAL = 4;
 
 const sectionLabel = (text: string) => (
   <p style={{
@@ -50,9 +52,10 @@ const sectionLabel = (text: string) => (
 
 export default function RealtorOnboarding() {
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
+  const [submitError, setSubmitError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   const [formData, setFormData] = useState<RealtorData>({
     fullName: '',
@@ -96,13 +99,36 @@ export default function RealtorOnboarding() {
     }));
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < STEP_TOTAL) setCurrentStep(s => s + 1);
     else {
-      localStorage.setItem('userRole', 'realtor');
-      localStorage.setItem('realtorData', JSON.stringify(formData));
-      localStorage.setItem('hasOnboarded', 'true');
-      navigate('/job-creation');
+      setIsSubmitting(true);
+      setSubmitError('');
+      try {
+        await api.onboardRealtor({
+          brokerage_name: formData.brokerageName,
+          license_number: formData.licenseNumber,
+          service_radius_miles: parseInt(formData.serviceRadius) || 25,
+          client_emails: formData.clientEmails,
+          address_line_1: formData.primaryAddress,
+          city: formData.city,
+          state: formData.state,
+          zip_code: formData.zipCode,
+          notify_sms: formData.notifySMS,
+          notify_email: formData.notifyEmail,
+          notify_push: formData.notifyPush,
+          marketing_opt_in: formData.marketingOptIn,
+        });
+        await api.updateMe({ full_name: formData.fullName, phone_number: formData.phoneNumber });
+        await refreshProfile();
+        localStorage.setItem('userRole', 'realtor');
+        localStorage.setItem('hasOnboarded', 'true');
+        navigate('/job-creation');
+      } catch (err: any) {
+        setSubmitError(err.message || 'Failed to save profile');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -146,57 +172,6 @@ export default function RealtorOnboarding() {
       case 1:
         return (
           <div>
-            {stepHeader(<User size={24} color="white" />, 'Your Account', 'Set up your login credentials')}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <Input label="Full Name" placeholder="Jane Smith" value={formData.fullName}
-                onChange={e => update('fullName', e.target.value)} />
-              <Input label="Phone Number" placeholder="(555) 123-4567" value={formData.phoneNumber}
-                onChange={e => update('phoneNumber', e.target.value)} />
-              <div style={{ position: 'relative' }}>
-                <Input label="Password" type={showPassword ? 'text' : 'password'}
-                  placeholder="Minimum 8 characters" value={formData.password}
-                  onChange={e => update('password', e.target.value)} />
-                <button type="button" onClick={() => setShowPassword(v => !v)} style={{
-                  position: 'absolute', right: '12px', top: '36px',
-                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-                }}>
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <Input label="Confirm Password" type={showConfirm ? 'text' : 'password'}
-                  placeholder="Re-enter password" value={formData.confirmPassword}
-                  onChange={e => update('confirmPassword', e.target.value)} />
-                <button type="button" onClick={() => setShowConfirm(v => !v)} style={{
-                  position: 'absolute', right: '12px', top: '36px',
-                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-                }}>
-                  {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                <p style={{ color: 'var(--danger)', fontSize: '0.8rem', margin: 0 }}>Passwords do not match</p>
-              )}
-
-              {sectionLabel('Profile Photo (optional)')}
-              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
-                {!formData.profilePhotoUploaded ? (
-                  <>
-                    <Upload size={32} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>Upload a profile photo</p>
-                    <Button variant="outline" onClick={() => update('profilePhotoUploaded', true)} icon={<Upload size={16} />}>Upload Photo</Button>
-                  </>
-                ) : (
-                  <p style={{ color: 'var(--success)', fontWeight: '600' }}>Photo uploaded ✓</p>
-                )}
-              </Card>
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div>
             {stepHeader(<MapPin size={24} color="white" />, 'Your Location', 'Where are you based?')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               <Input label="Primary Address" placeholder="123 Main Street" value={formData.primaryAddress}
@@ -228,7 +203,7 @@ export default function RealtorOnboarding() {
           </div>
         );
 
-      case 3:
+      case 2:
         return (
           <div>
             {stepHeader(<Briefcase size={24} color="white" />, 'Professional Info', 'Your real estate credentials')}
@@ -241,7 +216,7 @@ export default function RealtorOnboarding() {
           </div>
         );
 
-      case 4:
+      case 3:
         return (
           <div>
             {stepHeader(<Sliders size={24} color="white" />, 'Preferences', 'Customize your experience')}
@@ -263,7 +238,7 @@ export default function RealtorOnboarding() {
           </div>
         );
 
-      case 5:
+      case 4:
         return (
           <div>
             {stepHeader(<UserPlus size={24} color="white" />, 'Client Portal', 'Invite clients to use TradesOn')}
@@ -322,7 +297,7 @@ export default function RealtorOnboarding() {
     }
   };
 
-  const stepTitles = ['Account', 'Location', 'Professional', 'Preferences', 'Client Portal'];
+  const stepTitles = ['Location', 'Professional', 'Preferences', 'Client Portal'];
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem' }}>
@@ -357,7 +332,8 @@ export default function RealtorOnboarding() {
         {renderStep()}
       </Card>
 
-      <Button variant="primary" size="lg" fullWidth onClick={handleNext}
+      {submitError && (<div style={{ padding: '12px', background: 'rgba(255,74,107,0.1)', border: '1px solid var(--danger)', borderRadius: '8px', color: 'var(--danger)', fontSize: '0.875rem', marginBottom: '12px' }}>{submitError}</div>)}
+      <Button variant="primary" size="lg" fullWidth onClick={handleNext} loading={isSubmitting}
         icon={<ArrowRight size={20} />}>
         {currentStep === STEP_TOTAL ? 'Complete Setup' : 'Continue'}
       </Button>

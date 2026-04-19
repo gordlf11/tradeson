@@ -4,6 +4,7 @@ import { Mail, Lock, User, ArrowRight, Briefcase, Check } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -16,14 +17,19 @@ export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { signup } = useAuth();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
       return;
     }
 
@@ -34,17 +40,14 @@ export default function Signup() {
 
     setIsLoading(true);
 
-    // Simulate signup - in production, this would call an auth API
-    setTimeout(() => {
-      // Store user session (mock)
-      localStorage.setItem('userEmail', formData.email);
-      localStorage.setItem('userName', formData.name);
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      // Navigate to role selection
+    try {
+      await signup(formData.email, formData.password, formData.name);
       navigate('/role-selection');
+    } catch (err: any) {
+      setError(err.message || 'Signup failed');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -124,7 +127,7 @@ export default function Signup() {
               required
             />
             <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-              Must be at least 8 characters
+              Must be at least 6 characters
             </p>
           </div>
 
