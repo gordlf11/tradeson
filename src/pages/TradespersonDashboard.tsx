@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, DollarSign, Star, AlertTriangle, Calendar,
@@ -10,6 +10,8 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import MessagingModal from '../components/MessagingModal';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 interface ActiveJob {
   id: string;
@@ -20,6 +22,64 @@ interface ActiveJob {
   status: 'confirmed' | 'en-route' | 'in-progress' | 'completed';
   scheduledDate: string;
   estimatedValue: number;
+}
+
+// Postgres row shape returned from GET /api/v1/jobs (snake_case).
+// Kept local — see api/src/routes/jobs.ts for the authoritative schema.
+interface ApiJobRow {
+  id: string;
+  homeowner_user_id: string;
+  assigned_tradesperson_id?: string | null;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  room?: string | null;
+  severity?: string | null;
+  status: string;
+  created_at: string;
+  expires_at?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  budget_min?: number | string | null;
+  budget_max?: number | string | null;
+  quote_count?: number | string;
+  customer_name?: string | null;
+  tradesperson_name?: string | null;
+}
+
+// Map Postgres job status → the dashboard's ActiveJob status variants.
+function mapStatus(pgStatus: string): ActiveJob['status'] {
+  switch (pgStatus) {
+    case 'in_progress': return 'in-progress';
+    case 'en_route':    return 'en-route';
+    case 'completed':   return 'completed';
+    case 'accepted':
+    case 'scheduled':
+    case 'confirmed':
+    default:            return 'confirmed';
+  }
+}
+
+function toActiveJob(row: ApiJobRow): ActiveJob {
+  const budgetMax = row.budget_max != null ? Number(row.budget_max) : 0;
+  const budgetMin = row.budget_min != null ? Number(row.budget_min) : 0;
+  // Prefer max budget as "estimated value" proxy until a real quote total is wired.
+  const estimatedValue = budgetMax || budgetMin || 0;
+  const addressLine = [row.address, row.city].filter(Boolean).join(', ') || '—';
+  return {
+    id: row.id,
+    title: row.title,
+    client: row.customer_name || 'Customer',
+    clientId: row.homeowner_user_id,
+    address: addressLine,
+    status: mapStatus(row.status),
+    scheduledDate: row.expires_at
+      ? new Date(row.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : '—',
+    estimatedValue,
+  };
 }
 
 interface PendingQuote {
@@ -39,12 +99,6 @@ interface ComplianceAlert {
   expiresOn: string;
   daysLeft: number;
 }
-
-const mockActiveJobs: ActiveJob[] = [
-  { id: '1', title: 'Kitchen Sink Leak Repair', client: 'Sarah Johnson', clientId: 'customer_sarah', address: '842 Maple Ave', status: 'confirmed', scheduledDate: 'Today, 2:00 PM', estimatedValue: 220 },
-  { id: '2', title: 'Bathroom Electrical Outlet', client: 'James Park', clientId: 'customer_james', address: '310 Elm St', status: 'in-progress', scheduledDate: 'Today, 4:30 PM', estimatedValue: 175 },
-  { id: '3', title: 'HVAC Annual Tune-Up', client: 'Maria Torres', clientId: 'customer_maria', address: '57 Oak Drive', status: 'confirmed', scheduledDate: 'Tomorrow, 9:00 AM', estimatedValue: 310 },
-];
 
 const mockPendingQuotes: PendingQuote[] = [
   { id: 'q1', jobTitle: 'Water Heater Replacement', client: 'Tom Chen', quotedPrice: 850, submittedAt: '3 hrs ago', expiresIn: '21h 14m', bidsTotal: 3 },
@@ -72,15 +126,60 @@ const sectionHeader = (title: string, sub?: string) => (
 
 export default function TradespersonDashboard() {
   const navigate = useNavigate();
+  const { userProfile } = useAuth();
 
-  const tradespersonData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
-  const userRole = localStorage.getItem('userRole') || 'licensed-trade';
-  const displayName = tradespersonData.fullName || tradespersonData.businessName || 'Tradesperson';
-  const userId = localStorage.getItem('userEmail') || 'tp_me';
+  const userRole = userProfile?.role || 'licensed_tradesperson';
+  const displayName = userProfile?.full_name || 'Tradesperson';
+  const userId = userProfile?.id || '';
   const rating = 4.8;
   const reviewCount = 47;
 
   const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
+  const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userProfile) return;
+
+    let cancelled = false;
+    setJobsLoading(true);
+    setJobsError(null);
+
+    // TODO: extend api.listJobs() to accept an assigned_tradesperson_id filter
+    //       so we don't have to pull the open-job board and filter client-side.
+    //       See api/src/routes/jobs.ts GET /api/v1/jobs — currently returns
+    //       open jobs for tradespeople. For now, we fetch and filter client-side.
+    api.listJobs()
+      .then((res) => {
+        if (cancelled) return;
+        const payload = (res as { jobs?: ApiJobRow[] }) || {};
+        const rows = payload.jobs || [];
+        const mine = rows.filter((r) => r.assigned_tradesperson_id === userProfile.id);
+        setActiveJobs(mine.map(toActiveJob));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : 'Failed to load jobs';
+        setJobsError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) setJobsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [userProfile]);
+
+  if (!userProfile) {
+    return (
+      <>
+        <TopNav title="Dashboard" />
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading your dashboard…</div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -90,7 +189,7 @@ export default function TradespersonDashboard() {
         {/* Hero Header — Navy */}
         <div style={{ background: 'var(--navy)', padding: 'var(--space-6) var(--space-4) var(--space-8)' }}>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: '0 0 4px', fontWeight: '500' }}>
-            {userRole === 'licensed-trade' ? 'Licensed Tradesperson' : 'Service Provider'}
+            {(userRole === 'licensed-trade' || userRole === 'licensed_tradesperson') ? 'Licensed Tradesperson' : 'Service Provider'}
           </p>
           <h1 style={{ color: 'white', fontSize: '1.5rem', fontWeight: '800', margin: '0 0 var(--space-3)', letterSpacing: '-0.03em' }}>
             {displayName}
@@ -155,49 +254,65 @@ export default function TradespersonDashboard() {
 
           {/* Active & Upcoming Jobs */}
           <div>
-            {sectionHeader('Active & Upcoming Jobs', `${mockActiveJobs.length} assignments`)}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {mockActiveJobs.map(job => {
-                const sc = statusConfig[job.status];
-                return (
-                  <Card key={job.id} style={{ padding: 'var(--space-4)' }}>
-                    <div
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)', cursor: 'pointer' }}
-                      onClick={() => navigate('/job-execution')}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{job.title}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{job.client} · {job.address}</div>
-                      </div>
-                      <Badge variant={sc.variant} size="sm">{sc.label}</Badge>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                        <Clock size={13} />
-                        {job.scheduledDate}
-                      </div>
-                      <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--primary)' }}>${job.estimatedValue}</div>
-                    </div>
-                    {/* Messaging — available on accepted/confirmed jobs */}
-                    <div style={{ paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
-                      <button
-                        onClick={() => setMessagingJob(job)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '6px',
-                          background: 'var(--primary-light)', border: '1px solid var(--primary)',
-                          borderRadius: 'var(--radius-sm)', padding: '6px 12px',
-                          color: 'var(--primary)', fontSize: '0.78rem', fontWeight: '700',
-                          cursor: 'pointer', fontFamily: 'inherit',
-                        }}
+            {sectionHeader('Active & Upcoming Jobs', `${activeJobs.length} assignments`)}
+            {jobsLoading ? (
+              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading jobs…</p>
+              </Card>
+            ) : jobsError ? (
+              <Card style={{ padding: 'var(--space-4)', borderLeft: '3px solid var(--danger)' }}>
+                <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: 0, fontWeight: 600 }}>Could not load jobs</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', margin: '4px 0 0' }}>{jobsError}</p>
+              </Card>
+            ) : activeJobs.length === 0 ? (
+              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                <Briefcase size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No active jobs yet. Browse the job board to submit quotes.</p>
+              </Card>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {activeJobs.map(job => {
+                  const sc = statusConfig[job.status];
+                  return (
+                    <Card key={job.id} style={{ padding: 'var(--space-4)' }}>
+                      <div
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)', cursor: 'pointer' }}
+                        onClick={() => navigate('/job-execution')}
                       >
-                        <MessageCircle size={14} />
-                        Message {job.client}
-                      </button>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{job.title}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{job.client} · {job.address}</div>
+                        </div>
+                        <Badge variant={sc.variant} size="sm">{sc.label}</Badge>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          <Clock size={13} />
+                          {job.scheduledDate}
+                        </div>
+                        <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--primary)' }}>${job.estimatedValue}</div>
+                      </div>
+                      {/* Messaging — available on accepted/confirmed jobs */}
+                      <div style={{ paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
+                        <button
+                          onClick={() => setMessagingJob(job)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            background: 'var(--primary-light)', border: '1px solid var(--primary)',
+                            borderRadius: 'var(--radius-sm)', padding: '6px 12px',
+                            color: 'var(--primary)', fontSize: '0.78rem', fontWeight: '700',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          <MessageCircle size={14} />
+                          Message {job.client}
+                        </button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Pending Quotes */}
