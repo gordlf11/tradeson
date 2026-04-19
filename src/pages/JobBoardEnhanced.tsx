@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,44 +51,85 @@ interface Job {
   likelihoodScore: number; // 0-100
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────
-
+// ── Mock quotes ────────────────────────────────────────────────────────────
+// TODO: wire quotes via api.getJob(id) when opening job detail; the quote
+// submission modal still reads from this placeholder (it'll be wired in a
+// follow-up task).
 const mockQuotes: Quote[] = [
   { id: 'q1', tradespersonId: 'tp1', tradespersonName: 'Maria Plumbing LLC', rating: 4.9, reviewCount: 87, totalPrice: 195, estimatedHours: 2, hourlyOverage: 75, message: 'I can fix this today. P-trap replacement and reseal — have parts on the truck.', submittedAt: '22 min ago', verified: true },
   { id: 'q2', tradespersonId: 'tp2', tradespersonName: 'Pipe Masters Inc.', rating: 4.6, reviewCount: 52, totalPrice: 175, estimatedHours: 3, hourlyOverage: 65, message: 'Likely a P-trap or drain seal issue. Will inspect and quote on-site if scope changes.', submittedAt: '1 hr ago', verified: true },
   { id: 'q3', tradespersonId: 'tp3', tradespersonName: 'QuickFix Plumbing', rating: 4.2, reviewCount: 31, totalPrice: 220, estimatedHours: 2.5, hourlyOverage: 80, message: 'Available tomorrow morning. Will bring full toolkit.', submittedAt: '2 hrs ago', verified: false },
 ];
 
-const mockJobs: Job[] = [
-  {
-    id: '1', title: 'Kitchen Sink Leak Repair', category: 'Plumbing', tradeId: 'plumbing',
-    severity: 'moderate', distance: 2.4, postedAt: '5 hrs ago', expiresInHours: 67,
-    description: 'Pipe under the kitchen sink is leaking when water is run. Started about 2 days ago and is getting worse. The cabinet below is starting to show water damage.',
-    room: 'Kitchen', jobNature: 'Repair / Fix', photos: 3, quotes: mockQuotes, verified: true,
-    clientName: 'Sarah J.', clientAddress: '842 Maple Ave', status: 'quoted', likelihoodScore: 92,
-  },
-  {
-    id: '2', title: 'Bathroom Light Fixture Install', category: 'Electrical', tradeId: 'electrical',
-    severity: 'routine', distance: 3.1, postedAt: '12 min ago', expiresInHours: 71,
-    description: 'Need to replace old vanity light fixture in the master bathroom. New fixture already purchased. Simple wiring swap expected.',
-    room: 'Bathroom', jobNature: 'Renovation', photos: 2, quotes: [], verified: true,
-    clientName: 'James P.', clientAddress: '310 Elm St', status: 'open', likelihoodScore: 78,
-  },
-  {
-    id: '3', title: 'AC Unit Not Cooling — Emergency', category: 'HVAC', tradeId: 'hvac',
-    severity: 'urgent', distance: 1.8, postedAt: '18 min ago', expiresInHours: 70,
-    description: 'AC unit stopped cooling completely. House is at 89°F. No visible ice build-up on the unit. Thermostat shows it is running but no cold air coming out.',
-    room: 'Whole House', jobNature: 'Repair / Fix', photos: 1, quotes: [], verified: false,
-    clientName: 'Tom C.', clientAddress: '57 Oak Drive', status: 'open', likelihoodScore: 85,
-  },
-  {
-    id: '4', title: 'Deck Boards Replacement', category: 'Carpentry', tradeId: 'carpentry',
-    severity: 'routine', distance: 4.5, postedAt: '2 days ago', expiresInHours: 22,
-    description: 'Several deck boards are rotting and need to be replaced before summer. Approximately 12 linear feet of boards.',
-    room: 'Outdoor / Yard', jobNature: 'Renovation', photos: 4, quotes: [mockQuotes[1]], verified: true,
-    clientName: 'Linda R.', clientAddress: '1410 Oak Lane', status: 'quoted', likelihoodScore: 60,
-  },
-];
+// ── API → component Job mapping ────────────────────────────────────────────
+// The API returns Postgres rows (snake_case); the UI expects the rich Job type
+// defined above. Keep the mapping local and permissive — many UI fields don't
+// exist in the list endpoint yet and are TODO'd until the backend grows them.
+
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '—';
+  const diffMs = Date.now() - then;
+  const mins = Math.max(0, Math.round(diffMs / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+function hoursUntil(iso: string | null | undefined): number {
+  if (!iso) return 0;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return 0;
+  const diffMs = then - Date.now();
+  return Math.max(0, diffMs / 3600000);
+}
+
+function mapSeverity(s: string | null | undefined): Job['severity'] {
+  switch ((s || '').toLowerCase()) {
+    case 'urgent':   return 'urgent';
+    case 'moderate': return 'moderate';
+    case 'routine':  return 'routine';
+    default:         return 'routine';
+  }
+}
+
+function mapJobStatus(s: string | null | undefined): Job['status'] {
+  const v = (s || '').toLowerCase();
+  if (v === 'quoted')                                 return 'quoted';
+  if (v === 'expired' || v === 'closed')              return 'expired';
+  if (v === 'accepted' || v === 'scheduled' ||
+      v === 'confirmed' || v === 'in_progress' ||
+      v === 'completed')                              return 'accepted';
+  return 'open';
+}
+
+function toBoardJob(row: any): Job {
+  const category = row.category || 'General';
+  return {
+    id: String(row.id),
+    title: row.title || 'Untitled Job',
+    category,
+    tradeId: String(category).toLowerCase(), // TODO: replace with a real trade-slug lookup when backend adds it
+    severity: mapSeverity(row.severity),
+    distance: 0, // TODO: not in API; wire geodistance when backend adds lat/lng + user location
+    postedAt: relativeTime(row.created_at),
+    expiresInHours: hoursUntil(row.expires_at),
+    description: row.description || '',
+    room: row.room || '—',
+    jobNature: row.job_nature || '—',
+    photos: 0, // TODO: not in list endpoint; populate from api.getJob(id) on expand
+    quotes: [], // TODO: load on demand via api.getJob(id) when a card is expanded
+    verified: true, // TODO: derive from customer KYC once backend exposes it
+    clientName: row.customer_name || 'Customer',
+    clientAddress: row.address || '—',
+    status: mapJobStatus(row.status),
+    likelihoodScore: 0, // TODO: AI match-score integration planned
+  };
+}
 
 const SORT_OPTIONS = ['Likelihood Match', 'Newest', 'Closest', 'Expiring Soon'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
@@ -575,7 +618,10 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
 // ── Main Job Board ─────────────────────────────────────────────────────────
 
 export default function JobBoardEnhanced() {
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const { userProfile } = useAuth();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('Likelihood Match');
   const [distanceFilter, setDistanceFilter] = useState<number>(60);
@@ -584,8 +630,40 @@ export default function JobBoardEnhanced() {
   const [quoteModalJob, setQuoteModalJob] = useState<Job | null>(null);
   const [compareModalJob, setCompareModalJob] = useState<Job | null>(null);
 
-  const userRole = localStorage.getItem('userRole') || 'homeowner';
-  const isTradeUser = userRole === 'licensed-trade' || userRole === 'non-licensed-trade';
+  // Prefer the server-truth role from Postgres (AuthContext.getMe); fall back
+  // to the legacy localStorage flag for signed-out dev sessions.
+  const userRole = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
+  const isTradeUser = userRole === 'licensed-trade' || userRole === 'non-licensed-trade'
+    || userRole === 'licensed_tradesperson' || userRole === 'non_licensed_tradesperson';
+
+  useEffect(() => {
+    if (!userProfile) return;
+
+    let cancelled = false;
+    setJobsLoading(true);
+    setJobsError(null);
+
+    // The API auto-filters by the signed-in user's role:
+    //   tradespeople → open jobs on the board
+    //   homeowners / property managers / realtors → jobs they've posted
+    api.listJobs()
+      .then((res) => {
+        if (cancelled) return;
+        const payload = (res as { jobs?: any[] }) || {};
+        const rows = payload.jobs || [];
+        setJobs(rows.map(toBoardJob));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : 'Failed to load jobs';
+        setJobsError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) setJobsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [userProfile]);
 
   const categories = [
     { id: 'all', label: 'All', count: jobs.length },
@@ -757,7 +835,28 @@ export default function JobBoardEnhanced() {
 
           {/* Job Cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            {filteredJobs.map(job => {
+            {jobsLoading && (
+              <Card style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+                <Clock size={40} style={{ margin: '0 auto 1rem', opacity: 0.25 }} />
+                <h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Loading jobs…</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                  Fetching the latest from the board.
+                </p>
+              </Card>
+            )}
+
+            {!jobsLoading && jobsError && (
+              <Card style={{ padding: 'var(--space-4)', borderLeft: '3px solid var(--danger)' }}>
+                <p style={{ color: 'var(--danger)', fontSize: '0.9rem', margin: 0, fontWeight: 700 }}>
+                  Could not load jobs
+                </p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '4px 0 0' }}>
+                  {jobsError}
+                </p>
+              </Card>
+            )}
+
+            {!jobsLoading && !jobsError && filteredJobs.map(job => {
               const sb = severityBadge(job.severity);
               const isExpanded = expandedJobId === job.id;
 
@@ -893,7 +992,7 @@ export default function JobBoardEnhanced() {
               );
             })}
 
-            {filteredJobs.length === 0 && (
+            {!jobsLoading && !jobsError && filteredJobs.length === 0 && (
               <Card style={{ padding: '4rem 2rem', textAlign: 'center' }}>
                 <Clock size={40} style={{ margin: '0 auto 1rem', opacity: 0.25 }} />
                 <h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>No Jobs Found</h3>

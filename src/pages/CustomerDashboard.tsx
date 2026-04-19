@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Clock, CheckCircle, Star,
@@ -11,6 +11,8 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import MessagingModal from '../components/MessagingModal';
 import ReviewModal from '../components/ReviewModal';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -50,24 +52,99 @@ interface HistoryItem {
   reviewed: boolean;
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────
+// ── API row → view model ───────────────────────────────────────────────────
 
-const mockJobs: ActiveJob[] = [
-  { id: 'j1', title: 'Kitchen Sink Leak', property: '842 Maple Ave', status: 'quotes-in', tradeType: 'Plumbing', postedAt: '5 hrs ago', quotesCount: 3, expiresIn: '67h 15m' },
-  {
-    id: 'j2', title: 'Bathroom Light Fixture', property: '842 Maple Ave', status: 'scheduled',
-    tradeType: 'Electrical', postedAt: 'Yesterday', quotesCount: 5,
-    acceptedProvider: 'Mike Sparks', acceptedProviderId: 'tp_mike', acceptedPrice: 140,
-    confirmedDay: 'Wednesday', confirmedSlot: '10 AM – 1 PM',
-  },
-  { id: 'j3', title: 'HVAC Filter Service', property: '310 Elm St', status: 'open', tradeType: 'HVAC', postedAt: '2 hrs ago', quotesCount: 0, expiresIn: '70h 00m' },
-];
+// Postgres row shape returned from GET /api/v1/jobs (snake_case).
+// Kept local — see api/src/routes/jobs.ts for the authoritative schema.
+interface ApiJobRow {
+  id: string;
+  homeowner_user_id: string;
+  assigned_tradesperson_id?: string | null;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  room?: string | null;
+  severity?: string | null;
+  status: string;
+  created_at: string;
+  expires_at?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  budget_min?: number | string | null;
+  budget_max?: number | string | null;
+  quote_count?: number | string;
+  tradesperson_name?: string | null;
+}
 
+// Map Postgres job status → the dashboard's ActiveJob status variants.
+function mapStatus(pgStatus: string, quoteCount: number): ActiveJob['status'] {
+  switch (pgStatus) {
+    case 'in_progress': return 'in-progress';
+    case 'completed':   return 'completed';
+    case 'accepted':
+    case 'scheduled':
+    case 'confirmed':   return 'scheduled';
+    case 'open':
+    default:            return quoteCount > 0 ? 'quotes-in' : 'open';
+  }
+}
+
+function relativeTime(iso: string): string {
+  const d = new Date(iso);
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min${mins !== 1 ? 's' : ''} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs !== 1 ? 's' : ''} ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function expiresInLabel(iso?: string | null): string | undefined {
+  if (!iso) return undefined;
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (diffMs <= 0) return 'expired';
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return `${hrs}h ${mins.toString().padStart(2, '0')}m`;
+}
+
+function toActiveJob(row: ApiJobRow): ActiveJob {
+  const quotesCount = Number(row.quote_count ?? 0);
+  const addressLine = [row.address, row.city].filter(Boolean).join(', ') || '—';
+  const budgetMax = row.budget_max != null ? Number(row.budget_max) : 0;
+  const budgetMin = row.budget_min != null ? Number(row.budget_min) : 0;
+  const acceptedPrice = budgetMax || budgetMin || undefined;
+  return {
+    id: row.id,
+    title: row.title,
+    property: addressLine,
+    status: mapStatus(row.status, quotesCount),
+    tradeType: row.category || 'General',
+    postedAt: relativeTime(row.created_at),
+    quotesCount,
+    expiresIn: expiresInLabel(row.expires_at),
+    acceptedProvider: row.tradesperson_name || undefined,
+    acceptedProviderId: row.assigned_tradesperson_id || undefined,
+    acceptedPrice,
+  };
+}
+
+// ── Mock data (not yet wired to api) ───────────────────────────────────────
+
+// TODO: wire to api — quotes endpoint does not exist yet on Cloud Run API.
 const mockNotifications: QuoteNotification[] = [
   { id: 'n1', jobTitle: 'Kitchen Sink Leak', providerName: 'Maria Plumbing LLC', rating: 4.9, price: 195, timeAgo: '22 min ago' },
   { id: 'n2', jobTitle: 'Kitchen Sink Leak', providerName: 'Pipe Masters Inc.', rating: 4.6, price: 175, timeAgo: '1 hr ago' },
 ];
 
+// TODO: wire to api — payment history endpoint does not exist yet.
 const mockHistory: HistoryItem[] = [
   { id: 'h1', title: 'Deck Power Washing', provider: 'CleanPro Services', providerId: 'tp_clean', completedOn: 'Mar 28', paid: 225, rating: 5, reviewed: true },
   { id: 'h2', title: 'Dryer Vent Cleaning', provider: 'SafeAir Solutions', providerId: 'tp_safe', completedOn: 'Mar 12', paid: 95, rating: 0, reviewed: false },
@@ -109,18 +186,51 @@ function getRoleDetails(role: string) {
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
+  const { userProfile } = useAuth();
 
-  const userRole = localStorage.getItem('userRole') || 'homeowner';
-  const userId = localStorage.getItem('userEmail') || 'customer_1';
-  const storedData = JSON.parse(
-    localStorage.getItem('homeownerData') ||
-    localStorage.getItem('realtorData') ||
-    localStorage.getItem('propertyManagerData') || '{}'
-  );
-  const displayName = storedData.fullName || 'there';
+  const userRole = userProfile?.role || 'homeowner';
+  const userId = userProfile?.id || '';
+  const displayName = userProfile?.full_name || 'there';
   const roleDetails = getRoleDetails(userRole);
 
-  const activeJobs = mockJobs.filter(j => j.status !== 'completed');
+  const [jobs, setJobs] = useState<ActiveJob[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+
+  const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
+  const [reviewItem, setReviewItem] = useState<HistoryItem | null>(null);
+  const [historyReviewed, setHistoryReviewed] = useState<Record<string, boolean>>(
+    Object.fromEntries(mockHistory.map(h => [h.id, h.reviewed]))
+  );
+
+  useEffect(() => {
+    if (!userProfile) return;
+
+    let cancelled = false;
+    setJobsLoading(true);
+    setJobsError(null);
+
+    // API route filters by the signed-in customer's id automatically — no params needed.
+    api.listJobs()
+      .then((res) => {
+        if (cancelled) return;
+        const payload = (res as { jobs?: ApiJobRow[] }) || {};
+        const rows = payload.jobs || [];
+        setJobs(rows.map(toActiveJob));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : 'Failed to load jobs';
+        setJobsError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) setJobsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [userProfile]);
+
+  const activeJobs = jobs.filter(j => j.status !== 'completed');
 
   // Enrich with confirmed schedules from localStorage (set when accepting a quote)
   const confirmedSchedules = JSON.parse(localStorage.getItem('confirmedSchedules') || '{}');
@@ -136,13 +246,18 @@ export default function CustomerDashboard() {
   const pendingJobs = enrichedJobs.filter(j => j.status === 'open');
   const quotesInJobs = enrichedJobs.filter(j => j.status === 'quotes-in');
 
-  const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
-  const [reviewItem, setReviewItem] = useState<HistoryItem | null>(null);
-  const [historyReviewed, setHistoryReviewed] = useState<Record<string, boolean>>(
-    Object.fromEntries(mockHistory.map(h => [h.id, h.reviewed]))
-  );
-
   const isJobPoster = userRole === 'homeowner' || userRole === 'property-manager' || userRole === 'realtor';
+
+  if (!userProfile) {
+    return (
+      <>
+        <TopNav title="Dashboard" />
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading your dashboard…</div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -182,8 +297,21 @@ export default function CustomerDashboard() {
 
         <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', marginTop: '-16px' }}>
 
+          {/* Jobs loading / error banner */}
+          {jobsLoading && (
+            <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading your jobs…</p>
+            </Card>
+          )}
+          {!jobsLoading && jobsError && (
+            <Card style={{ padding: 'var(--space-4)', borderLeft: '3px solid var(--danger)' }}>
+              <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: 0, fontWeight: 600 }}>Could not load jobs</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', margin: '4px 0 0' }}>{jobsError}</p>
+            </Card>
+          )}
+
           {/* 1. Accepted Jobs */}
-          {acceptedJobs.length > 0 && (
+          {!jobsLoading && !jobsError && acceptedJobs.length > 0 && (
             <div>
               {sectionHeader('Accepted Jobs', 'Scheduled & currently in progress')}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -239,7 +367,7 @@ export default function CustomerDashboard() {
           )}
 
           {/* 2. Pending Job Requests */}
-          {pendingJobs.length > 0 && (
+          {!jobsLoading && !jobsError && pendingJobs.length > 0 && (
             <div>
               {sectionHeader(
                 'Pending Job Requests',
@@ -269,7 +397,7 @@ export default function CustomerDashboard() {
           )}
 
           {/* Empty state — no jobs at all */}
-          {acceptedJobs.length === 0 && pendingJobs.length === 0 && quotesInJobs.length === 0 && (
+          {!jobsLoading && !jobsError && acceptedJobs.length === 0 && pendingJobs.length === 0 && quotesInJobs.length === 0 && (
             <div>
               {sectionHeader('Your Jobs', undefined, { label: '+ New Job', onClick: () => navigate('/job-creation') })}
               <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
@@ -281,7 +409,7 @@ export default function CustomerDashboard() {
           )}
 
           {/* 3. New Quotes */}
-          {(quotesInJobs.length > 0 || mockNotifications.length > 0) && (
+          {!jobsLoading && !jobsError && (quotesInJobs.length > 0 || mockNotifications.length > 0) && (
             <div>
               {sectionHeader(
                 'New Quotes',
