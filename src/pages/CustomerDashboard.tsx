@@ -226,16 +226,16 @@ export default function CustomerDashboard() {
   );
 
   useEffect(() => {
-    if (!userProfile) return;
-
-    let cancelled = false;
-
-    // Demo mode: skip API call, show mock data immediately
+    // Demo mode: skip API call, show mock data immediately — don't wait for userProfile
     if (localStorage.getItem('demoMode') === 'true') {
       setJobs(FALLBACK_JOBS);
       setJobsLoading(false);
       return;
     }
+
+    if (!userProfile) return;
+
+    let cancelled = false;
 
     setJobsLoading(true);
     setJobsError(null);
@@ -278,7 +278,7 @@ export default function CustomerDashboard() {
 
   const isJobPoster = userRole === 'homeowner' || userRole === 'property-manager' || userRole === 'realtor';
 
-  if (!userProfile) {
+  if (!userProfile && localStorage.getItem('demoMode') !== 'true') {
     return (
       <>
         <TopNav title="Dashboard" />

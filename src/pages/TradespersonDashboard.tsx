@@ -155,16 +155,16 @@ export default function TradespersonDashboard() {
   const [jobsError, setJobsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userProfile) return;
-
-    let cancelled = false;
-
-    // Demo mode: skip API call, show mock data immediately
+    // Demo mode: skip API call, show mock data immediately — don't wait for userProfile
     if (localStorage.getItem('demoMode') === 'true') {
       setActiveJobs(FALLBACK_ACTIVE_JOBS);
       setJobsLoading(false);
       return;
     }
+
+    if (!userProfile) return;
+
+    let cancelled = false;
 
     setJobsLoading(true);
     setJobsError(null);
@@ -189,7 +189,7 @@ export default function TradespersonDashboard() {
     return () => { cancelled = true; };
   }, [userProfile]);
 
-  if (!userProfile) {
+  if (!userProfile && localStorage.getItem('demoMode') !== 'true') {
     return (
       <>
         <TopNav title="Dashboard" />
