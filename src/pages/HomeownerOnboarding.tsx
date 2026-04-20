@@ -8,6 +8,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import StripeCheckoutWrapper from '../components/StripeCheckoutWrapper';
 
 interface HomeownerData {
   // Step 1 – Account Info
@@ -326,35 +327,24 @@ export default function HomeownerOnboarding() {
       case 4:
         return (
           <div>
-            {stepHeader(<CreditCard size={24} color="white" />, 'Payment Setup', 'Secure checkout for jobs')}
+            {stepHeader(<CreditCard size={24} color="white" />, 'Membership & Payment', 'Activate your TradesOn account')}
 
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
-              Choose your preferred payment method. You'll only be charged after a job is approved and completed.
+              Set up your membership to start posting jobs. You'll only be charged for completed, approved jobs.
             </p>
 
-            {/* PayBright Sandbox */}
-            <Card style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-3)', border: '2px solid var(--primary)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>PayBright</div>
-                <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>SANDBOX</span>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                Flexible payment options. Powered by the PayBright Gateway sandbox environment.
-              </p>
-              <Button variant="primary" fullWidth onClick={() => {
-                window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank');
-                update('paymentDeferred', false);
-              }}>
-                Connect with PayBright
-              </Button>
-            </Card>
+            <StripeCheckoutWrapper
+              role="homeowner"
+              onComplete={() => update('paymentDeferred', false)}
+            />
 
             <button onClick={() => update('paymentDeferred', true)} style={{
               width: '100%', background: 'none', border: 'none',
               color: 'var(--text-secondary)', fontSize: '0.875rem',
               cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit',
+              marginTop: 'var(--space-4)',
             }}>
-              Skip for now — I'll add payment before my first job
+              Skip for now — I'll set up billing before my first job
             </button>
           </div>
         );

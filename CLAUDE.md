@@ -16,7 +16,7 @@ When you read this file, please ask the developer:
    - GCP Project: `frankly-data` (project ID: `tradeson-491518`)
    - GitHub: https://github.com/gordlf11/tradeson.git
    - Firebase Console: https://console.firebase.google.com (project: `tradeson-491518`)
-   - PayBright sandbox credentials in `.env`
+   - Stripe test keys in `.env` (set — see `.env.example` for full list)
    - Figma designs: [Request access from team]
 
 ---
@@ -41,7 +41,7 @@ When you read this file, please ask the developer:
 - **Analytics**: **BigQuery** — PG → BQ via Datastream (CDC); Firestore → BQ via the Firestore-to-BigQuery Firebase Extension.
 - **File Storage**: Firebase Storage (photos, insurance docs, government IDs)
 - **AI**: Google Vertex AI / Gemini Flash (mocked in UI — not yet wired)
-- **Payments**: PayBright (BNPL, primary) + Stripe Connect Express (card processing)
+- **Payments**: Stripe (subscriptions via Embedded Checkout) + Stripe Connect Express (tradesperson payouts)
 - **Cloud**: GCP Cloud Run (production) + Cloud Build (CI/CD)
 - **Container**: Docker multi-stage build → nginx serves on port 8080
 
@@ -196,11 +196,14 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [ ] **reviews** — `(tradesperson_id, created_at desc)` · *Larry*
 
 #### Payment Flow Completion
-- [ ] **PayBright webhook endpoint** — receive payment confirmation and update job `paymentStatus` in Firestore · *Larry*
-- [ ] **Stripe Connect onboarding** — complete tradesperson Stripe Express account creation flow (currently PayBright-only UI) · *Kevin/Larry*
-- [ ] **Payout trigger** — on job completion + payment confirmed, initiate tradesperson payout via Stripe Connect · *Larry*
+- [x] **Stripe webhook handler** — `checkout.session.completed`, `customer.subscription.deleted`, `account.updated`, `transfer.created` · *Kevin*
+- [x] **Stripe Connect onboarding** — Express account creation, onboarding link, payout setup in all tradesperson onboarding flows · *Kevin*
+- [x] **Subscription checkout** — Embedded Checkout per role (homeowner, realtor, property-manager, licensed-trade, non-licensed-trade) · *Kevin*
+- [x] **Platform fee** — `PLATFORM_FEE_PERCENT` env var, enforced in `/stripe/platform-payout` and `/stripe/direct-charge` · *Kevin*
+- [ ] **Payout trigger** — wire `/api/v1/stripe/platform-payout` call on job completion · *Larry*
 - [ ] **Payment history** — load real transaction records into CustomerDashboard Payment History section · *Larry*
-- [ ] **Platform fee calculation** — enforce platform fee % in payment logic (not just displayed in UI) · *Larry*
+- [ ] **Run Stripe migration** — `psql $DATABASE_URL -f api/src/schema/stripe_migration.sql` adds `stripe_customer_id`, `subscription_id`, `subscription_status` to users · *Larry*
+- [ ] **Create Stripe price IDs** — create 5 subscription products in Stripe Dashboard (test mode) and set `STRIPE_PRICE_*` env vars · *Kevin/Larry*
 
 #### Error Handling & Resilience
 - [ ] **Error boundaries** — wrap `<JobBoard>`, `<CustomerDashboard>`, `<TradespersonDashboard>`, `<AdminDashboard>` in `<ErrorBoundary>` · *Kevin*
@@ -389,7 +392,7 @@ node scripts/seedFirestore.mjs
 
 ## 🔑 Key Design Decisions (Do Not Revert)
 
-- **PayBright is the primary payment method** — Stripe is secondary (card fallback). Never show Stripe branding during onboarding.
+- **Stripe is the sole payment processor** — PayBright has been fully removed. Embedded Checkout for subscriptions; Connect Express for tradesperson payouts.
 - **No star ratings on quote cards** — display `# reviews` as a clickable link instead. Stars only appear in the tradesperson's own profile preview.
 - **Service radius is a slider (5–50 mi)**, not buttons, on all onboarding location pages.
 - **Accepted job button stays green** (`var(--success)`) even after navigating away. Use `style` prop override on Button component.

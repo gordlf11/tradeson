@@ -9,6 +9,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import StripeCheckoutWrapper from '../components/StripeCheckoutWrapper';
 
 interface PropertyLocation {
   address: string;
@@ -375,29 +376,11 @@ export default function PropertyManagerOnboarding() {
                 I'd like to receive tips, promotions, and platform updates from TradesOn
               </label>
 
-              {sectionLabel('Payment Method')}
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                Set up billing for your service jobs. You'll only be charged after jobs are completed and approved.
+              {sectionLabel('Membership & Billing')}
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 var(--space-3)' }}>
+                Activate your membership to start managing service jobs. You'll only be charged after jobs are completed.
               </p>
-              <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                  <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>PayBright</div>
-                  <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
-                </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                  Flexible payment options via the PayBright Gateway sandbox environment.
-                </p>
-                <button
-                  onClick={() => window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank')}
-                  style={{
-                    width: '100%', padding: '10px', background: 'var(--primary)', color: 'white',
-                    border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700',
-                    fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >
-                  Connect with PayBright
-                </button>
-              </Card>
+              <StripeCheckoutWrapper role="property-manager" />
             </div>
           </div>
         );

@@ -5,6 +5,8 @@ import usersRouter from './routes/users';
 import onboardingRouter from './routes/onboarding';
 import jobsRouter from './routes/jobs';
 import quotesRouter from './routes/quotes';
+import stripeRouter from './routes/stripe';
+import webhooksRouter from './routes/webhooks';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '8080', 10);
@@ -19,6 +21,10 @@ app.use(cors({
   ],
   credentials: true,
 }));
+
+// Stripe webhooks require raw body — must be registered BEFORE express.json()
+app.use('/api/v1/stripe/webhooks', express.raw({ type: 'application/json' }), webhooksRouter);
+
 app.use(express.json({ limit: '10mb' }));
 
 // Health check
@@ -31,6 +37,7 @@ app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/onboarding', onboardingRouter);
 app.use('/api/v1/jobs', jobsRouter);
 app.use('/api/v1/quotes', quotesRouter);
+app.use('/api/v1/stripe', stripeRouter);
 
 // 404 handler
 app.use((_req, res) => {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ArrowRight, MapPin, Wrench, FileText, Shield, CreditCard,
-  Upload, Plus, Trash2, CheckCircle
+  Upload, Plus, Trash2, CheckCircle, AlertCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -84,6 +84,8 @@ export default function LicensedTradespersonOnboarding() {
   const { refreshProfile } = useAuth();
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectError, setConnectError] = useState('');
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<LicensedTradespersonData>({
     fullName: '',
@@ -484,29 +486,60 @@ export default function LicensedTradespersonOnboarding() {
 
               {sectionLabel('Payout Setup')}
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 var(--space-3)' }}>
-                Choose how you'd like to receive your earnings.
+                Connect a bank account or debit card to receive earnings from completed jobs.
               </p>
 
-              {/* PayBright Sandbox */}
-              <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)', marginBottom: 'var(--space-3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                  <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>PayBright</div>
-                  <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
-                </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                  Set up payouts via the PayBright Gateway sandbox environment.
-                </p>
-                <button
-                  onClick={() => window.open(import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com', '_blank')}
-                  style={{
-                    width: '100%', padding: '10px', background: 'var(--primary)', color: 'white',
-                    border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700',
-                    fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >
-                  Connect PayBright Payout
-                </button>
-              </Card>
+              {formData.stripeConnectSetup ? (
+                <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--success)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                    <CheckCircle size={22} color="var(--success)" />
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                        Stripe Payouts Connected
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--success)', fontWeight: '600' }}>
+                        Complete setup on the Stripe tab, then return here
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ) : (
+                <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>Stripe Payouts</div>
+                    <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>TEST MODE</span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                    Secure payouts via Stripe Connect Express. Set up your bank account or debit card once and get paid automatically on job completion.
+                  </p>
+                  {connectError && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-3)', color: 'var(--danger)', fontSize: '0.8rem' }}>
+                      <AlertCircle size={14} />
+                      {connectError}
+                    </div>
+                  )}
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    loading={connectLoading}
+                    onClick={async () => {
+                      setConnectLoading(true);
+                      setConnectError('');
+                      try {
+                        const data = await api.createConnectAccount() as { onboarding_url: string };
+                        update('stripeConnectSetup', true);
+                        window.open(data.onboarding_url, '_blank');
+                      } catch (err: any) {
+                        setConnectError(err.message || 'Failed to start payout setup');
+                      } finally {
+                        setConnectLoading(false);
+                      }
+                    }}
+                  >
+                    Set Up Stripe Payouts
+                  </Button>
+                </Card>
+              )}
 
               {sectionLabel('Notification Preferences')}
               <div style={{ display: 'flex', gap: 'var(--space-3)' }}>

@@ -1,34 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, CreditCard, LogIn, UserPlus, CheckCircle, ExternalLink } from 'lucide-react';
+import { ChevronLeft, CreditCard, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-
-const PAYBRIGHT_SANDBOX_URL = import.meta.env.VITE_PAYBRIGHT_SANDBOX_URL || 'https://sandbox.paybrightgateway.com';
+import api from '../services/api';
 
 export default function PaymentSettings() {
   const navigate = useNavigate();
-  const [connected, setConnected] = useState(localStorage.getItem('paybrightConnected') === 'true');
+  const userRole = localStorage.getItem('userRole') || '';
+  const isTrader = userRole === 'licensed-trade' || userRole === 'non-licensed-trade';
 
-  const handleConnect = () => {
-    window.open(PAYBRIGHT_SANDBOX_URL, '_blank');
-    localStorage.setItem('paybrightConnected', 'true');
-    setConnected(true);
-  };
+  const [connectStatus, setConnectStatus] = useState<{ account_id: string | null; payout_enabled: boolean } | null>(null);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectError, setConnectError] = useState('');
+  const [statusLoading, setStatusLoading] = useState(isTrader);
 
-  const handleLogin = () => {
-    window.open(`${PAYBRIGHT_SANDBOX_URL}/login`, '_blank');
-    localStorage.setItem('paybrightConnected', 'true');
-    setConnected(true);
-  };
+  useEffect(() => {
+    if (!isTrader) return;
+    api.getConnectStatus()
+      .then((data: any) => setConnectStatus(data))
+      .catch(() => setConnectStatus({ account_id: null, payout_enabled: false }))
+      .finally(() => setStatusLoading(false));
+  }, [isTrader]);
 
-  const handleSignup = () => {
-    window.open(`${PAYBRIGHT_SANDBOX_URL}/signup`, '_blank');
-  };
-
-  const handleDisconnect = () => {
-    localStorage.removeItem('paybrightConnected');
-    setConnected(false);
+  const handleConnectPayout = async () => {
+    setConnectLoading(true);
+    setConnectError('');
+    try {
+      const data = await api.createConnectAccount() as { onboarding_url: string };
+      window.open(data.onboarding_url, '_blank');
+      // Refresh status after returning
+      setTimeout(async () => {
+        const updated: any = await api.getConnectStatus().catch(() => null);
+        if (updated) setConnectStatus(updated);
+      }, 3000);
+    } catch (err: any) {
+      setConnectError(err.message || 'Failed to start payout setup');
+    } finally {
+      setConnectLoading(false);
+    }
   };
 
   return (
@@ -37,7 +47,7 @@ export default function PaymentSettings() {
       <div style={{
         background: 'var(--navy)', padding: 'var(--space-4)',
         display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-        paddingTop: 'max(var(--space-4), env(safe-area-inset-top))'
+        paddingTop: 'max(var(--space-4), env(safe-area-inset-top))',
       }}>
         <button
           onClick={() => navigate('/settings')}
@@ -45,100 +55,113 @@ export default function PaymentSettings() {
         >
           <ChevronLeft size={24} />
         </button>
-        <h1 style={{ color: 'white', fontSize: '1.1rem', fontWeight: '700', margin: 0 }}>Payment Methods</h1>
+        <h1 style={{ color: 'white', fontSize: '1.1rem', fontWeight: '700', margin: 0 }}>Payment & Payouts</h1>
       </div>
 
       <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', paddingBottom: '40px' }}>
 
-        {/* PayBright Status Card */}
-        {connected ? (
-          <Card style={{ padding: 'var(--space-5)', border: '2px solid var(--success)' }}>
+        {/* Subscription info */}
+        <Card style={{ padding: 'var(--space-5)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+            <div style={{
+              width: '44px', height: '44px', borderRadius: 'var(--radius-md)',
+              background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <CreditCard size={22} color="var(--primary)" />
+            </div>
+            <div>
+              <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>TradesOn Membership</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Powered by Stripe</div>
+            </div>
+          </div>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+            Manage your subscription at any time. Billing is handled securely through Stripe.
+          </p>
+        </Card>
+
+        {/* Stripe Connect payout section — tradespeople only */}
+        {isTrader && (
+          <Card style={{
+            padding: 'var(--space-5)',
+            border: connectStatus?.payout_enabled
+              ? '2px solid var(--success)'
+              : '2px solid var(--primary)',
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
               <div style={{
                 width: '44px', height: '44px', borderRadius: 'var(--radius-md)',
-                background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                background: connectStatus?.payout_enabled ? 'rgba(34,197,94,0.1)' : 'var(--primary-light)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <CheckCircle size={24} color="var(--success)" />
+                {connectStatus?.payout_enabled
+                  ? <CheckCircle size={24} color="var(--success)" />
+                  : <CreditCard size={22} color="var(--primary)" />
+                }
               </div>
               <div>
-                <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>PayBright Connected</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--success)', fontWeight: '600' }}>Sandbox environment active</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <Button
-                variant="outline"
-                fullWidth
-                icon={<ExternalLink size={16} />}
-                onClick={() => window.open(PAYBRIGHT_SANDBOX_URL, '_blank')}
-              >
-                Open PayBright Portal
-              </Button>
-              <button
-                onClick={handleDisconnect}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--danger)', fontSize: '0.82rem', fontWeight: '600',
-                  padding: 'var(--space-2)', fontFamily: 'inherit'
-                }}
-              >
-                Disconnect PayBright
-              </button>
-            </div>
-          </Card>
-        ) : (
-          <Card style={{ padding: 'var(--space-5)', border: '2px solid var(--primary)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>
+                  {connectStatus?.payout_enabled ? 'Payouts Enabled' : 'Stripe Payouts'}
+                </div>
                 <div style={{
-                  width: '44px', height: '44px', borderRadius: 'var(--radius-md)',
-                  background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  fontSize: '0.78rem', fontWeight: '600',
+                  color: connectStatus?.payout_enabled ? 'var(--success)' : 'var(--text-secondary)',
                 }}>
-                  <CreditCard size={22} color="var(--primary)" />
-                </div>
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>PayBright</div>
-                  <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>SANDBOX</span>
+                  {statusLoading
+                    ? 'Loading…'
+                    : connectStatus?.payout_enabled
+                      ? 'Your account is verified and ready to receive payments'
+                      : 'Set up your payout account to receive earnings'}
                 </div>
               </div>
             </div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-5)' }}>
-              Connect your PayBright account to enable secure payment processing on TradesOn.
-            </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <Button variant="primary" fullWidth icon={<LogIn size={18} />} onClick={handleLogin}>
-                Log In to PayBright
-              </Button>
-              <Button variant="outline" fullWidth icon={<UserPlus size={18} />} onClick={handleSignup}>
-                Create a PayBright Account
-              </Button>
-              <Button variant="outline" fullWidth icon={<ExternalLink size={16} />} onClick={handleConnect}>
-                Open PayBright Sandbox
-              </Button>
-            </div>
+            {!statusLoading && !connectStatus?.payout_enabled && (
+              <>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
+                  Connect a bank account or debit card to receive earnings from completed jobs. Platform payouts are processed automatically on job completion.
+                </p>
+                {connectError && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-3)', color: 'var(--danger)', fontSize: '0.82rem' }}>
+                    <AlertCircle size={14} />
+                    {connectError}
+                  </div>
+                )}
+                <Button
+                  variant="primary"
+                  fullWidth
+                  loading={connectLoading}
+                  icon={<ExternalLink size={16} />}
+                  onClick={handleConnectPayout}
+                >
+                  {connectStatus?.account_id ? 'Continue Payout Setup' : 'Set Up Stripe Payouts'}
+                </Button>
+              </>
+            )}
           </Card>
         )}
 
-        {/* Sandbox credentials info */}
+        {/* Info card */}
         <Card style={{ padding: 'var(--space-4)', background: 'var(--bg-surface)' }}>
           <h3 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-            Sandbox Credentials
+            How payments work
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            {[
-              { label: 'Environment', value: 'Sandbox (Test)' },
-              { label: 'Portal URL', value: 'sandbox.paybrightgateway.com' },
-            ].map(row => (
+            {(isTrader ? [
+              { label: 'Payout model', value: 'Platform collects · releases on completion' },
+              { label: 'Platform fee', value: 'Deducted automatically at payout' },
+              { label: 'Direct payments', value: 'Customer → your Stripe account' },
+              { label: 'Environment', value: 'Test mode (Stripe sandbox)' },
+            ] : [
+              { label: 'Billing', value: 'Charged after job completion' },
+              { label: 'Processor', value: 'Stripe (test mode)' },
+              { label: 'Subscription', value: 'Monthly membership' },
+            ]).map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{row.label}</span>
                 <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{row.value}</span>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: 'var(--space-3)', margin: 'var(--space-3) 0 0' }}>
-            Use the sandbox credentials provided by your PayBright account manager for testing.
-          </p>
         </Card>
       </div>
     </div>
