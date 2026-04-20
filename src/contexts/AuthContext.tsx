@@ -19,7 +19,7 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<UserProfile | null>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   setRole: (role: string) => void;
@@ -85,21 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timeout);
   }, [loading]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<UserProfile | null> => {
     setError(null);
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       setFirebaseUser(cred.user);
       // Fetch profile after login
+      let profile: UserProfile | null = null;
       try {
-        const profile = await api.getMe() as UserProfile;
+        profile = await api.getMe() as UserProfile;
         setUserProfile(profile);
       } catch {
         // User in Firebase but not in PG — will go to role-selection
         setUserProfile(null);
       }
       setLoading(false);
+      return profile;
     } catch (err: any) {
       setLoading(false);
       const msg = firebaseErrorMessage(err.code);

@@ -22,10 +22,14 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
-      // login() now waits for profile fetch to complete
-      // Navigate to role-selection — it will redirect to dashboard if onboarding is done
-      navigate('/role-selection');
+      const profile = await login(email, password);
+      // Admin users go straight to the admin dashboard
+      if (profile?.role === 'admin') {
+        navigate('/dashboard/admin');
+      } else {
+        // All other roles go to role-selection (redirects to dashboard if onboarding is done)
+        navigate('/role-selection');
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
