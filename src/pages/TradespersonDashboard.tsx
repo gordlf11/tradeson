@@ -158,13 +158,17 @@ export default function TradespersonDashboard() {
     if (!userProfile) return;
 
     let cancelled = false;
+
+    // Demo mode: skip API call, show mock data immediately
+    if (localStorage.getItem('demoMode') === 'true') {
+      setActiveJobs(FALLBACK_ACTIVE_JOBS);
+      setJobsLoading(false);
+      return;
+    }
+
     setJobsLoading(true);
     setJobsError(null);
 
-    // TODO: extend api.listJobs() to accept an assigned_tradesperson_id filter
-    //       so we don't have to pull the open-job board and filter client-side.
-    //       See api/src/routes/jobs.ts GET /api/v1/jobs — currently returns
-    //       open jobs for tradespeople. For now, we fetch and filter client-side.
     api.listJobs()
       .then((res) => {
         if (cancelled) return;

@@ -814,6 +814,14 @@ export default function JobBoardEnhanced() {
     if (!userProfile) return;
 
     let cancelled = false;
+
+    // Demo mode: skip API call, show mock data immediately
+    if (localStorage.getItem('demoMode') === 'true') {
+      setJobs(FALLBACK_JOBS);
+      setJobsLoading(false);
+      return;
+    }
+
     setJobsLoading(true);
     setJobsError(null);
 
