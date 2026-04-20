@@ -50,22 +50,28 @@ When you read this file, please ask the developer:
 /tradeson
 ├── src/
 │   ├── pages/              # All screen components (one file per screen)
+│   │   ├── Demo.tsx        # Demo mode activator — sets demoMode flag + redirects to /login
+│   │   └── (all other screens)
 │   ├── components/         # Reusable components
 │   │   ├── ui/             # Button, Card, Badge, Input, etc.
 │   │   ├── TopNav.tsx      # Role-aware top navigation bar
 │   │   ├── MessagingModal.tsx  # Real-time chat (Firebase)
+│   │   ├── DemoNavigator.tsx   # Floating 25-screen nav bar (demo mode only)
+│   │   ├── StripeCheckoutWrapper.tsx  # Stripe PaymentElement + SetupIntent card form
 │   │   └── Logo.tsx        # TradesOn logo (uses public/logo.png)
 │   ├── services/
 │   │   ├── firebase.ts     # Firebase app init (auth, db, analytics, FCM)
 │   │   ├── messagingService.ts  # Firestore messaging helpers
 │   │   ├── api.ts          # API service layer
 │   │   └── mockData.ts     # Synthetic data (pre-Firestore wiring)
-│   ├── App.tsx             # Router + BottomNav + role routing
+│   ├── App.tsx             # Router + BottomNav + role routing + DemoNavigator
 │   └── index.css           # Global CSS variables and base styles
 ├── public/
-│   └── logo.png            # TradesOn brand mark (orange wrench+check)
+│   ├── logo.png            # TradesOn brand mark (orange wrench+check)
+│   └── firebase-messaging-sw.js  # FCM service worker for background push
 ├── scripts/
 │   └── seedFirestore.mjs   # Seeds all Firestore collections (run once)
+├── nginx.conf              # Cache headers: no-cache on index.html, immutable on JS/CSS, 30d on images
 ├── Dockerfile              # Multi-stage build: Node 20 + nginx
 ├── cloudbuild.yaml         # GCP Cloud Build pipeline config
 └── CLAUDE.md               # This file
@@ -158,7 +164,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [x] **Run Firestore seed script** — seeded to `tradeson-491518` for messaging/review/audit collections · *Larry*
 
 #### Real-Time UX via FCM (Critical — replaces Firestore listeners for non-messaging events)
-- [ ] **FCM service worker** — register `firebase-messaging-sw.js` in `public/` for background push · *Kevin*
+- [x] **FCM service worker** — `firebase-messaging-sw.js` created in `public/`; registers Firebase Messaging for background push · *Kevin*
 - [ ] **Store FCM token on login** — save to `users/{uid}.fcmToken` in Firestore (only client-writable field on users collection) · *Larry*
 - [ ] **Cloud Run → Pub/Sub event emission** — every PG write in `api/` publishes `quote.submitted`, `quote.accepted`, `job.status_changed`, etc. · *Larry*
 - [ ] **FCM fan-out Cloud Function** — Pub/Sub subscriber that reads user FCM tokens and sends push messages · *Larry*
@@ -200,16 +206,26 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [x] **Stripe Connect onboarding** — Express account creation, onboarding link, payout setup in all tradesperson onboarding flows · *Kevin*
 - [x] **Per-job payment routes** — `direct-charge` (job poster pays) + `platform-payout` (transfer to tradesperson minus 10% fee) · *Kevin*
 - [x] **Platform fee** — `PLATFORM_FEE_PERCENT=0.10` (10%), enforced in `/stripe/platform-payout` and `/stripe/direct-charge` · *Kevin*
+- [x] **Stripe SetupIntent + PaymentElement** — `POST /api/v1/stripe/create-setup-intent` route added; `StripeCheckoutWrapper.tsx` rewritten from `EmbeddedCheckout` (deleted) to `Elements` + `PaymentElement`; collects card for future per-job charges; graceful DB-unavailable fallback · *Kevin*
 - [ ] **Payout trigger** — wire `/api/v1/stripe/platform-payout` call on job completion · *Larry*
 - [ ] **Payment history** — load real transaction records into CustomerDashboard Payment History section · *Larry*
 - [ ] **Run Stripe migration** — `psql $DATABASE_URL -f api/src/schema/stripe_migration.sql` adds `stripe_customer_id` to users (needed for Connect flow) · *Larry*
 - [x] **No Stripe products needed** — subscriptions removed; job payments use dynamic `amount_cents` · *Kevin*
 
 #### Error Handling & Resilience
-- [ ] **Error boundaries** — wrap `<JobBoard>`, `<CustomerDashboard>`, `<TradespersonDashboard>`, `<AdminDashboard>` in `<ErrorBoundary>` · *Kevin*
-- [ ] **Loading skeletons** — add skeleton/spinner states for all Firestore data fetches (currently instant mock renders) · *Kevin*
+- [x] **Error boundaries** — `<ErrorBoundary>` wrapping `<JobBoard>`, `<CustomerDashboard>`, `<TradespersonDashboard>`, `<AdminDashboard>` in `App.tsx` · *Kevin*
+- [x] **Fallback mock data** — `FALLBACK_JOBS` constants in `JobBoardEnhanced.tsx`, `CustomerDashboard.tsx`, `TradespersonDashboard.tsx`; shown instantly in demo mode + on API failure · *Kevin*
+- [ ] **Loading skeletons** — add skeleton/spinner states for all data fetches · *Kevin*
 - [ ] **Empty states** — confirm all lists handle zero results gracefully (job board, dashboard, reviews) · *Kevin*
-- [ ] **Network failure handling** — show user-friendly message if Firestore read fails; retry logic for sends · *Kevin*
+- [ ] **Network failure handling** — show user-friendly message if API read fails; retry logic for sends · *Kevin*
+
+#### Demo Mode & Presenter Experience
+- [x] **Demo mode system** — `localStorage.setItem('demoMode', 'true')` gates mock Firebase user in `AuthContext`, bypasses `RequireAuth`, renders `DemoNavigator` · *Kevin*
+- [x] **`/demo` route** — `Demo.tsx` sets demoMode flag + `localStorage.userRole = 'homeowner'`, then `window.location.replace('/login')` · *Kevin*
+- [x] **DemoNavigator component** — fixed floating bar (z-index 9999) with 25-screen list across 6 sections; prev/next nav; role switching via `setRole()` + navigate; Exit clears all localStorage flags · *Kevin*
+- [x] **"View Demo" button on Login page** — calls `navigate('/demo')` to activate demo mode · *Kevin*
+- [x] **Non-blocking onboarding** — `HomeownerOnboarding`, `PropertyManagerOnboarding`, `RealtorOnboarding` wrap API calls in inner try/catch; users always navigate forward even if Cloud SQL is unavailable · *Kevin*
+- [x] **nginx cache fix** — `index.html` served with `no-cache, no-store, must-revalidate`; `.js`/`.css` use `immutable`; images use `30d max-age` (non-immutable); prevents stale-bundle issues after deploys · *Kevin*
 
 ---
 
@@ -276,18 +292,19 @@ This section tracks every item required to take TradesOn from demo to a producti
 | Critical — Auth & Session | 6 | 6 | 0 |
 | Critical — Firestore Rules | 7 | 6 | 1 |
 | Critical — Data Layer (→ api.ts) | 9 | 1 | 8 |
-| Critical — FCM Real-Time UX | 10 | 0 | 10 |
+| Critical — FCM Real-Time UX | 10 | 1 | 9 |
 | High — File Uploads | 5 | 0 | 5 |
 | High — Firestore Indexes | 7 | 7 | 0 |
 | High — Postgres Indexes | 3 | 0 | 3 |
-| High — Payments | 5 | 3 | 2 |
-| High — Error Handling | 4 | 0 | 4 |
+| High — Payments | 9 | 6 | 3 |
+| High — Error Handling | 5 | 2 | 3 |
+| High — Demo Mode & Presenter | 6 | 6 | 0 |
 | Important — AI | 3 | 0 | 3 |
 | Important — BigQuery | 3 | 0 | 3 |
 | Important — Performance | 4 | 0 | 4 |
 | Important — Mobile | 5 | 0 | 5 |
 | Launch Enhancements | 14 | 0 | 14 |
-| **TOTAL** | **85** | **20** | **65** |
+| **TOTAL** | **96** | **35** | **61** |
 
 > When Claude completes an item, update `[ ]` → `[x]` and update the Progress Summary counts.
 > When an item is in progress, update `[ ]` → `[~]`.
@@ -319,7 +336,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 - Job Execution page with checklist and status tracking
 - Job Completion + review submission
 - Messaging modal: real-time Firebase chat with local fallback
-- PayBright BNPL integration (sandbox)
+- PayBright BNPL integration (removed — replaced by Stripe in 1E)
 
 ### ✅ PHASE 1D — Dashboards & Admin (COMPLETE)
 - Customer Dashboard: Accepted Jobs → Pending → New Quotes → Payment History
@@ -327,6 +344,18 @@ This section tracks every item required to take TradesOn from demo to a producti
 - Admin Dashboard: Compliance Review, Account Monitoring (flag/notify buttons), Admin Resolutions, Audit Log, Platform Metrics
 - TopNav: role-aware with logo, user dropdown (Profile, Dashboard, Sign Out)
 - BottomNav: role-specific tabs (3-tab for all roles)
+
+### ✅ PHASE 1E — Payments, Demo Mode & Resilience (COMPLETE)
+- Stripe fully replaces PayBright: `direct-charge` + Connect Express payouts, 10% platform fee
+- `StripeCheckoutWrapper` rebuilt with `Elements` + `PaymentElement` + `SetupIntent` (collects card; charges happen per-job)
+- `create-setup-intent` Cloud Run route with graceful DB-unavailable fallback
+- "Skip for now" Button on all customer/realtor/PM onboarding payment steps
+- Non-blocking onboarding: all roles navigate forward even if Cloud SQL is unavailable
+- Demo mode system: `/demo` route, `DemoNavigator` (25 screens, 6 sections), demoMode localStorage flag
+- Fallback mock data in JobBoard, CustomerDashboard, TradespersonDashboard (instant in demo + on API error)
+- `<ErrorBoundary>` wrapped around all dashboard + JobBoard routes in `App.tsx`
+- FCM service worker (`public/firebase-messaging-sw.js`) registered
+- nginx cache headers fixed: `index.html` no-cache, hashed bundles immutable, images 30d
 
 ### 🔲 NEXT PRIORITY — Data Layer Wiring (Pre-Launch Critical)
 **Auth is done. Firestore rules + indexes + seed are done. The remaining gap to production is wiring the transactional data layer through `api.ts` and standing up FCM.**
@@ -401,6 +430,9 @@ node scripts/seedFirestore.mjs
 - **Messaging uses Firestore with local fallback** — the `threads/` collection + participants-array schema is the contract (see `messagingService.ts`). The legacy `messaging_threads/` collection (customer/tradesperson columns) is locked down and unused. If Firestore throws, messages fall back to local state (demo mode).
 - **Jobs/quotes/reviews go through `api.ts`, not Firestore.** Firestore is reserved for messaging + future real-time-critical features only. See the Architecture section at the top of this file.
 - **Full services list**: Plumbing, Electrical, HVAC, General Repairs, Cleaning, Landscaping, Snow Removal — use this exact list everywhere services appear.
+- **Demo mode is localStorage-gated** — `localStorage.getItem('demoMode') === 'true'` is checked in `AuthContext` (injects fake Firebase user + profile), `RequireAuth` (bypasses auth check), `App.tsx` (renders `<DemoNavigator>`), and each dashboard screen (skips API call, loads `FALLBACK_*` constants immediately). Activate via `/demo` route or the "View Demo" button on Login. Exit via DemoNavigator Exit button (clears `demoMode`, `userRole`, `hasOnboarded`).
+- **nginx cache strategy** — `index.html` is `no-cache` so browsers always fetch fresh after a deploy. Hashed `.js`/`.css` bundles use `immutable` (safe because filename changes on content change). Images use `30d` without `immutable` (filename doesn't change). This prevents the "stale app" problem where users see old JS after a deploy.
+- **Stripe card collection uses SetupIntent + PaymentElement** — the old `EmbeddedCheckout`/`create-checkout-session` subscription flow is fully removed. Card details are collected via `StripeCheckoutWrapper` (SetupIntent) during onboarding; actual charges happen per-job via `direct-charge`. "Skip for now" is a `<Button variant="ghost">` that sets `paymentDeferred: true` and continues onboarding.
 
 ---
 
@@ -445,10 +477,15 @@ cd tradeson
 npm install
 npm run dev       # http://localhost:5173
 
-# Login shortcut for testing:
-# 1. Any email + any password → lands on role selection
-# 2. Toggle to "Admin Login" → lands on admin dashboard directly
-# 3. "Reset User State" button on login page clears localStorage
+# Demo mode — flip through all 25 screens without an account:
+#   Navigate to http://localhost:5173/demo
+#   OR click "View Demo — Flip through all screens" on the Login page
+#   Use the DemoNavigator bar (bottom of screen) to jump between screens
+#   Exit button clears demo mode and returns to Login
+
+# Login shortcut for testing with a real account:
+# 1. Any Firebase-registered email + password → lands on role selection
+# 2. Toggle to "Admin Login" → sign in as admin user (requires admin Firebase account)
 ```
 
 ---
