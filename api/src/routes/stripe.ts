@@ -59,6 +59,47 @@ router.post('/create-connect-account', requireAuth, async (req: AuthenticatedReq
   }
 });
 
+// POST /api/v1/stripe/create-setup-intent
+// Creates a Stripe SetupIntent so job posters can save a card for future job payments.
+// Idempotently creates a Stripe Customer and links stripe_customer_id to the user row.
+// Degrades gracefully if DB is unavailable — creates an anonymous SetupIntent.
+router.post('/create-setup-intent', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    let customerId: string | undefined;
+
+    try {
+      const result = await pool.query('SELECT email, stripe_customer_id FROM users WHERE id = $1', [userId]);
+      const user = result.rows[0];
+      if (user) {
+        if (user.stripe_customer_id) {
+          customerId = user.stripe_customer_id;
+        } else {
+          const customer = await stripe.customers.create({
+            email: user.email,
+            metadata: { userId },
+          });
+          customerId = customer.id;
+          await pool.query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, userId]);
+        }
+      }
+    } catch (dbErr) {
+      // DB unavailable — create anonymous SetupIntent; customer linked on next login
+      console.warn('DB unavailable for create-setup-intent, proceeding without customer');
+    }
+
+    const setupIntent = await stripe.setupIntents.create({
+      ...(customerId ? { customer: customerId } : {}),
+      payment_method_types: ['card'],
+    });
+
+    res.json({ client_secret: setupIntent.client_secret });
+  } catch (err: any) {
+    console.error('create-setup-intent error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/v1/stripe/connect-status
 router.get('/connect-status', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {

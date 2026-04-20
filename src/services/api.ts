@@ -70,9 +70,9 @@ export const api = {
   acceptQuote: (quoteId: string) =>
     request(`/api/v1/quotes/${quoteId}/accept`, { method: 'POST' }),
 
-  // Stripe — subscription checkout
-  createCheckoutSession: (role: string) =>
-    request('/api/v1/stripe/create-checkout-session', { method: 'POST', body: JSON.stringify({ role }) }),
+  // Stripe — save card for future job payments (SetupIntent)
+  createSetupIntent: () =>
+    request('/api/v1/stripe/create-setup-intent', { method: 'POST' }),
 
   // Stripe Connect — tradesperson payout onboarding
   createConnectAccount: () =>
