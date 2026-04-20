@@ -203,6 +203,21 @@ export default function Login() {
       }}>
         By continuing, you agree to our Terms of Service and Privacy Policy
       </p>
+
+      {/* Demo mode — for previewing all screens without an account */}
+      <div style={{ textAlign: 'center', marginTop: 'var(--space-6)' }}>
+        <button
+          onClick={() => navigate('/demo')}
+          style={{
+            background: 'none', border: '1.5px solid var(--border)',
+            borderRadius: '20px', padding: '8px 20px',
+            fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-secondary)',
+            cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em',
+          }}
+        >
+          View Demo — Flip through all screens
+        </button>
+      </div>
     </div>
   );
 }

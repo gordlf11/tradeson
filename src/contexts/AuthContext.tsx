@@ -44,6 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Listen to Firebase auth state
   useEffect(() => {
+    // Demo mode: skip Firebase listener, use mock user immediately
+    if (localStorage.getItem('demoMode') === 'true') {
+      const role = localStorage.getItem('userRole') || 'homeowner';
+      setFirebaseUser({ uid: 'demo-user-uid', email: 'demo@tradeson.com' } as unknown as User);
+      setUserProfile({ id: 'demo-user-uid', email: 'demo@tradeson.com', full_name: 'Demo User', role });
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
 

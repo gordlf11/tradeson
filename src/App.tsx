@@ -33,6 +33,8 @@ import PrivacySettings from './pages/PrivacySettings';
 import InsuranceUpload from './pages/InsuranceUpload';
 import JobDayOf from './pages/JobDayOf';
 import ErrorBoundary from './components/ErrorBoundary';
+import Demo from './pages/Demo';
+import DemoNavigator from './components/DemoNavigator';
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -149,6 +151,10 @@ const DashboardRedirect = () => {
 
 const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   const { firebaseUser, loading } = useAuth();
+  const isDemoMode = localStorage.getItem('demoMode') === 'true';
+
+  // Demo mode bypasses all auth checks
+  if (isDemoMode) return <>{children}</>;
 
   if (loading) {
     return (
@@ -180,6 +186,9 @@ function AppRoutes() {
   return (
     <>
       <Routes>
+        {/* Demo mode — public, activates demo and hard-redirects */}
+        <Route path="/demo" element={<Demo />} />
+
         {/* Auth — public */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
@@ -215,6 +224,7 @@ function AppRoutes() {
         <Route path="/job-day-of" element={<RequireAuth><JobDayOf /></RequireAuth>} />
       </Routes>
       <BottomNav />
+      {localStorage.getItem('demoMode') === 'true' && <DemoNavigator />}
     </>
   );
 }
