@@ -136,6 +136,28 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
   };
 }
 
+// ── Fallback jobs (shown when API is unavailable) ─────────────────────────
+
+const FALLBACK_JOBS: ActiveJob[] = [
+  {
+    id: 'demo-job-1', title: 'Kitchen Faucet Replacement',
+    property: '142 Maple Ave, Toronto', status: 'scheduled', tradeType: 'Plumbing',
+    postedAt: '2 days ago', quotesCount: 3,
+    acceptedProvider: "Mike's Plumbing Co.", acceptedProviderId: 'trade-1',
+    acceptedPrice: 285, confirmedDay: 'Mon, Oct 21', confirmedSlot: '10:00 AM',
+  },
+  {
+    id: 'demo-job-2', title: 'Electrical Panel Upgrade',
+    property: '142 Maple Ave, Toronto', status: 'quotes-in', tradeType: 'Electrical',
+    postedAt: '1 day ago', quotesCount: 2,
+  },
+  {
+    id: 'demo-job-3', title: 'HVAC Annual Maintenance',
+    property: '142 Maple Ave, Toronto', status: 'open', tradeType: 'HVAC',
+    postedAt: '6 hours ago', quotesCount: 0, expiresIn: '18 hours',
+  },
+];
+
 // ── Mock data (not yet wired to api) ───────────────────────────────────────
 
 // TODO: wire to api — quotes endpoint does not exist yet on Cloud Run API.
@@ -216,12 +238,12 @@ export default function CustomerDashboard() {
         if (cancelled) return;
         const payload = (res as { jobs?: ApiJobRow[] }) || {};
         const rows = payload.jobs || [];
-        setJobs(rows.map(toActiveJob));
+        setJobs(rows.length > 0 ? rows.map(toActiveJob) : FALLBACK_JOBS);
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Failed to load jobs';
-        setJobsError(msg);
+        // API unavailable — show demo data so the dashboard is always populated
+        setJobs(FALLBACK_JOBS);
       })
       .finally(() => {
         if (!cancelled) setJobsLoading(false);

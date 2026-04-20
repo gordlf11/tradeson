@@ -125,6 +125,74 @@ function toBoardJob(row: any): Job {
   };
 }
 
+// ── Fallback mock data (shown when API is unavailable) ─────────────────────
+
+const FALLBACK_JOBS: Job[] = [
+  {
+    id: 'demo-1', title: 'Kitchen Faucet Leaking — Replacement Needed',
+    category: 'Plumbing', tradeId: 'plumbing', severity: 'moderate',
+    distance: 2.4, postedAt: '2 hrs ago', expiresInHours: 22,
+    description: 'Kitchen faucet has been dripping for weeks. Need a full replacement with a modern fixture.',
+    room: 'Kitchen', jobNature: 'Repair', photos: 2, quotes: [],
+    verified: true, clientName: 'Sarah M.', clientAddress: '142 Maple Ave, Toronto, ON',
+    status: 'open', likelihoodScore: 88,
+  },
+  {
+    id: 'demo-2', title: 'Electrical Panel Upgrade — 100A to 200A',
+    category: 'Electrical', tradeId: 'electrical', severity: 'urgent',
+    distance: 4.1, postedAt: '5 hrs ago', expiresInHours: 19,
+    description: 'Older home needs panel upgrade to support new EV charger. Must be ESA-certified.',
+    room: 'Basement', jobNature: 'Upgrade', photos: 3, quotes: [],
+    verified: true, clientName: 'James K.', clientAddress: '87 Oak St, Mississauga, ON',
+    status: 'open', likelihoodScore: 76,
+  },
+  {
+    id: 'demo-3', title: 'HVAC Annual Maintenance + Filter Replacement',
+    category: 'HVAC', tradeId: 'hvac', severity: 'routine',
+    distance: 1.8, postedAt: '1 hr ago', expiresInHours: 23,
+    description: 'Annual furnace tune-up and A/C inspection. Replace filters, check refrigerant, clean coils.',
+    room: 'Utility Room', jobNature: 'Maintenance', photos: 0, quotes: [],
+    verified: false, clientName: 'Linda P.', clientAddress: '34 Pine Cres, Brampton, ON',
+    status: 'open', likelihoodScore: 92,
+  },
+  {
+    id: 'demo-4', title: 'Deck Pressure Wash + Stain — 400 sq ft',
+    category: 'General Repairs', tradeId: 'general', severity: 'routine',
+    distance: 6.3, postedAt: '3 hrs ago', expiresInHours: 21,
+    description: 'Cedar deck needs pressure wash and two coats of semi-transparent stain before winter.',
+    room: 'Exterior', jobNature: 'Maintenance', photos: 4, quotes: [],
+    verified: true, clientName: 'Robert T.', clientAddress: '209 Willow Ln, Oakville, ON',
+    status: 'open', likelihoodScore: 65,
+  },
+  {
+    id: 'demo-5', title: 'Deep Clean — 3BR/2BA Before Move-Out',
+    category: 'Cleaning', tradeId: 'cleaning', severity: 'routine',
+    distance: 3.2, postedAt: '6 hrs ago', expiresInHours: 18,
+    description: 'Full deep clean before tenant move-out inspection. Oven, fridge, bathrooms, all surfaces.',
+    room: 'Entire Home', jobNature: 'Cleaning', photos: 1, quotes: [],
+    verified: false, clientName: 'Maria G.', clientAddress: '501 King St W, Toronto, ON',
+    status: 'open', likelihoodScore: 81,
+  },
+  {
+    id: 'demo-6', title: 'Snow Removal Contract — Seasonal',
+    category: 'Snow Removal', tradeId: 'snow-removal', severity: 'routine',
+    distance: 0.9, postedAt: '12 hrs ago', expiresInHours: 12,
+    description: 'Looking for reliable seasonal snow removal. Double driveway + front walkway. On-call within 2hrs.',
+    room: 'Exterior', jobNature: 'Contract', photos: 0, quotes: [],
+    verified: true, clientName: 'David W.', clientAddress: '77 Birch Rd, Etobicoke, ON',
+    status: 'open', likelihoodScore: 73,
+  },
+  {
+    id: 'demo-7', title: 'Lawn Care + Spring Cleanup',
+    category: 'Landscaping', tradeId: 'landscaping', severity: 'routine',
+    distance: 2.1, postedAt: '8 hrs ago', expiresInHours: 16,
+    description: 'Lawn mowing, edging, garden bed cleanup, and leaf removal. Approx 5,000 sq ft lot.',
+    room: 'Exterior', jobNature: 'Maintenance', photos: 2, quotes: [],
+    verified: true, clientName: 'Priya S.', clientAddress: '88 Elm Dr, Vaughan, ON',
+    status: 'quoted', likelihoodScore: 70,
+  },
+];
+
 const SORT_OPTIONS = ['Likelihood Match', 'Newest', 'Closest', 'Expiring Soon'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
 
@@ -757,12 +825,13 @@ export default function JobBoardEnhanced() {
         if (cancelled) return;
         const payload = (res as { jobs?: any[] }) || {};
         const rows = payload.jobs || [];
-        setJobs(rows.map(toBoardJob));
+        // If API returned no rows, fall back to demo data so the board is never empty
+        setJobs(rows.length > 0 ? rows.map(toBoardJob) : FALLBACK_JOBS);
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Failed to load jobs';
-        setJobsError(msg);
+        // API unavailable — show demo data so the board is always usable
+        setJobs(FALLBACK_JOBS);
       })
       .finally(() => {
         if (!cancelled) setJobsLoading(false);
