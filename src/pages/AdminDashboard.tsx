@@ -4,7 +4,7 @@ import {
   Shield, Users, Briefcase, DollarSign, AlertTriangle, CheckCircle,
   XCircle, FileText, TrendingUp, Eye,
   BarChart2, Flag, LogOut, ChevronDown, ChevronUp,
-  UserCheck, UserX, AlertOctagon, Lock
+  UserCheck, AlertOctagon, Lock
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -12,7 +12,7 @@ import { Button } from '../components/ui/Button';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type AdminSection = 'overview' | 'compliance' | 'accounts' | 'resolutions' | 'audit' | 'metrics';
+type AdminSection = 'overview' | 'compliance' | 'accounts' | 'audit' | 'metrics';
 
 interface ComplianceSubmission {
   id: string;
@@ -276,10 +276,9 @@ function ComplianceSection() {
 
 // ── Section: Account Monitoring ────────────────────────────────────────────
 
-function AccountMonitoringSection() {
+function AccountMonitoringSection({ onFlagAccount }: { onFlagAccount: (account: FlaggedAccount) => void }) {
   const [search, setSearch] = useState('');
   const [notified, setNotified] = useState<Record<string, boolean>>({});
-  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
 
   const filtered = mockFlaggedAccounts.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -296,10 +295,6 @@ function AccountMonitoringSection() {
   const handleNotify = (id: string) => {
     setNotified(prev => ({ ...prev, [id]: true }));
     setTimeout(() => setNotified(prev => ({ ...prev, [id]: false })), 2500);
-  };
-
-  const handleFlag = (id: string) => {
-    setFlagged(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -348,19 +343,19 @@ function AccountMonitoringSection() {
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
               <button
-                onClick={() => handleFlag(account.id)}
+                onClick={() => onFlagAccount(account)}
                 style={{
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                   padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                   fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: '700',
-                  border: flagged[account.id] ? '2px solid var(--danger)' : '1px solid var(--border)',
-                  background: flagged[account.id] ? 'rgba(255,59,48,0.08)' : 'var(--bg-base)',
-                  color: flagged[account.id] ? 'var(--danger)' : 'var(--text-secondary)',
+                  border: '1.5px solid var(--danger)',
+                  background: 'rgba(255,59,48,0.06)',
+                  color: 'var(--danger)',
                   transition: 'all 0.15s ease',
                 }}
               >
                 <Flag size={13} />
-                {flagged[account.id] ? 'Flagged' : 'Flag Account'}
+                Flag Account
               </button>
               <button
                 onClick={() => handleNotify(account.id)}
@@ -387,8 +382,8 @@ function AccountMonitoringSection() {
 
 // ── Section: Admin Resolutions ─────────────────────────────────────────────
 
-function ResolutionsSection() {
-  const [selectedAccount, setSelectedAccount] = useState('');
+function ResolutionsSection({ preselectedAccount }: { preselectedAccount?: FlaggedAccount }) {
+  const [selectedAccount, setSelectedAccount] = useState(preselectedAccount?.id ?? '');
   const [action, setAction] = useState('');
   const [reason, setReason] = useState('');
   const [suspendUntil, setSuspendUntil] = useState('');
@@ -555,32 +550,64 @@ function AuditLogSection() {
           Audit log entries are <strong>immutable</strong>. All admin actions are permanently recorded for compliance and dispute resolution.
         </p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        {mockAuditLog.map(entry => (
-          <Card key={entry.id} style={{ padding: 'var(--space-4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-              <span style={{
-                fontWeight: '700', fontSize: '0.82rem',
-                color: actionColor(entry.actionType),
-              }}>{entry.actionType}</span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{entry.timestamp}</span>
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-              Target: <strong style={{ color: 'var(--text-primary)' }}>{entry.targetUser}</strong> ({entry.targetEmail})
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-              Admin: {entry.adminEmail}
-            </div>
-            <div style={{
-              fontSize: '0.75rem', color: 'var(--text-secondary)',
-              background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', padding: '6px 10px',
-              borderLeft: `3px solid ${actionColor(entry.actionType)}`,
-            }}>
-              {entry.reason}
-            </div>
-          </Card>
-        ))}
-      </div>
+
+      {/* Table */}
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-base)', borderBottom: '2px solid var(--border)' }}>
+                {['Action', 'Target User', 'Admin', 'Reason', 'Timestamp'].map(col => (
+                  <th key={col} style={{
+                    padding: '10px 14px', textAlign: 'left', fontWeight: '700',
+                    fontSize: '0.72rem', color: 'var(--text-secondary)',
+                    textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                  }}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {mockAuditLog.map((entry, i) => (
+                <tr
+                  key={entry.id}
+                  style={{
+                    borderBottom: i < mockAuditLog.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-base)',
+                  }}
+                >
+                  <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                    <span style={{
+                      fontWeight: '700', color: actionColor(entry.actionType),
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                    }}>
+                      <span style={{
+                        width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
+                        background: actionColor(entry.actionType), display: 'inline-block',
+                      }} />
+                      {entry.actionType}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{entry.targetUser}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{entry.targetEmail}</div>
+                  </td>
+                  <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    {entry.adminEmail}
+                  </td>
+                  <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', maxWidth: '220px' }}>
+                    {entry.reason}
+                  </td>
+                  <td style={{ padding: '12px 14px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap', fontSize: '0.72rem' }}>
+                    {entry.timestamp}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -761,6 +788,7 @@ function MetricsSection() {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
+  const [flaggingAccount, setFlaggingAccount] = useState<FlaggedAccount | null>(null);
   const adminEmail = localStorage.getItem('userEmail') || 'admin@tradeson.com';
 
   const handleLogout = () => {
@@ -775,7 +803,6 @@ export default function AdminDashboard() {
     { key: 'overview', label: 'Overview', icon: <BarChart2 size={15} /> },
     { key: 'compliance', label: 'Compliance', icon: <Shield size={15} />, badge: pendingCompliance },
     { key: 'accounts', label: 'Accounts', icon: <AlertTriangle size={15} />, badge: highSeverityFlags },
-    { key: 'resolutions', label: 'Resolutions', icon: <UserX size={15} /> },
     { key: 'audit', label: 'Audit Log', icon: <FileText size={15} /> },
     { key: 'metrics', label: 'Metrics', icon: <TrendingUp size={15} /> },
   ];
@@ -824,8 +851,8 @@ export default function AdminDashboard() {
 
       {/* Section Content */}
       <div style={{ padding: 'var(--space-4)' }}>
-        {/* Back to Overview — shown when in a sub-section */}
-        {activeSection !== 'overview' && (
+        {/* Back navigation */}
+        {activeSection !== 'overview' && !flaggingAccount && (
           <button
             onClick={() => setActiveSection('overview')}
             style={{
@@ -836,6 +863,19 @@ export default function AdminDashboard() {
             }}
           >
             ← Back to Overview
+          </button>
+        )}
+        {flaggingAccount && (
+          <button
+            onClick={() => setFlaggingAccount(null)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '700',
+              fontFamily: 'inherit', padding: '0 0 var(--space-4) 0',
+            }}
+          >
+            ← Back to Accounts
           </button>
         )}
 
@@ -863,7 +903,7 @@ export default function AdminDashboard() {
             {/* Quick action cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               {sections.filter(s => s.key !== 'overview').map(s => (
-                <Card key={s.key} interactive style={{ padding: 'var(--space-4)' }} onClick={() => setActiveSection(s.key)}>
+                <Card key={s.key} interactive style={{ padding: 'var(--space-4)' }} onClick={() => { setFlaggingAccount(null); setActiveSection(s.key); }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ color: 'var(--primary)' }}>{s.icon}</div>
@@ -871,8 +911,7 @@ export default function AdminDashboard() {
                         <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{s.label}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                           {s.key === 'compliance' && 'Review tradesperson verification submissions'}
-                          {s.key === 'accounts' && 'Monitor flagged accounts and disputes'}
-                          {s.key === 'resolutions' && 'Issue warnings, suspensions, and deactivations'}
+                          {s.key === 'accounts' && 'Monitor flagged accounts — flag to apply resolutions'}
                           {s.key === 'audit' && 'Immutable log of all admin actions'}
                           {s.key === 'metrics' && 'Platform-wide performance and funnel metrics'}
                         </div>
@@ -899,20 +938,32 @@ export default function AdminDashboard() {
             <ComplianceSection />
           </>
         )}
-        {activeSection === 'accounts' && (
+        {activeSection === 'accounts' && !flaggingAccount && (
           <>
             <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
               Account Monitoring
             </h2>
-            <AccountMonitoringSection />
+            <AccountMonitoringSection onFlagAccount={(account) => setFlaggingAccount(account)} />
           </>
         )}
-        {activeSection === 'resolutions' && (
+        {activeSection === 'accounts' && flaggingAccount && (
           <>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
-              Admin Resolutions
-            </h2>
-            <ResolutionsSection />
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 4px' }}>
+                Apply Resolution
+              </h2>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '8px 12px', background: 'rgba(255,59,48,0.06)',
+                border: '1px solid rgba(255,59,48,0.2)', borderRadius: 'var(--radius-sm)',
+              }}>
+                <Flag size={13} color="var(--danger)" />
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>
+                  <strong>{flaggingAccount.name}</strong> · {flaggingAccount.role} · {flaggingAccount.flagReason}
+                </span>
+              </div>
+            </div>
+            <ResolutionsSection preselectedAccount={flaggingAccount} />
           </>
         )}
         {activeSection === 'audit' && (
