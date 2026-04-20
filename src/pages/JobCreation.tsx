@@ -10,6 +10,8 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { api } from '../services/api';
+import { uploadFile } from '../services/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,7 @@ const stepHeader = (title: string, subtitle: string) => (
 
 export default function JobCreation() {
   const navigate = useNavigate();
+  const { firebaseUser } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -166,7 +169,20 @@ export default function JobCreation() {
     };
 
     try {
-      await api.createJob(payload);
+      const job = await api.createJob(payload) as { id?: string };
+      const jobId = job?.id ?? `temp_${Date.now()}`;
+
+      // Upload any attached photos to Firebase Storage
+      if (formData.photos.length > 0 && firebaseUser) {
+        await Promise.all(
+          formData.photos.map((photo) =>
+            uploadFile(`jobs/${jobId}/photos/${photo.name}`, photo).catch((err) =>
+              console.warn('Photo upload failed:', err)
+            )
+          )
+        );
+      }
+
       setIsSubmitting(false);
       setStep(6 as any);
       setTimeout(() => navigate('/dashboard'), 2500);

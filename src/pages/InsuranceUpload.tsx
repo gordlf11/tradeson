@@ -4,9 +4,12 @@ import { ChevronLeft, Upload, CheckCircle, FileText, AlertTriangle, Shield } fro
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { uploadFile } from '../services/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function InsuranceUpload() {
   const navigate = useNavigate();
+  const { firebaseUser } = useAuth();
 
   const [formData, setFormData] = useState({
     provider: '',
@@ -15,19 +18,26 @@ export default function InsuranceUpload() {
     expiryDate: '',
   });
   const [fileUploaded, setFileUploaded] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !firebaseUser) return;
+    setUploading(true);
+    try {
+      const path = `compliance/${firebaseUser.uid}/insurance/${file.name}`;
+      await uploadFile(path, file, setUploadProgress);
       setFileUploaded(true);
+    } catch (err) {
+      console.error('Insurance upload failed:', err);
+    } finally {
+      setUploading(false);
     }
   };
 
   const handleSubmit = () => {
-    localStorage.setItem('insuranceProvider', formData.provider);
-    localStorage.setItem('insurancePolicyNumber', formData.policyNumber);
-    localStorage.setItem('insuranceCoverage', formData.coverage);
-    localStorage.setItem('insuranceExpiry', formData.expiryDate);
     setSubmitted(true);
   };
 
@@ -129,15 +139,24 @@ export default function InsuranceUpload() {
             <h3 style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Certificate Document</h3>
           </div>
 
-          <label style={{ display: 'block', cursor: 'pointer' }}>
-            <input type="file" accept=".pdf,.docx,.jpg,.jpeg,.png" onChange={handleFileChange} style={{ display: 'none' }} />
+          <label style={{ display: 'block', cursor: uploading ? 'default' : 'pointer' }}>
+            <input type="file" accept=".pdf,.docx,.jpg,.jpeg,.png" onChange={handleFileChange} style={{ display: 'none' }} disabled={uploading} />
             <div style={{
-              border: `2px dashed ${fileUploaded ? 'var(--success)' : 'var(--border)'}`,
+              border: `2px dashed ${fileUploaded ? 'var(--success)' : uploading ? 'var(--primary)' : 'var(--border)'}`,
               borderRadius: 'var(--radius-md)', padding: 'var(--space-6)',
               textAlign: 'center', background: fileUploaded ? 'rgba(34,197,94,0.05)' : 'var(--bg-base)',
               transition: 'all 0.2s ease',
             }}>
-              {fileUploaded ? (
+              {uploading ? (
+                <>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--primary)', marginBottom: '8px' }}>
+                    Uploading… {uploadProgress}%
+                  </div>
+                  <div style={{ height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${uploadProgress}%`, background: 'var(--primary)', transition: 'width 0.2s ease' }} />
+                  </div>
+                </>
+              ) : fileUploaded ? (
                 <>
                   <CheckCircle size={32} color="var(--success)" style={{ marginBottom: 'var(--space-2)' }} />
                   <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--success)' }}>Document uploaded</div>

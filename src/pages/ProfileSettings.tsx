@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, Phone, Camera, ChevronLeft, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { uploadFile } from '../services/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ProfileSettings() {
   const navigate = useNavigate();
+  const { firebaseUser } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const userEmail = localStorage.getItem('userEmail') || '';
   const userName = localStorage.getItem('userName') || '';
 
@@ -15,7 +19,24 @@ export default function ProfileSettings() {
     email: userEmail,
     phone: localStorage.getItem('userPhone') || '',
   });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(localStorage.getItem('userAvatar'));
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !firebaseUser) return;
+    setUploadingAvatar(true);
+    try {
+      const url = await uploadFile(`users/${firebaseUser.uid}/avatar/${file.name}`, file);
+      setAvatarUrl(url);
+      localStorage.setItem('userAvatar', url);
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSave = () => {
     localStorage.setItem('userName', formData.name);
@@ -49,20 +70,35 @@ export default function ProfileSettings() {
           <div style={{ position: 'relative' }}>
             <div style={{
               width: '80px', height: '80px', borderRadius: '50%',
-              background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
             }}>
-              <User size={36} color="white" />
+              {avatarUrl
+                ? <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <User size={36} color="white" />
+              }
             </div>
-            <button style={{
-              position: 'absolute', bottom: 0, right: 0,
-              width: '28px', height: '28px', borderRadius: '50%',
-              background: 'var(--navy)', border: '2px solid white',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer'
-            }}>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              style={{
+                position: 'absolute', bottom: 0, right: 0,
+                width: '28px', height: '28px', borderRadius: '50%',
+                background: uploadingAvatar ? 'var(--text-tertiary)' : 'var(--navy)',
+                border: '2px solid white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: uploadingAvatar ? 'default' : 'pointer',
+              }}
+            >
               <Camera size={14} color="white" />
             </button>
           </div>
+          {uploadingAvatar && (
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '8px', position: 'absolute' }}>
+              Uploading…
+            </p>
+          )}
         </div>
 
         <Card style={{ padding: 'var(--space-5)' }}>

@@ -32,6 +32,7 @@ import PaymentSettings from './pages/PaymentSettings';
 import PrivacySettings from './pages/PrivacySettings';
 import InsuranceUpload from './pages/InsuranceUpload';
 import JobDayOf from './pages/JobDayOf';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -195,13 +196,13 @@ function AppRoutes() {
 
         {/* Dashboards — requires auth */}
         <Route path="/dashboard" element={<RequireAuth><DashboardRedirect /></RequireAuth>} />
-        <Route path="/dashboard/tradesperson" element={<RequireAuth><TradespersonDashboard /></RequireAuth>} />
-        <Route path="/dashboard/customer" element={<RequireAuth><CustomerDashboard /></RequireAuth>} />
-        <Route path="/dashboard/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
+        <Route path="/dashboard/tradesperson" element={<RequireAuth><ErrorBoundary><TradespersonDashboard /></ErrorBoundary></RequireAuth>} />
+        <Route path="/dashboard/customer" element={<RequireAuth><ErrorBoundary><CustomerDashboard /></ErrorBoundary></RequireAuth>} />
+        <Route path="/dashboard/admin" element={<RequireAuth><ErrorBoundary><AdminDashboard /></ErrorBoundary></RequireAuth>} />
 
         {/* Main App — requires auth */}
         <Route path="/job-creation" element={<RequireAuth><JobCreation /></RequireAuth>} />
-        <Route path="/job-board" element={<RequireAuth><JobBoard /></RequireAuth>} />
+        <Route path="/job-board" element={<RequireAuth><ErrorBoundary><JobBoard /></ErrorBoundary></RequireAuth>} />
         <Route path="/scheduling" element={<RequireAuth><Scheduling /></RequireAuth>} />
         <Route path="/job-execution" element={<RequireAuth><JobExecution /></RequireAuth>} />
         <Route path="/completion" element={<RequireAuth><JobCompletion /></RequireAuth>} />

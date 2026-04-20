@@ -9,6 +9,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { uploadFile } from '../services/firebase';
 
 interface LicensedTradespersonData {
   // Step 1 – Account Info
@@ -81,11 +82,12 @@ const sectionLabel = (text: string) => (
 
 export default function LicensedTradespersonOnboarding() {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, firebaseUser } = useAuth();
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectError, setConnectError] = useState('');
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<LicensedTradespersonData>({
     fullName: '',
@@ -209,37 +211,52 @@ export default function LicensedTradespersonOnboarding() {
     </div>
   );
 
-  const uploadButton = (uploaded: boolean, field: keyof LicensedTradespersonData, label: string, accept: string) => (
-    <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
-      {!uploaded ? (
-        <>
-          <Upload size={32} color="var(--text-secondary)" style={{ margin: '0 auto var(--space-3)' }} />
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>{label}</p>
-          <label style={{ display: 'inline-block', cursor: 'pointer' }}>
-            <input
-              type="file"
-              accept={accept}
-              style={{ display: 'none' }}
-              onChange={() => update(field, true)}
-            />
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-              fontWeight: '600', fontSize: '0.875rem', color: 'var(--text-primary)',
-              background: 'var(--bg-surface)', fontFamily: 'inherit',
-            }}>
-              <Upload size={16} /> Upload
-            </span>
-          </label>
-        </>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
-          <CheckCircle size={20} color="var(--success)" />
-          <p style={{ color: 'var(--success)', fontWeight: '600', margin: 0 }}>Uploaded ✓</p>
-        </div>
-      )}
-    </Card>
-  );
+  const uploadButton = (uploaded: boolean, field: keyof LicensedTradespersonData, label: string, accept: string, storagePath: string) => {
+    const isUploading = uploadingField === field;
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setUploadingField(field as string);
+      try {
+        await uploadFile(`${storagePath}/${file.name}`, file);
+        update(field, true);
+      } catch (err) {
+        console.error(`Upload failed for ${field}:`, err);
+      } finally {
+        setUploadingField(null);
+      }
+    };
+    return (
+      <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
+        {!uploaded ? (
+          <>
+            <Upload size={32} color={isUploading ? 'var(--primary)' : 'var(--text-secondary)'} style={{ margin: '0 auto var(--space-3)' }} />
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>{label}</p>
+            {isUploading ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '600' }}>Uploading…</p>
+            ) : (
+              <label style={{ display: 'inline-block', cursor: 'pointer' }}>
+                <input type="file" accept={accept} style={{ display: 'none' }} onChange={handleUpload} />
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                  fontWeight: '600', fontSize: '0.875rem', color: 'var(--text-primary)',
+                  background: 'var(--bg-surface)', fontFamily: 'inherit',
+                }}>
+                  <Upload size={16} /> Upload
+                </span>
+              </label>
+            )}
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
+            <CheckCircle size={20} color="var(--success)" />
+            <p style={{ color: 'var(--success)', fontWeight: '600', margin: 0 }}>Uploaded ✓</p>
+          </div>
+        )}
+      </Card>
+    );
+  };
 
   const notifToggle = (label: string, field: 'notifySMS' | 'notifyEmail' | 'notifyPush') => (
     <button onClick={() => update(field, !formData[field])} style={{
@@ -426,7 +443,7 @@ export default function LicensedTradespersonOnboarding() {
                 onChange={e => update('licenseExpirationDate', e.target.value)} />
 
               {sectionLabel('License Document Upload')}
-              {uploadButton(formData.licenseDocUploaded, 'licenseDocUploaded', 'Upload your license (PDF, DOCX, JPG, PNG — max 10MB)', '.pdf,.docx,.jpg,.jpeg,.png')}
+              {uploadButton(formData.licenseDocUploaded, 'licenseDocUploaded', 'Upload your license (PDF, DOCX, JPG, PNG — max 10MB)', '.pdf,.docx,.jpg,.jpeg,.png', `compliance/${firebaseUser?.uid}/license`)}
             </div>
           </div>
         );
@@ -454,12 +471,12 @@ export default function LicensedTradespersonOnboarding() {
               {formData.hasInsurance === 'yes' && (
                 <>
                   {sectionLabel('Proof of Insurance')}
-                  {uploadButton(formData.insuranceDocUploaded, 'insuranceDocUploaded', 'Upload your insurance certificate (PDF, DOCX, JPG, PNG)', '.pdf,.docx,.jpg,.jpeg,.png')}
+                  {uploadButton(formData.insuranceDocUploaded, 'insuranceDocUploaded', 'Upload your insurance certificate (PDF, DOCX, JPG, PNG)', '.pdf,.docx,.jpg,.jpeg,.png', `compliance/${firebaseUser?.uid}/insurance`)}
                 </>
               )}
 
               {sectionLabel('Identity Verification (required)')}
-              {uploadButton(formData.idUploaded, 'idUploaded', 'Upload a government-issued ID (Driver\'s license, Passport)', '.pdf,.jpg,.jpeg,.png')}
+              {uploadButton(formData.idUploaded, 'idUploaded', 'Upload a government-issued ID (Driver\'s license, Passport)', '.pdf,.jpg,.jpeg,.png', `compliance/${firebaseUser?.uid}/govid`)}
             </div>
           </div>
         );
