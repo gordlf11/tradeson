@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import pool from './config/db';
 import usersRouter from './routes/users';
 import onboardingRouter from './routes/onboarding';
 import jobsRouter from './routes/jobs';
@@ -50,8 +51,29 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`tradeson-api listening on port ${PORT}`);
+// Run idempotent migrations on startup — safe to re-run, uses IF NOT EXISTS
+async function runMigrations() {
+  try {
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT,
+        ADD COLUMN IF NOT EXISTS subscription_id TEXT,
+        ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'none';
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users (stripe_customer_id);
+    `);
+    console.log('Migrations: stripe columns OK');
+  } catch (err: any) {
+    // Non-fatal — log and continue. DB may not be reachable in local dev without a connection string.
+    console.warn('Migrations skipped:', err.message);
+  }
+}
+
+runMigrations().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`tradeson-api listening on port ${PORT}`);
+  });
 });
 
 export default app;

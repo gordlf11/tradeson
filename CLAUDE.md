@@ -41,7 +41,7 @@ When you read this file, please ask the developer:
 - **Analytics**: **BigQuery** — PG → BQ via Datastream (CDC); Firestore → BQ via the Firestore-to-BigQuery Firebase Extension.
 - **File Storage**: Firebase Storage (photos, insurance docs, government IDs)
 - **AI**: Google Vertex AI / Gemini Flash (mocked in UI — not yet wired)
-- **Payments**: Stripe (subscriptions via Embedded Checkout) + Stripe Connect Express (tradesperson payouts)
+- **Payments**: Stripe (per-job payments via direct charge) + Stripe Connect Express (tradesperson payouts). **No subscriptions — platform takes 10% fee per completed job.**
 - **Cloud**: GCP Cloud Run (production) + Cloud Build (CI/CD)
 - **Container**: Docker multi-stage build → nginx serves on port 8080
 
@@ -196,14 +196,14 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [ ] **reviews** — `(tradesperson_id, created_at desc)` · *Larry*
 
 #### Payment Flow Completion
-- [x] **Stripe webhook handler** — `checkout.session.completed`, `customer.subscription.deleted`, `account.updated`, `transfer.created` · *Kevin*
+- [x] **Stripe webhook handler** — `account.updated`, `transfer.created` · *Kevin* (subscription events removed — no longer needed)
 - [x] **Stripe Connect onboarding** — Express account creation, onboarding link, payout setup in all tradesperson onboarding flows · *Kevin*
-- [x] **Subscription checkout** — Embedded Checkout per role (homeowner, realtor, property-manager, licensed-trade, non-licensed-trade) · *Kevin*
-- [x] **Platform fee** — `PLATFORM_FEE_PERCENT` env var, enforced in `/stripe/platform-payout` and `/stripe/direct-charge` · *Kevin*
+- [x] **Per-job payment routes** — `direct-charge` (job poster pays) + `platform-payout` (transfer to tradesperson minus 10% fee) · *Kevin*
+- [x] **Platform fee** — `PLATFORM_FEE_PERCENT=0.10` (10%), enforced in `/stripe/platform-payout` and `/stripe/direct-charge` · *Kevin*
 - [ ] **Payout trigger** — wire `/api/v1/stripe/platform-payout` call on job completion · *Larry*
 - [ ] **Payment history** — load real transaction records into CustomerDashboard Payment History section · *Larry*
-- [ ] **Run Stripe migration** — `psql $DATABASE_URL -f api/src/schema/stripe_migration.sql` adds `stripe_customer_id`, `subscription_id`, `subscription_status` to users · *Larry*
-- [ ] **Create Stripe price IDs** — create 5 subscription products in Stripe Dashboard (test mode) and set `STRIPE_PRICE_*` env vars · *Kevin/Larry*
+- [ ] **Run Stripe migration** — `psql $DATABASE_URL -f api/src/schema/stripe_migration.sql` adds `stripe_customer_id` to users (needed for Connect flow) · *Larry*
+- [x] **No Stripe products needed** — subscriptions removed; job payments use dynamic `amount_cents` · *Kevin*
 
 #### Error Handling & Resilience
 - [ ] **Error boundaries** — wrap `<JobBoard>`, `<CustomerDashboard>`, `<TradespersonDashboard>`, `<AdminDashboard>` in `<ErrorBoundary>` · *Kevin*
@@ -280,7 +280,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 | High — File Uploads | 5 | 0 | 5 |
 | High — Firestore Indexes | 7 | 7 | 0 |
 | High — Postgres Indexes | 3 | 0 | 3 |
-| High — Payments | 5 | 0 | 5 |
+| High — Payments | 5 | 3 | 2 |
 | High — Error Handling | 4 | 0 | 4 |
 | Important — AI | 3 | 0 | 3 |
 | Important — BigQuery | 3 | 0 | 3 |
@@ -392,7 +392,7 @@ node scripts/seedFirestore.mjs
 
 ## 🔑 Key Design Decisions (Do Not Revert)
 
-- **Stripe is the sole payment processor** — PayBright has been fully removed. Embedded Checkout for subscriptions; Connect Express for tradesperson payouts.
+- **Stripe is the sole payment processor** — PayBright fully removed. Subscriptions fully removed. Model is per-job payments only: `direct-charge` charges the job poster, platform takes 10% (`PLATFORM_FEE_PERCENT=0.10`), Connect Express transfers the remainder to the tradesperson.
 - **No star ratings on quote cards** — display `# reviews` as a clickable link instead. Stars only appear in the tradesperson's own profile preview.
 - **Service radius is a slider (5–50 mi)**, not buttons, on all onboarding location pages.
 - **Accepted job button stays green** (`var(--success)`) even after navigating away. Use `style` prop override on Button component.

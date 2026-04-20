@@ -31,6 +31,7 @@ import LocationSettings from './pages/LocationSettings';
 import PaymentSettings from './pages/PaymentSettings';
 import PrivacySettings from './pages/PrivacySettings';
 import InsuranceUpload from './pages/InsuranceUpload';
+import JobDayOf from './pages/JobDayOf';
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -210,6 +211,7 @@ function AppRoutes() {
         <Route path="/payment-settings" element={<RequireAuth><PaymentSettings /></RequireAuth>} />
         <Route path="/privacy-settings" element={<RequireAuth><PrivacySettings /></RequireAuth>} />
         <Route path="/insurance-upload" element={<RequireAuth><InsuranceUpload /></RequireAuth>} />
+        <Route path="/job-day-of" element={<RequireAuth><JobDayOf /></RequireAuth>} />
       </Routes>
       <BottomNav />
     </>

@@ -7,68 +7,9 @@ const router = Router();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-// Price IDs per role — configurable via env vars, no code change needed to adjust
-const PRICE_IDS: Record<string, string> = {
-  homeowner:              process.env.STRIPE_PRICE_HOMEOWNER || '',
-  realtor:                process.env.STRIPE_PRICE_REALTOR || '',
-  'property-manager':     process.env.STRIPE_PRICE_PM || '',
-  'licensed-trade':       process.env.STRIPE_PRICE_LICENSED_TRADE || '',
-  'non-licensed-trade':   process.env.STRIPE_PRICE_UNLICENSED_TRADE || '',
-};
-
-const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT || '0.15');
+// Platform collects 10% fee on each completed job payment
+const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT || '0.10');
 const APP_URL = process.env.APP_URL || 'http://localhost:5173';
-
-// POST /api/v1/stripe/create-checkout-session
-// Returns a client_secret for Stripe Embedded Checkout — no redirect URL returned
-router.post('/create-checkout-session', requireAuth, async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const { role } = req.body;
-
-    const priceId = PRICE_IDS[role];
-    if (!priceId) {
-      return res.status(400).json({ error: `No Stripe price configured for role: ${role}` });
-    }
-
-    // Look up or create Stripe customer, stored on users table
-    const userResult = await pool.query(
-      'SELECT email, stripe_customer_id FROM users WHERE id = $1',
-      [userId]
-    );
-    const user = userResult.rows[0];
-
-    let customerId: string = user?.stripe_customer_id;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user?.email,
-        metadata: { userId },
-      });
-      customerId = customer.id;
-      // Update the user record — stripe_customer_id column added by stripe_migration.sql
-      await pool.query(
-        'UPDATE users SET stripe_customer_id = $1, updated_at = now() WHERE id = $2',
-        [customerId, userId]
-      ).catch(() => {
-        // Column may not exist yet if migration hasn't run — non-fatal
-      });
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      ui_mode: 'embedded',
-      customer: customerId,
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      return_url: `${APP_URL}/onboarding/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: { userId, role },
-    });
-
-    res.json({ client_secret: session.client_secret });
-  } catch (err: any) {
-    console.error('create-checkout-session error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // POST /api/v1/stripe/create-connect-account
 // Creates a Stripe Express Connect account for a tradesperson and returns an onboarding URL

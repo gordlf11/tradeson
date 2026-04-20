@@ -26,35 +26,6 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     switch (event.type) {
 
-      // Subscription purchased — activate user's role and record subscription IDs
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const { userId, role } = session.metadata || {};
-        if (userId && session.subscription) {
-          await pool.query(
-            `UPDATE users
-             SET subscription_id = $1, subscription_status = 'active', role = $2, updated_at = now()
-             WHERE id = $3`,
-            [session.subscription as string, role, userId]
-          ).catch(err => console.error('checkout.session.completed DB update failed:', err));
-        }
-        console.log(`Subscription activated: user=${userId} role=${role}`);
-        break;
-      }
-
-      // Subscription cancelled — deactivate user access
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object as Stripe.Subscription;
-        await pool.query(
-          `UPDATE users
-           SET subscription_status = 'cancelled', updated_at = now()
-           WHERE stripe_customer_id = $1`,
-          [sub.customer as string]
-        ).catch(err => console.error('customer.subscription.deleted DB update failed:', err));
-        console.log(`Subscription cancelled: customer=${sub.customer}`);
-        break;
-      }
-
       // Tradesperson Connect account updated — mark payout-enabled when onboarding complete
       case 'account.updated': {
         const account = event.data.object as Stripe.Account;

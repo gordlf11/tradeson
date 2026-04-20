@@ -293,7 +293,7 @@ export default function Scheduling() {
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
                   <Button variant="outline" size="md" fullWidth icon={<Navigation size={18} />}>Get Directions</Button>
-                  <Button variant="primary" size="md" fullWidth onClick={() => navigate('/job-execution')}>Track Live</Button>
+                  <Button variant="primary" size="md" fullWidth onClick={() => navigate('/job-day-of')}>View Day Of</Button>
                 </div>
               </Card>
 
