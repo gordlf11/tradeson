@@ -70,10 +70,17 @@ async function runMigrations() {
   }
 }
 
-runMigrations().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`tradeson-api listening on port ${PORT}`);
-  });
+// Start listening immediately so Cloud Run's startup probe passes even if
+// the DB is unreachable. DB-dependent routes will return 503 via the
+// auth middleware's catch block until connectivity is restored.
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`tradeson-api listening on port ${PORT}`);
+});
+
+// Run migrations in the background. Errors are logged inside runMigrations;
+// this catch guards against any unexpected unhandled rejection.
+runMigrations().catch((err) => {
+  console.error('runMigrations unexpectedly rejected:', err);
 });
 
 export default app;
