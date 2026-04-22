@@ -491,7 +491,7 @@ export default function UnlicensedTradespersonOnboarding() {
   const stepTitles = ['Location', 'Services', 'Coverage', 'Verification', 'Payout'];
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem', paddingBottom: '120px' }}>
       <div style={{ marginBottom: 'var(--space-6)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
         <button onClick={handleBack} style={{
           background: 'transparent', border: 'none', cursor: 'pointer',

@@ -355,7 +355,7 @@ export default function HomeownerOnboarding() {
   const stepTitles = ['Your Location', 'Your Property', 'Preferences', 'Payment'];
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingTop: '3rem', paddingBottom: '120px' }}>
       {/* Header */}
       <div style={{ marginBottom: 'var(--space-6)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
         <button onClick={handleBack} style={{

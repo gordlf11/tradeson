@@ -10,27 +10,40 @@ export default function PaymentSettings() {
   const navigate = useNavigate();
   const userRole = localStorage.getItem('userRole') || '';
   const isTrader = userRole === 'licensed-trade' || userRole === 'non-licensed-trade';
+  const isDemo = localStorage.getItem('demoMode') === 'true';
 
   const [connectStatus, setConnectStatus] = useState<{ account_id: string | null; payout_enabled: boolean } | null>(null);
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectError, setConnectError] = useState('');
-  const [statusLoading, setStatusLoading] = useState(isTrader);
+  const [statusLoading, setStatusLoading] = useState(isTrader && !isDemo);
 
   useEffect(() => {
     if (!isTrader) return;
+    if (isDemo) {
+      setConnectStatus({ account_id: null, payout_enabled: false });
+      return;
+    }
     api.getConnectStatus()
       .then((data: any) => setConnectStatus(data))
       .catch(() => setConnectStatus({ account_id: null, payout_enabled: false }))
       .finally(() => setStatusLoading(false));
-  }, [isTrader]);
+  }, [isTrader, isDemo]);
 
   const handleConnectPayout = async () => {
+    if (isDemo) {
+      // Simulate the Stripe Connect flow for demo presenters
+      setConnectLoading(true);
+      setTimeout(() => {
+        setConnectStatus({ account_id: 'demo_acct', payout_enabled: true });
+        setConnectLoading(false);
+      }, 1500);
+      return;
+    }
     setConnectLoading(true);
     setConnectError('');
     try {
       const data = await api.createConnectAccount() as { onboarding_url: string };
       window.open(data.onboarding_url, '_blank');
-      // Refresh status after returning
       setTimeout(async () => {
         const updated: any = await api.getConnectStatus().catch(() => null);
         if (updated) setConnectStatus(updated);
