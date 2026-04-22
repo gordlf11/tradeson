@@ -91,6 +91,7 @@ router.post('/homeowner', requireAuth, async (req: AuthenticatedRequest, res) =>
        property_type ? property_type.toLowerCase() : null, service_interests || []]
     );
 
+    await pool.query(`UPDATE users SET role = 'homeowner', updated_at = now() WHERE id = $1`, [id]);
     await saveAddressAndPrefs(id, req.body);
     await logAuditEvent(id, 'onboarding.homeowner.completed', 'users', id, {}, req.ip);
 
@@ -135,6 +136,7 @@ router.post('/property-manager', requireAuth, async (req: AuthenticatedRequest, 
       }
     }
 
+    await pool.query(`UPDATE users SET role = 'property_manager', updated_at = now() WHERE id = $1`, [id]);
     await saveAddressAndPrefs(id, req.body);
     await logAuditEvent(id, 'onboarding.property_manager.completed', 'users', id, {}, req.ip);
 
@@ -177,6 +179,7 @@ router.post('/realtor', requireAuth, async (req: AuthenticatedRequest, res) => {
       }
     }
 
+    await pool.query(`UPDATE users SET role = 'realtor', updated_at = now() WHERE id = $1`, [id]);
     await saveAddressAndPrefs(id, req.body);
     await logAuditEvent(id, 'onboarding.realtor.completed', 'users', id, {}, req.ip);
 
@@ -232,6 +235,7 @@ router.post('/licensed-trade', requireAuth, async (req: AuthenticatedRequest, re
       }
     }
 
+    await pool.query(`UPDATE users SET role = 'licensed_tradesperson', updated_at = now() WHERE id = $1`, [id]);
     await saveAddressAndPrefs(id, req.body);
     await logAuditEvent(id, 'onboarding.licensed_trade.completed', 'users', id, {}, req.ip);
 
@@ -277,6 +281,7 @@ router.post('/non-licensed-trade', requireAuth, async (req: AuthenticatedRequest
       }
     }
 
+    await pool.query(`UPDATE users SET role = 'unlicensed_tradesperson', updated_at = now() WHERE id = $1`, [id]);
     await saveAddressAndPrefs(id, req.body);
     await logAuditEvent(id, 'onboarding.unlicensed_trade.completed', 'users', id, {}, req.ip);
 
