@@ -15,6 +15,35 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
           address, city, state, zip_code, budget_min, budget_max } = req.body;
 
   try {
+    // The 5-step job creation form doesn't collect address — it's the
+    // user's home. Auto-fill from the homeowner profile (preferred) or
+    // their primary user_addresses row, so we don't lose the data.
+    // Anything the client did send wins over the auto-fill.
+    let finalAddress = address;
+    let finalCity = city;
+    let finalState = state;
+    let finalZip = zip_code;
+    if (!finalAddress || !finalCity || !finalState || !finalZip) {
+      const addrResult = await pool.query(
+        `SELECT
+           COALESCE(hp.property_address, ua.address_line_1) AS address,
+           COALESCE(hp.property_city,    ua.city)            AS city,
+           COALESCE(hp.property_state,   ua.state)           AS state,
+           COALESCE(hp.property_zip,     ua.zip_code)        AS zip_code
+         FROM users u
+         LEFT JOIN homeowner_profiles hp ON hp.user_id = u.id
+         LEFT JOIN user_addresses     ua ON ua.user_id = u.id
+         WHERE u.id = $1
+         LIMIT 1`,
+        [id]
+      );
+      const a = addrResult.rows[0] || {};
+      finalAddress = finalAddress || a.address || null;
+      finalCity    = finalCity    || a.city    || null;
+      finalState   = finalState   || a.state   || null;
+      finalZip     = finalZip     || a.zip_code || null;
+    }
+
     const result = await pool.query(
       `INSERT INTO jobs (homeowner_user_id, title, description, category, room, severity, job_nature,
          affected_part, adjacent_impact, housewide_impact, address, city, state, zip_code,
@@ -22,7 +51,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now() + interval '72 hours')
        RETURNING *`,
       [id, title, description, category, room, severity, job_nature,
-       affected_part, adjacent_impact, housewide_impact, address, city, state, zip_code,
+       affected_part, adjacent_impact, housewide_impact, finalAddress, finalCity, finalState, finalZip,
        budget_min, budget_max]
     );
 
