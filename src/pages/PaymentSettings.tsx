@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, CreditCard, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import StripeCheckoutWrapper from '../components/StripeCheckoutWrapper';
 import api from '../services/api';
 
 export default function PaymentSettings() {
@@ -60,24 +61,24 @@ export default function PaymentSettings() {
 
       <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', paddingBottom: '40px' }}>
 
-        {/* Subscription info */}
-        <Card style={{ padding: 'var(--space-5)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: 'var(--radius-md)',
-              background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <CreditCard size={22} color="var(--primary)" />
+        {/* Card setup — customers only */}
+        {!isTrader && (
+          <Card style={{ padding: 'var(--space-5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+              <div style={{
+                width: '44px', height: '44px', borderRadius: 'var(--radius-md)',
+                background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <CreditCard size={22} color="var(--primary)" />
+              </div>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>Payment Method</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Saved card for job payments · Powered by Stripe</div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>TradesOn Membership</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Powered by Stripe</div>
-            </div>
-          </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-            Manage your subscription at any time. Billing is handled securely through Stripe.
-          </p>
-        </Card>
+            <StripeCheckoutWrapper role={userRole} />
+          </Card>
+        )}
 
         {/* Stripe Connect payout section — tradespeople only */}
         {isTrader && (
@@ -153,8 +154,8 @@ export default function PaymentSettings() {
               { label: 'Environment', value: 'Test mode (Stripe sandbox)' },
             ] : [
               { label: 'Billing', value: 'Charged after job completion' },
+              { label: 'Platform fee', value: '10% per completed job' },
               { label: 'Processor', value: 'Stripe (test mode)' },
-              { label: 'Subscription', value: 'Monthly membership' },
             ]).map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{row.label}</span>

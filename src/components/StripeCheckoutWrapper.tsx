@@ -5,7 +5,8 @@ import { CreditCard, CheckCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import api from '../services/api';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 interface Props {
   role: string;
@@ -74,6 +75,11 @@ export default function StripeCheckoutWrapper({ role: _role, onComplete }: Props
   const [fetchError, setFetchError] = useState('');
 
   useEffect(() => {
+    if (!stripeKey) {
+      setFetchError('Stripe is not configured');
+      setLoading(false);
+      return;
+    }
     api.createSetupIntent()
       .then((data: any) => setClientSecret(data.client_secret))
       .catch((err: any) => setFetchError(err.message || 'Could not load payment form'))
