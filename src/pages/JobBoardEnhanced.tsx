@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter } from 'lucide-react';
 import TopNav from '../components/TopNav';
@@ -836,6 +836,7 @@ export default function JobBoardEnhanced() {
   const [quoteModalJob, setQuoteModalJob] = useState<Job | null>(null);
   const [compareModalJob, setCompareModalJob] = useState<Job | null>(null);
   const [refetchKey, setRefetchKey] = useState(0);
+  const autoCompareHandled = useRef(false);
 
   // Prefer the server-truth role from Postgres (AuthContext.getMe); fall back
   // to the legacy localStorage flag for signed-out dev sessions.
@@ -882,17 +883,17 @@ export default function JobBoardEnhanced() {
     return () => { cancelled = true; };
   }, [userProfile, refetchKey]);
 
-  // Auto-open comparison modal when navigated here from the Dashboard "Compare Quotes" button
+  // Auto-open comparison modal once when navigated from the Dashboard "Compare Quotes" button
   useEffect(() => {
     const state = location.state as { autoCompare?: boolean } | null;
-    if (state?.autoCompare && jobs.length > 0 && !compareModalJob) {
+    if (state?.autoCompare && jobs.length > 0 && !autoCompareHandled.current) {
       const jobWithQuotes = jobs.find(j => j.quotes.length > 0);
       if (jobWithQuotes) {
+        autoCompareHandled.current = true;
         setCompareModalJob(jobWithQuotes);
-        window.history.replaceState({}, '');
       }
     }
-  }, [jobs, location.state, compareModalJob]);
+  }, [jobs, location.state]);
 
   const categories = [
     { id: 'all', label: 'All', count: jobs.length },

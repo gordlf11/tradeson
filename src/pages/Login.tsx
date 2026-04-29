@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Shield } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -15,6 +15,13 @@ export default function Login() {
   const [mode, setMode] = useState<'user' | 'admin'>('user');
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  // Always clear demo mode when the real login page is reached
+  useEffect(() => {
+    localStorage.removeItem('demoMode');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('hasOnboarded');
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
