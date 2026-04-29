@@ -844,17 +844,17 @@ export default function JobBoardEnhanced() {
     || userRole === 'licensed_tradesperson' || userRole === 'non_licensed_tradesperson';
 
   useEffect(() => {
-    if (!userProfile) return;
-
-    let cancelled = false;
-
-    // Demo mode: skip API call, show mock data immediately
+    // Demo mode: skip API call and profile check — show mock data immediately
     if (localStorage.getItem('demoMode') === 'true') {
       const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
       setJobs([...localJobs, ...FALLBACK_JOBS]);
       setJobsLoading(false);
       return;
     }
+
+    if (!userProfile) return;
+
+    let cancelled = false;
 
     setJobsLoading(true);
     setJobsError(null);

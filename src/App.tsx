@@ -91,7 +91,7 @@ const BottomNav = () => {
         </Link>
         <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
           <Building2 size={20} />
-          <span>My Jobs</span>
+          <span>Jobs I Posted</span>
         </Link>
         <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
@@ -110,7 +110,7 @@ const BottomNav = () => {
         </Link>
         <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
           <Users size={20} />
-          <span>My Jobs</span>
+          <span>Jobs I Posted</span>
         </Link>
         <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
@@ -129,7 +129,7 @@ const BottomNav = () => {
       </Link>
       <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
         <Home size={20} />
-        <span>My Jobs</span>
+        <span>Jobs I Posted</span>
       </Link>
       <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
         <LayoutDashboard size={20} />
