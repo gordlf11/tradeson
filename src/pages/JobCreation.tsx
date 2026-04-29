@@ -151,7 +151,6 @@ export default function JobCreation() {
     setIsSubmitting(true);
     setSubmitError(null);
 
-    // Derive a short title from the affected part (no dedicated title field in the UI).
     const derivedTitle = (formData.affectedPart || formData.description)
       .trim()
       .slice(0, 120) || `${formData.room} — ${formData.tradeType}`;
@@ -168,11 +167,11 @@ export default function JobCreation() {
       housewide_impact: formData.housewideImpact,
     };
 
+    let jobId = `local_${Date.now()}`;
     try {
       const job = await api.createJob(payload) as { id?: string };
-      const jobId = job?.id ?? `temp_${Date.now()}`;
+      jobId = job?.id ?? jobId;
 
-      // Upload any attached photos to Firebase Storage
       if (formData.photos.length > 0 && firebaseUser) {
         await Promise.all(
           formData.photos.map((photo) =>
@@ -182,15 +181,34 @@ export default function JobCreation() {
           )
         );
       }
-
-      setIsSubmitting(false);
-      setStep(6 as any);
-      setTimeout(() => navigate('/dashboard'), 2500);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to post job. Please try again.';
-      setSubmitError(message);
-      setIsSubmitting(false);
+      if (localStorage.getItem('demoMode') !== 'true') {
+        const message = err instanceof Error ? err.message : 'Failed to post job. Please try again.';
+        setSubmitError(message);
+        setIsSubmitting(false);
+        return;
+      }
+      // Demo mode / API unavailable — continue gracefully
     }
+
+    // Persist locally so the job appears on "Jobs I Posted" immediately
+    const localJob = {
+      id: jobId,
+      title: derivedTitle,
+      description: formData.description,
+      category: formData.tradeType,
+      room: formData.room,
+      severity: formData.severity,
+      status: 'open',
+      created_at: new Date().toISOString(),
+      quote_count: 0,
+    };
+    const existing = JSON.parse(localStorage.getItem('localJobs') || '[]');
+    localStorage.setItem('localJobs', JSON.stringify([localJob, ...existing]));
+
+    setIsSubmitting(false);
+    setStep(6 as any);
+    setTimeout(() => navigate('/job-board'), 2500);
   };
 
   // ── Step renderers ──────────────────────────────────────────────────────

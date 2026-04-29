@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
@@ -125,6 +126,32 @@ function toBoardJob(row: any): Job {
   };
 }
 
+// ── Local jobs (created in this session, stored in localStorage) ───────────
+
+function localJobToBoard(j: any): Job {
+  const category = j.category || 'General';
+  return {
+    id: j.id,
+    title: j.title,
+    category,
+    tradeId: category.toLowerCase().replace(/\s+/g, '-'),
+    severity: mapSeverity(j.severity),
+    distance: 0,
+    postedAt: 'just now',
+    expiresInHours: 24,
+    description: j.description || '',
+    room: j.room || '—',
+    jobNature: j.job_nature || '—',
+    photos: 0,
+    quotes: [],
+    verified: true,
+    clientName: 'You',
+    clientAddress: localStorage.getItem('locationStreet') || '—',
+    status: 'open',
+    likelihoodScore: 0,
+  };
+}
+
 // ── Fallback mock data (shown when API is unavailable) ─────────────────────
 
 const FALLBACK_JOBS: Job[] = [
@@ -142,9 +169,14 @@ const FALLBACK_JOBS: Job[] = [
     category: 'Electrical', tradeId: 'electrical', severity: 'urgent',
     distance: 4.1, postedAt: '5 hrs ago', expiresInHours: 19,
     description: 'Older home needs panel upgrade to support new EV charger. Must be ESA-certified.',
-    room: 'Basement', jobNature: 'Upgrade', photos: 3, quotes: [],
+    room: 'Basement', jobNature: 'Upgrade', photos: 3,
+    quotes: [
+      { id: 'q1', tradespersonId: 'tp-1', tradespersonName: 'Volt Masters Electric', rating: 4.9, reviewCount: 47, totalPrice: 1850, estimatedHours: 8, hourlyOverage: 75, message: 'ESA-certified with 12 years of panel work. Can pull permits same week. Price includes labour and materials.', submittedAt: '1 hr ago', verified: true },
+      { id: 'q2', tradespersonId: 'tp-2', tradespersonName: 'PowerPro Electrical', rating: 4.6, reviewCount: 31, totalPrice: 2100, estimatedHours: 10, hourlyOverage: 65, message: 'Licensed master electrician, fully insured. 200A panel with full inspection included. Flexible scheduling.', submittedAt: '2 hrs ago', verified: true },
+      { id: 'q3', tradespersonId: 'tp-3', tradespersonName: 'Bright Spark Solutions', rating: 4.4, reviewCount: 19, totalPrice: 1620, estimatedHours: 7, hourlyOverage: 80, message: 'Competitive pricing, ESA permit handled. Work guaranteed for 2 years.', submittedAt: '3 hrs ago', verified: false },
+    ],
     verified: true, clientName: 'James K.', clientAddress: '87 Oak St, Mississauga, ON',
-    status: 'open', likelihoodScore: 76,
+    status: 'quoted', likelihoodScore: 76,
   },
   {
     id: 'demo-3', title: 'HVAC Annual Maintenance + Filter Replacement',
@@ -792,6 +824,7 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
 
 export default function JobBoardEnhanced() {
   const { userProfile } = useAuth();
+  const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
@@ -817,7 +850,8 @@ export default function JobBoardEnhanced() {
 
     // Demo mode: skip API call, show mock data immediately
     if (localStorage.getItem('demoMode') === 'true') {
-      setJobs(FALLBACK_JOBS);
+      const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
+      setJobs([...localJobs, ...FALLBACK_JOBS]);
       setJobsLoading(false);
       return;
     }
@@ -833,13 +867,13 @@ export default function JobBoardEnhanced() {
         if (cancelled) return;
         const payload = (res as { jobs?: any[] }) || {};
         const rows = payload.jobs || [];
-        // If API returned no rows, fall back to demo data so the board is never empty
-        setJobs(rows.length > 0 ? rows.map(toBoardJob) : FALLBACK_JOBS);
+        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
+        setJobs(rows.length > 0 ? [...localJobs, ...rows.map(toBoardJob)] : [...localJobs, ...FALLBACK_JOBS]);
       })
       .catch(() => {
         if (cancelled) return;
-        // API unavailable — show demo data so the board is always usable
-        setJobs(FALLBACK_JOBS);
+        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
+        setJobs([...localJobs, ...FALLBACK_JOBS]);
       })
       .finally(() => {
         if (!cancelled) setJobsLoading(false);
@@ -847,6 +881,18 @@ export default function JobBoardEnhanced() {
 
     return () => { cancelled = true; };
   }, [userProfile, refetchKey]);
+
+  // Auto-open comparison modal when navigated here from the Dashboard "Compare Quotes" button
+  useEffect(() => {
+    const state = location.state as { autoCompare?: boolean } | null;
+    if (state?.autoCompare && jobs.length > 0 && !compareModalJob) {
+      const jobWithQuotes = jobs.find(j => j.quotes.length > 0);
+      if (jobWithQuotes) {
+        setCompareModalJob(jobWithQuotes);
+        window.history.replaceState({}, '');
+      }
+    }
+  }, [jobs, location.state, compareModalJob]);
 
   const categories = [
     { id: 'all', label: 'All', count: jobs.length },
@@ -894,7 +940,7 @@ export default function JobBoardEnhanced() {
 
   return (
     <>
-      <TopNav title={isTradeUser ? 'Job Board' : 'My Jobs'} />
+      <TopNav title={isTradeUser ? 'Job Board' : 'Jobs I Posted'} />
 
       {/* Quote Modals */}
       {quoteModalJob && (

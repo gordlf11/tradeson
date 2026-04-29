@@ -339,10 +339,10 @@ export default function HomeownerOnboarding() {
             <Button
               variant="ghost"
               fullWidth
-              onClick={() => update('paymentDeferred', true)}
+              onClick={() => { update('paymentDeferred', true); handleNext(); }}
               style={{ marginTop: 'var(--space-2)', color: 'var(--text-secondary)' }}
             >
-              Skip for now
+              Skip for now — complete setup
             </Button>
           </div>
         );

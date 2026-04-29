@@ -168,7 +168,6 @@ export default function PaymentSettings() {
             ] : [
               { label: 'Billing', value: 'Charged after job completion' },
               { label: 'Platform fee', value: '10% per completed job' },
-              { label: 'Processor', value: 'Stripe (test mode)' },
             ]).map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{row.label}</span>

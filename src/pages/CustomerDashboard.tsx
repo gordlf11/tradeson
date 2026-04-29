@@ -138,6 +138,18 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
 
 // ── Fallback jobs (shown when API is unavailable) ─────────────────────────
 
+function localJobToActive(j: any): ActiveJob {
+  return {
+    id: j.id,
+    title: j.title,
+    property: localStorage.getItem('locationStreet') || 'Your Property',
+    status: 'open',
+    tradeType: j.category || 'General',
+    postedAt: 'just now',
+    quotesCount: 0,
+  };
+}
+
 const FALLBACK_JOBS: ActiveJob[] = [
   {
     id: 'demo-job-1', title: 'Kitchen Faucet Replacement',
@@ -228,7 +240,8 @@ export default function CustomerDashboard() {
   useEffect(() => {
     // Demo mode: skip API call, show mock data immediately — don't wait for userProfile
     if (localStorage.getItem('demoMode') === 'true') {
-      setJobs(FALLBACK_JOBS);
+      const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToActive);
+      setJobs([...localJobs, ...FALLBACK_JOBS]);
       setJobsLoading(false);
       return;
     }
@@ -246,12 +259,13 @@ export default function CustomerDashboard() {
         if (cancelled) return;
         const payload = (res as { jobs?: ApiJobRow[] }) || {};
         const rows = payload.jobs || [];
-        setJobs(rows.length > 0 ? rows.map(toActiveJob) : FALLBACK_JOBS);
+        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToActive);
+        setJobs(rows.length > 0 ? [...localJobs, ...rows.map(toActiveJob)] : [...localJobs, ...FALLBACK_JOBS]);
       })
       .catch(() => {
         if (cancelled) return;
-        // API unavailable — show demo data so the dashboard is always populated
-        setJobs(FALLBACK_JOBS);
+        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToActive);
+        setJobs([...localJobs, ...FALLBACK_JOBS]);
       })
       .finally(() => {
         if (!cancelled) setJobsLoading(false);
@@ -467,7 +481,7 @@ export default function CustomerDashboard() {
                         ))}
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>{notif.rating}</span>
                       </div>
-                      <Button variant="primary" size="sm" onClick={() => navigate('/job-board')}>
+                      <Button variant="primary" size="sm" onClick={() => navigate('/job-board', { state: { autoCompare: true } })}>
                         Compare Quotes
                       </Button>
                     </div>
@@ -605,7 +619,7 @@ export default function CustomerDashboard() {
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
               <Button variant="primary" fullWidth onClick={() => navigate('/job-creation')} icon={<Plus size={16} />}>New Job</Button>
-              <Button variant="outline" fullWidth onClick={() => navigate('/job-board')} icon={<Briefcase size={16} />}>My Jobs</Button>
+              <Button variant="outline" fullWidth onClick={() => navigate('/job-board')} icon={<Briefcase size={16} />}>Jobs I Posted</Button>
             </div>
           </div>
         </div>
