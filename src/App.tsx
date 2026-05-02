@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 // Auth
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
 
 // Onboarding
 import RoleSelection from './pages/RoleSelection';
@@ -57,7 +58,7 @@ const BottomNav = () => {
   const userRole = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
 
   // Hide nav on auth, onboarding, and admin screens
-  const hideNavPaths = ['/login', '/signup', '/onboarding', '/role-selection', '/dashboard/admin'];
+  const hideNavPaths = ['/login', '/signup', '/forgot-password', '/onboarding', '/role-selection', '/dashboard/admin'];
   if (path === '/' || hideNavPaths.some(p => path.startsWith(p))) return null;
 
   const dashPath = getDashboardPath(userRole);
@@ -193,6 +194,7 @@ function AppRoutes() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Onboarding — requires auth */}
         <Route path="/onboarding" element={<RequireAuth><RoleSelection /></RequireAuth>} />

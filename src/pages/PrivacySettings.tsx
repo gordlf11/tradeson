@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Shield, Eye, Bell, Lock, Trash2 } from 'lucide-react';
+import { ChevronLeft, Shield, Eye, Bell, Lock, Trash2, AlertTriangle } from 'lucide-react';
+import { deleteUser, signOut } from 'firebase/auth';
+import { auth } from '../services/firebase';
+import api from '../services/api';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 
 interface Toggle {
   id: string;
@@ -24,7 +28,37 @@ export default function PrivacySettings() {
     Object.fromEntries(toggles.map(t => [t.id, t.default]))
   );
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
   const toggle = (id: string) => setSettings(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      // Best-effort PG delete first; if backend route is missing we still want to remove the Firebase user
+      try {
+        await api.deleteMe();
+      } catch (err: any) {
+        console.warn('API deleteMe failed (non-blocking):', err.message);
+      }
+      if (auth.currentUser) {
+        await deleteUser(auth.currentUser);
+      }
+      await signOut(auth);
+      localStorage.clear();
+      navigate('/login');
+    } catch (err: any) {
+      // deleteUser throws auth/requires-recent-login when the session is too old
+      const msg = err?.code === 'auth/requires-recent-login'
+        ? 'For security, please sign in again before deleting your account.'
+        : (err?.message || 'Could not delete account. Please try again.');
+      setDeleteError(msg);
+      setDeleting(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
@@ -132,6 +166,7 @@ export default function PrivacySettings() {
           </h3>
           <Card style={{ padding: 0 }}>
             <button
+              onClick={() => { setDeleteError(''); setShowDeleteConfirm(true); }}
               style={{
                 width: '100%', background: 'transparent', border: 'none', cursor: 'pointer',
                 padding: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', textAlign: 'left',
@@ -152,6 +187,67 @@ export default function PrivacySettings() {
           </Card>
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+          onClick={(e) => { if (e.target === e.currentTarget && !deleting) setShowDeleteConfirm(false); }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 'var(--space-4)', zIndex: 1000,
+          }}
+        >
+          <Card style={{ maxWidth: '420px', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+              <div style={{
+                width: '40px', height: '40px', background: 'rgba(255,74,107,0.1)',
+                borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <AlertTriangle size={20} color="var(--danger)" />
+              </div>
+              <h2 id="delete-account-title" style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
+                Delete your account?
+              </h2>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 'var(--space-5)' }}>
+              This permanently removes your account, jobs, quotes, and messages. This cannot be undone.
+            </p>
+
+            {deleteError && (
+              <div style={{
+                padding: 'var(--space-3)', marginBottom: 'var(--space-4)',
+                background: 'rgba(255,74,107,0.1)', border: '1px solid var(--danger)',
+                borderRadius: 'var(--radius-sm)', color: 'var(--danger)', fontSize: '0.85rem',
+              }}>
+                {deleteError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <Button
+                variant="ghost"
+                fullWidth
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                fullWidth
+                loading={deleting}
+                onClick={handleDeleteAccount}
+                style={{ background: 'var(--danger)' }}
+              >
+                Delete account
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

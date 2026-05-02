@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, Phone, Camera, ChevronLeft, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
@@ -9,16 +9,24 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function ProfileSettings() {
   const navigate = useNavigate();
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, userProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const userEmail = localStorage.getItem('userEmail') || '';
-  const userName = localStorage.getItem('userName') || '';
 
   const [formData, setFormData] = useState({
-    name: userName,
-    email: userEmail,
-    phone: localStorage.getItem('userPhone') || '',
+    name: userProfile?.full_name || localStorage.getItem('userName') || '',
+    email: userProfile?.email || firebaseUser?.email || localStorage.getItem('userEmail') || '',
+    phone: userProfile?.phone_number || localStorage.getItem('userPhone') || '',
   });
+
+  // Re-seed when the profile finishes loading (it can arrive after first render)
+  useEffect(() => {
+    if (!userProfile && !firebaseUser) return;
+    setFormData(prev => ({
+      name: userProfile?.full_name || prev.name,
+      email: userProfile?.email || firebaseUser?.email || prev.email,
+      phone: userProfile?.phone_number || prev.phone,
+    }));
+  }, [userProfile, firebaseUser]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(localStorage.getItem('userAvatar'));
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saved, setSaved] = useState(false);

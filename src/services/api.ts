@@ -36,6 +36,9 @@ export const api = {
   updateMe: (data: Record<string, unknown>) =>
     request('/api/v1/users/me', { method: 'PUT', body: JSON.stringify(data) }),
 
+  deleteMe: () =>
+    request('/api/v1/users/me', { method: 'DELETE' }),
+
   // Onboarding
   onboardHomeowner: (data: Record<string, unknown>) =>
     request('/api/v1/onboarding/homeowner', { method: 'POST', body: JSON.stringify(data) }),

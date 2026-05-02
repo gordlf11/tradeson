@@ -490,6 +490,38 @@ npm run dev       # http://localhost:5173
 
 ---
 
+## 🧪 Testing — `/test-feedback` skill
+
+User-testing feedback gets handled through the `/test-feedback` slash command (defined in `.claude/skills/test-feedback/SKILL.md`). It uses Playwright MCP (configured in `.mcp.json`) to drive a headless Chromium against `localhost:5173` and produces a structured plan file the team approves before any source change lands.
+
+**One-time setup (per workstation):**
+1. `cp .env.test.example .env.test` and fill in passwords for the three test users.
+2. Start the dev server: `npm run dev`.
+3. Run `/test-feedback "<some piece of feedback>"`. On first run, Claude Code prompts to enable the Playwright MCP server (approve once). The skill then bootstraps the test users by signing them up through the real onboarding flow.
+
+**Test users (filter these out of all analytics):**
+- `homeowner@tradeson.test`
+- `tradesperson@tradeson.test`
+- `pm@tradeson.test`
+
+**Analytics filter — required wherever we read user activity:**
+- Firebase Analytics / GA4: exclude `user_email LIKE '%@tradeson.test'` in any dashboard or BigQuery export.
+- Postgres-derived metrics: same WHERE clause on `users.email`.
+- BigQuery (when wired): same — apply at the view layer so it's enforced once.
+- *Recommended next change:* in `AuthContext.login`, call `setUserProperties(analytics, { is_test_account: 'true' })` when the email ends with `@tradeson.test`. One-line addition; closes the loop in Firebase Analytics user properties.
+
+**Plan files (`tests/feedback-runs/<date>-<slug>/plan.md`):**
+- Markdown with `status: draft | approved | implemented` frontmatter.
+- The plan file is the audit trail — it IS committed to git.
+- Screenshots and the bootstrap fingerprint are gitignored.
+- Approval is human-only: edit `status:` to `approved`, then re-invoke `/test-feedback <plan-path>`.
+
+**Don't:**
+- Don't run `/test-feedback` against the production URL — Playwright will pollute real analytics. Always against `localhost:5173`.
+- Don't reuse the `/demo` localStorage flow for test stories. Demo mode bypasses `RequireAuth` and the API; you'd be testing the mocks, not the app.
+
+---
+
 ## 📝 Commit Convention
 
 ```

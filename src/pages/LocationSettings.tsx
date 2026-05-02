@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ChevronLeft, Check, Home, Building2, Plus } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { useAuth } from '../contexts/AuthContext';
 
 const MOCK_PORTFOLIO = [
   { id: 'p1', address: '842 Maple Ave', city: 'Toronto', province: 'ON', postalCode: 'M6G 1L8' },
@@ -14,16 +15,33 @@ const MOCK_PORTFOLIO = [
 
 export default function LocationSettings() {
   const navigate = useNavigate();
-  const role = localStorage.getItem('userRole') || 'homeowner';
+  const { userProfile } = useAuth();
+  const role = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
   const isPM = role === 'property-manager';
 
-  // Primary address (all roles)
+  // Address blob from the API is loosely typed; pull common fields if present
+  const profileAddress = (userProfile?.address as Record<string, string> | undefined) || {};
+
+  // Primary address (all roles) — seed from profile, fall back to localStorage
   const [formData, setFormData] = useState({
-    street: localStorage.getItem('locationStreet') || '',
-    city: localStorage.getItem('locationCity') || '',
-    province: localStorage.getItem('locationProvince') || '',
-    postalCode: localStorage.getItem('locationPostal') || '',
+    street: profileAddress.address_line_1 || localStorage.getItem('locationStreet') || '',
+    city: profileAddress.city || localStorage.getItem('locationCity') || '',
+    province: profileAddress.state || localStorage.getItem('locationProvince') || '',
+    postalCode: profileAddress.zip_code || localStorage.getItem('locationPostal') || '',
   });
+
+  // Re-seed when profile arrives async
+  useEffect(() => {
+    if (!userProfile?.address) return;
+    const addr = userProfile.address as Record<string, string>;
+    setFormData(prev => ({
+      street: addr.address_line_1 || prev.street,
+      city: addr.city || prev.city,
+      province: addr.state || prev.province,
+      postalCode: addr.zip_code || prev.postalCode,
+    }));
+  }, [userProfile]);
+
   const [saved, setSaved] = useState(false);
 
   // Portfolio properties (property manager only)
