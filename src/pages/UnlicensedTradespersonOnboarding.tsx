@@ -166,6 +166,15 @@ export default function UnlicensedTradespersonOnboarding() {
       // Backend DB unavailable — continue anyway; profile syncs when DB is restored
       console.warn('Onboarding API error (non-blocking):', err.message);
     }
+    if (formData.fullName) localStorage.setItem('userName', formData.fullName);
+    if (formData.phoneNumber) localStorage.setItem('userPhone', formData.phoneNumber);
+    if (formData.businessName || formData.city) localStorage.setItem('tradespersonData', JSON.stringify({
+      businessName: formData.businessName,
+      serviceCity: formData.city,
+      serviceState: formData.state,
+      serviceRadius: formData.serviceRadius,
+      primaryTrades: formData.serviceCategories,
+    }));
     localStorage.setItem('userRole', 'non-licensed-trade');
     localStorage.setItem('hasOnboarded', 'true');
     setIsSubmitting(false);
@@ -238,8 +247,14 @@ export default function UnlicensedTradespersonOnboarding() {
       case 1:
         return (
           <div>
-            {stepHeader(<MapPin size={24} color="white" />, 'Your Location', 'Where are you based?')}
+            {stepHeader(<MapPin size={24} color="white" />, 'About You', 'Tell us about yourself and where you are based')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <Input label="Full Name" placeholder="Jane Smith" value={formData.fullName}
+                onChange={e => update('fullName', e.target.value)} required />
+              <Input label="Phone Number" placeholder="+1 (555) 000-0000" type="tel" value={formData.phoneNumber}
+                onChange={e => update('phoneNumber', e.target.value)} />
+              <Input label="Business Name (optional)" placeholder="Smith Services" value={formData.businessName}
+                onChange={e => update('businessName', e.target.value)} />
               <Input label="Primary Address" placeholder="123 Main Street" value={formData.primaryAddress}
                 onChange={e => update('primaryAddress', e.target.value)} />
               <Input label="City" placeholder="Your City" value={formData.city}

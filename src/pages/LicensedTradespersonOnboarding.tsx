@@ -164,11 +164,7 @@ export default function LicensedTradespersonOnboarding() {
         additional_services: formData.additionalServices,
         business_entity_type: formData.businessEntityType,
         areas_served: formData.areasServed,
-        licenses: formData.licenseNumber ? [{
-          license_type: formData.licenseType,
-          license_number: formData.licenseNumber,
-          expiration_date: formData.licenseExpirationDate || null,
-        }] : [],
+        licenses: [],
         address_line_1: formData.serviceAddress,
         city: formData.serviceCity,
         state: formData.serviceState,
