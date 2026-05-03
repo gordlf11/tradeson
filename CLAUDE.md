@@ -28,7 +28,11 @@ When you read this file, please ask the developer:
 
 ### 1. 🚨 CRITICAL — Fix Tradesperson Onboarding (users are failing to register)
 
-**Root cause:** `POST /api/v1/onboarding/licensed-trade` in `api/src/routes/onboarding.ts` inserts into `tradesperson_profiles` then immediately tries to insert into `compliance_documents`, which has `document_url TEXT NOT NULL`. The frontend was fixed to send `licenses: []` so no compliance_documents rows are inserted during onboarding — but the route still needs a transaction wrapper so a mid-flow DB error doesn't leave orphaned `tradesperson_profiles` rows with no matching `users.role` update.
+**Root cause:** The trigger was specifically the license number field in **step 4 (Licensing)** of the licensed tradesperson onboarding flow. If a tradesperson typed a license number but skipped uploading the license document file, the frontend sent a non-empty `licenses` array to `POST /api/v1/onboarding/licensed-trade`. The backend (`api/src/routes/onboarding.ts`) then tried to insert that row into `compliance_documents`, which has `document_url TEXT NOT NULL` — failing with a NOT NULL constraint violation. Insurance/ID uploads were **not** involved.
+
+**Frontend fix (already done):** `LicensedTradespersonOnboarding.tsx:167` now sends `licenses: []` unconditionally. Comment reads: `// sent separately via InsuranceUpload once the document is uploaded`
+
+The route still needs a transaction wrapper so a mid-flow DB error doesn't leave orphaned `tradesperson_profiles` rows with no matching `users.role` update.
 
 **Two changes needed:**
 

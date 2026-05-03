@@ -10,7 +10,8 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import api from '../services/api';
-import { logAdminAction, getAuditLog, getSupportTickets, updateSupportTicket, SupportTicket } from '../services/messagingService';
+import { logAdminAction, getAuditLog, getSupportTickets, updateSupportTicket } from '../services/messagingService';
+import type { SupportTicket } from '../services/messagingService';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

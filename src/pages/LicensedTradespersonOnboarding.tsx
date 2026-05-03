@@ -164,7 +164,7 @@ export default function LicensedTradespersonOnboarding() {
         additional_services: formData.additionalServices,
         business_entity_type: formData.businessEntityType,
         areas_served: formData.areasServed,
-        licenses: [],
+        licenses: [],  // sent separately via InsuranceUpload once the document is uploaded
         address_line_1: formData.serviceAddress,
         city: formData.serviceCity,
         state: formData.serviceState,
