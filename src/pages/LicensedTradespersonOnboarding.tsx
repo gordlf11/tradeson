@@ -184,6 +184,15 @@ export default function LicensedTradespersonOnboarding() {
       // Backend DB unavailable — continue anyway; profile syncs when DB is restored
       console.warn('Onboarding API error (non-blocking):', err.message);
     }
+    if (formData.fullName) localStorage.setItem('userName', formData.fullName);
+    if (formData.phoneNumber) localStorage.setItem('userPhone', formData.phoneNumber);
+    if (formData.businessName) localStorage.setItem('tradespersonData', JSON.stringify({
+      businessName: formData.businessName,
+      serviceCity: formData.serviceCity,
+      serviceState: formData.serviceState,
+      serviceRadius: formData.serviceRadius,
+      primaryTrades: formData.primaryTrades,
+    }));
     localStorage.setItem('userRole', 'licensed-trade');
     localStorage.setItem('hasOnboarded', 'true');
     setIsSubmitting(false);
@@ -279,6 +288,10 @@ export default function LicensedTradespersonOnboarding() {
           <div>
             {stepHeader(<MapPin size={24} color="white" />, 'Business Info', 'Your business & base address')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <Input label="Full Name" placeholder="Jane Smith" value={formData.fullName}
+                onChange={e => update('fullName', e.target.value)} required />
+              <Input label="Phone Number" placeholder="+1 (555) 000-0000" type="tel" value={formData.phoneNumber}
+                onChange={e => update('phoneNumber', e.target.value)} />
               <Input label="Business Name" placeholder="Smith Plumbing LLC" value={formData.businessName}
                 onChange={e => update('businessName', e.target.value)} />
               <Input label="Service Base Address" placeholder="123 Trade St" value={formData.serviceAddress}

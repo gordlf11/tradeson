@@ -222,8 +222,8 @@ export default function TradespersonDashboard() {
             <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem' }}>({reviewCount} reviews)</span>
           </div>
 
-          {/* Earnings Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
+          {/* Earnings Cards — row 1 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
             {[
               { label: 'This Month', value: '$3,840', icon: <TrendingUp size={14} />, sub: '+12% vs last' },
               { label: 'Pending Payout', value: '$970', icon: <Clock size={14} />, sub: '2 jobs' },
@@ -239,6 +239,33 @@ export default function TradespersonDashboard() {
                 <div style={{ color: 'var(--primary)', fontSize: '0.65rem' }}>{stat.sub}</div>
               </div>
             ))}
+          </div>
+
+          {/* Earnings Cards — row 2 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', textAlign: 'center' }}>
+              <div style={{ color: 'var(--primary)', marginBottom: '4px', display: 'flex', justifyContent: 'center' }}><DollarSign size={14} /></div>
+              <div style={{ color: 'white', fontWeight: '800', fontSize: '1rem', letterSpacing: '-0.02em' }}>$225</div>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: '2px' }}>Avg Per Job</div>
+              <div style={{ color: 'var(--primary)', fontSize: '0.65rem' }}>all time</div>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>
+              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.5)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Service Mix</div>
+              {[
+                { label: 'Repair', pct: 35, color: '#F76B26' },
+                { label: 'Maintenance', pct: 30, color: '#4CAF50' },
+                { label: 'New Install', pct: 25, color: '#2196F3' },
+                { label: 'Replacement', pct: 10, color: '#9C27B0' },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '3px' }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: row.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.12)', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: `${row.pct}%`, height: '100%', background: row.color, borderRadius: '2px' }} />
+                  </div>
+                  <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', minWidth: '24px', textAlign: 'right' }}>{row.pct}%</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

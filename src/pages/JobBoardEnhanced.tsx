@@ -270,6 +270,19 @@ interface QuoteModalProps {
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TIME_SLOTS = ['7 AM – 10 AM', '10 AM – 1 PM', '1 PM – 4 PM', '4 PM – 7 PM'];
 
+const MOCK_REVIEWS = [
+  { reviewer: 'Sarah M.', rating: 5, text: 'Fantastic work, arrived on time and left the place spotless.', date: 'Oct 2024' },
+  { reviewer: 'Tom Chen', rating: 5, text: 'Fixed a tricky leak quickly and the price was fair.', date: 'Sep 2024' },
+  { reviewer: 'Linda Ross', rating: 4, text: 'Good communication and solid workmanship overall.', date: 'Aug 2024' },
+  { reviewer: 'James O.', rating: 5, text: 'Would absolutely hire again — professional and efficient.', date: 'Jul 2024' },
+];
+
+interface ToolItem {
+  id: string;
+  name: string;
+  providerHas: boolean;
+}
+
 function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
   const [price, setPrice] = useState('');
   const [hours, setHours] = useState('');
@@ -279,10 +292,27 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [reviewsExpanded, setReviewsExpanded] = useState(false);
+  const [tools, setTools] = useState<ToolItem[]>([]);
+  const [newToolName, setNewToolName] = useState('');
 
   const tradespersonData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
+  const serviceArea = [tradespersonData.serviceCity, tradespersonData.serviceState].filter(Boolean).join(', ')
+    || (tradespersonData.primaryTrades?.length ? `${tradespersonData.serviceRadius || 25} mi radius` : '');
   const rating = 4.8;
   const reviewCount = 47;
+
+  const addTool = () => {
+    const name = newToolName.trim();
+    if (!name) return;
+    setTools(prev => [...prev, { id: `t${Date.now()}`, name, providerHas: true }]);
+    setNewToolName('');
+  };
+
+  const toggleToolOwner = (id: string) =>
+    setTools(prev => prev.map(t => t.id === id ? { ...t, providerHas: !t.providerHas } : t));
+
+  const removeTool = (id: string) => setTools(prev => prev.filter(t => t.id !== id));
 
   const isValid = price && hours && overage && message.trim().length >= 10 && availability.length > 0;
 
@@ -347,15 +377,44 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
 
             {/* My profile preview */}
             <Card style={{ padding: 'var(--space-3)', background: 'var(--primary-light)', border: '1px solid var(--primary)', marginBottom: 'var(--space-4)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: reviewsExpanded ? 'var(--space-3)' : 0 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
                     {tradespersonData.businessName || tradespersonData.fullName || 'Your Business'}
                   </div>
-                  <StarRow rating={rating} count={reviewCount} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <StarRow rating={rating} />
+                    <button
+                      onClick={() => setReviewsExpanded(e => !e)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: '700', fontFamily: 'inherit' }}
+                    >
+                      {reviewCount} reviews {reviewsExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                  </div>
+                  {serviceArea ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                      <MapPin size={11} />
+                      <span>Services: {serviceArea}</span>
+                    </div>
+                  ) : null}
                 </div>
                 <Badge variant="success" size="sm">Verified</Badge>
               </div>
+
+              {reviewsExpanded && (
+                <div style={{ borderTop: '1px solid var(--primary)', paddingTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                  {MOCK_REVIEWS.map((r, i) => (
+                    <div key={i} style={{ paddingBottom: i < MOCK_REVIEWS.length - 1 ? 'var(--space-3)' : 0, borderBottom: i < MOCK_REVIEWS.length - 1 ? '1px solid rgba(var(--primary-rgb,247,107,38),0.2)' : 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                        <span style={{ fontWeight: '700', fontSize: '0.78rem', color: 'var(--text-primary)' }}>{r.reviewer}</span>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>{r.date}</span>
+                      </div>
+                      <StarRow rating={r.rating} />
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>{r.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             {/* Price */}
@@ -473,6 +532,49 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
                   <p style={{ fontSize: '0.72rem', color: 'var(--danger)', marginTop: '6px' }}>Select at least one available day to submit your quote.</p>
                 )}
               </div>
+            </div>
+
+            {/* Tools & services checklist */}
+            <div style={{ marginTop: 'var(--space-4)' }}>
+              <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                Required Tools & Equipment
+              </label>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                List the tools needed. Toggle who provides each — the customer will see this when reviewing your quote.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+                <input
+                  type="text"
+                  placeholder="e.g. Pipe wrench, ladder…"
+                  value={newToolName}
+                  onChange={e => setNewToolName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTool(); } }}
+                  style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontFamily: 'inherit', fontSize: '0.85rem', color: 'var(--text-primary)', background: 'var(--bg-surface)' }}
+                />
+                <button onClick={addTool} style={{ padding: '8px 14px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+              </div>
+              {tools.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {tools.map(tool => (
+                    <div key={tool.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                      <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: '500' }}>{tool.name}</span>
+                      <button
+                        onClick={() => toggleToolOwner(tool.id)}
+                        style={{
+                          padding: '3px 10px', border: 'none', borderRadius: 'var(--radius-full)',
+                          background: tool.providerHas ? 'var(--success)' : 'var(--warning)',
+                          color: 'white', fontSize: '0.68rem', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {tool.providerHas ? 'I have it' : 'Client provides'}
+                      </button>
+                      <button onClick={() => removeTool(tool.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Expiry notice */}

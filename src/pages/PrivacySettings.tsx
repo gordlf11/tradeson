@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Shield, Eye, Bell, Lock, Trash2, AlertTriangle } from 'lucide-react';
-import { deleteUser, signOut } from 'firebase/auth';
+import { ChevronLeft, Shield, Eye, Bell, Lock, UserX, AlertTriangle } from 'lucide-react';
+import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import api from '../services/api';
 import { Card } from '../components/ui/Card';
@@ -38,24 +38,17 @@ export default function PrivacySettings() {
     setDeleting(true);
     setDeleteError('');
     try {
-      // Best-effort PG delete first; if backend route is missing we still want to remove the Firebase user
+      // Flag the account as inactive in Postgres (does not remove Firebase Auth user)
       try {
         await api.deleteMe();
       } catch (err: any) {
-        console.warn('API deleteMe failed (non-blocking):', err.message);
-      }
-      if (auth.currentUser) {
-        await deleteUser(auth.currentUser);
+        console.warn('API deactivateMe failed (non-blocking):', err.message);
       }
       await signOut(auth);
       localStorage.clear();
       navigate('/login');
     } catch (err: any) {
-      // deleteUser throws auth/requires-recent-login when the session is too old
-      const msg = err?.code === 'auth/requires-recent-login'
-        ? 'For security, please sign in again before deleting your account.'
-        : (err?.message || 'Could not delete account. Please try again.');
-      setDeleteError(msg);
+      setDeleteError(err?.message || 'Could not deactivate account. Please try again.');
       setDeleting(false);
     }
   };
@@ -177,11 +170,11 @@ export default function PrivacySettings() {
                 borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center',
                 justifyContent: 'center', flexShrink: 0
               }}>
-                <Trash2 size={18} color="var(--danger)" />
+                <UserX size={18} color="var(--danger)" />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--danger)', marginBottom: '2px' }}>Delete Account</div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Permanently remove your account and data</div>
+                <div style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--danger)', marginBottom: '2px' }}>Deactivate Account</div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Deactivate your account — your data is preserved</div>
               </div>
             </button>
           </Card>
@@ -209,11 +202,11 @@ export default function PrivacySettings() {
                 <AlertTriangle size={20} color="var(--danger)" />
               </div>
               <h2 id="delete-account-title" style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
-                Delete your account?
+                Deactivate your account?
               </h2>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 'var(--space-5)' }}>
-              This permanently removes your account, jobs, quotes, and messages. This cannot be undone.
+              Your account will be deactivated and you'll be signed out. Your data is preserved and an admin can reactivate it if needed.
             </p>
 
             {deleteError && (
@@ -242,7 +235,7 @@ export default function PrivacySettings() {
                 onClick={handleDeleteAccount}
                 style={{ background: 'var(--danger)' }}
               >
-                Delete account
+                Deactivate account
               </Button>
             </div>
           </Card>

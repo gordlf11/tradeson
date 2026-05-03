@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Camera, Sparkles, AlertCircle, CheckCircle,
   Wrench, Zap, Droplets, Thermometer,
-  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake
+  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake, HelpCircle
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
@@ -22,11 +22,36 @@ interface JobFormData {
   tradeType: string;
   // Step 3 — Severity / urgency
   severity: 'routine' | 'moderate' | 'urgent';
-  // Step 4 — Uncovering questions
+  // Step 4 — Generic uncovering questions
   affectedPart: string;
   adjacentImpact: string;
   housewideImpact: string;
   jobNature: string;
+  // Step 4 — Other category
+  otherJobType: string;
+  otherSpecialization: string;
+  // Step 4 — Cleaning intake
+  cleaningType: string;
+  cleaningOtherType: string;
+  squareFootage: string;
+  bedrooms: string;
+  bathrooms: string;
+  cleaningAreas: string[];
+  cleaningDescription: string;
+  cleaningSpecialRequirements: string;
+  // Step 4 — Snow removal intake
+  snowAreas: string[];
+  snowAreaSize: string;
+  snowDepth: string;
+  requiresSalting: string;
+  snowRequirements: string;
+  // Step 4 — Landscaping intake
+  landscapingType: string;
+  propertySize: string;
+  workAreas: string[];
+  yardCondition: string;
+  debrisRemoval: string;
+  landscapingDescription: string;
   // Step 5 — Description & photos
   description: string;
   photos: File[];
@@ -50,7 +75,19 @@ const TRADE_CATEGORIES = [
   { id: 'cleaning',     label: 'Cleaning',        icon: <Home size={20} /> },
   { id: 'landscaping',  label: 'Landscaping',     icon: <TreePine size={20} /> },
   { id: 'snow-removal', label: 'Snow Removal',    icon: <Snowflake size={20} /> },
+  { id: 'other',        label: 'Other',           icon: <HelpCircle size={20} /> },
 ];
+
+// ── Specialized intake option sets ────────────────────────────────────────
+
+const CLEANING_TYPES = ['Standard', 'Deep clean', 'Move-in / Move-out', 'Post-construction', 'Other'];
+const CLEANING_AREAS = ['Kitchen', 'Bathrooms', 'Bedrooms', 'Living areas', 'Laundry room', 'Other'];
+
+const SNOW_AREAS = ['Driveway', 'Sidewalks / walkways', 'Steps / entryways', 'Parking area', 'Roof', 'Other'];
+
+const LANDSCAPING_TYPES = ['Lawn mowing / maintenance', 'Yard cleanup', 'Tree / shrub trimming', 'Garden design / planting', 'Other'];
+const LANDSCAPING_WORK_AREAS = ['Front yard', 'Backyard', 'Side yard', 'Entire property'];
+const YARD_CONDITIONS = ['Well-maintained', 'Overgrown', 'Needs full cleanup', 'Other'];
 
 const SEVERITY_LEVELS = [
   { id: 'routine', label: 'Routine',  sub: 'Not urgent — schedule at your convenience', color: 'var(--success)' },
@@ -98,6 +135,27 @@ export default function JobCreation() {
     adjacentImpact: '',
     housewideImpact: '',
     jobNature: '',
+    otherJobType: '',
+    otherSpecialization: '',
+    cleaningType: '',
+    cleaningOtherType: '',
+    squareFootage: '',
+    bedrooms: '',
+    bathrooms: '',
+    cleaningAreas: [],
+    cleaningDescription: '',
+    cleaningSpecialRequirements: '',
+    snowAreas: [],
+    snowAreaSize: '',
+    snowDepth: '',
+    requiresSalting: '',
+    snowRequirements: '',
+    landscapingType: '',
+    propertySize: '',
+    workAreas: [],
+    yardCondition: '',
+    debrisRemoval: '',
+    landscapingDescription: '',
     description: '',
     photos: [],
     photoQualityFlag: false,
@@ -106,6 +164,12 @@ export default function JobCreation() {
 
   const set = (field: keyof JobFormData, value: any) =>
     setFormData(prev => ({ ...prev, [field]: value }));
+
+  const toggleArr = (field: keyof JobFormData, value: string) =>
+    setFormData(prev => {
+      const arr = prev[field] as string[];
+      return { ...prev, [field]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] };
+    });
 
   const PHOTO_LIMIT = 5;
 
@@ -128,7 +192,21 @@ export default function JobCreation() {
       case 1: return !!formData.room;
       case 2: return !!formData.tradeType;
       case 3: return !!formData.severity;
-      case 4: return !!formData.affectedPart && !!formData.jobNature;
+      case 4: {
+        if (formData.tradeType === 'cleaning') {
+          return !!formData.cleaningType && formData.cleaningAreas.length > 0 && formData.cleaningDescription.trim().length >= 10;
+        }
+        if (formData.tradeType === 'snow-removal') {
+          return formData.snowAreas.length > 0 && !!formData.snowAreaSize && !!formData.requiresSalting;
+        }
+        if (formData.tradeType === 'landscaping') {
+          return !!formData.landscapingType && formData.workAreas.length > 0;
+        }
+        if (formData.tradeType === 'other') {
+          return formData.otherJobType.trim().length >= 10 && formData.otherSpecialization.trim().length >= 5;
+        }
+        return !!formData.affectedPart && !!formData.jobNature;
+      }
       case 5: return formData.description.trim().length >= 20;
       default: return true;
     }
@@ -165,6 +243,27 @@ export default function JobCreation() {
       affected_part: formData.affectedPart,
       adjacent_impact: formData.adjacentImpact,
       housewide_impact: formData.housewideImpact,
+      // Specialized intake fields
+      other_job_type: formData.otherJobType || undefined,
+      other_specialization: formData.otherSpecialization || undefined,
+      cleaning_type: formData.cleaningType || undefined,
+      square_footage: formData.squareFootage || undefined,
+      bedrooms: formData.bedrooms || undefined,
+      bathrooms: formData.bathrooms || undefined,
+      cleaning_areas: formData.cleaningAreas.length ? formData.cleaningAreas : undefined,
+      cleaning_description: formData.cleaningDescription || undefined,
+      cleaning_special_requirements: formData.cleaningSpecialRequirements || undefined,
+      snow_areas: formData.snowAreas.length ? formData.snowAreas : undefined,
+      snow_area_size: formData.snowAreaSize || undefined,
+      snow_depth: formData.snowDepth || undefined,
+      requires_salting: formData.requiresSalting || undefined,
+      snow_requirements: formData.snowRequirements || undefined,
+      landscaping_type: formData.landscapingType || undefined,
+      property_size: formData.propertySize || undefined,
+      work_areas: formData.workAreas.length ? formData.workAreas : undefined,
+      yard_condition: formData.yardCondition || undefined,
+      debris_removal: formData.debrisRemoval || undefined,
+      landscaping_description: formData.landscapingDescription || undefined,
     };
 
     let jobId = `local_${Date.now()}`;
@@ -296,76 +395,232 @@ export default function JobCreation() {
     </div>
   );
 
-  const renderStep4 = () => (
+  // ── Step 4 helpers ──────────────────────────────────────────────────────
+
+  const multiSelectGrid = (options: string[], field: keyof JobFormData, label: string) => (
     <div>
-      {stepHeader('Tell us more about the issue', 'Answer a few quick questions so tradespeople arrive prepared.')}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+      <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+        {label} <span style={{ color: 'var(--danger)' }}>*</span>
+      </label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
+        {options.map(opt => {
+          const selected = (formData[field] as string[]).includes(opt);
+          return (
+            <button key={opt} onClick={() => toggleArr(field, opt)} style={{
+              padding: 'var(--space-3)',
+              border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: selected ? 'var(--primary-light)' : 'var(--bg-surface)',
+              cursor: 'pointer', fontWeight: '600', fontSize: '0.82rem',
+              color: selected ? 'var(--primary)' : 'var(--text-secondary)',
+              fontFamily: 'inherit', textAlign: 'left' as const,
+            }}>{opt}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
-        {/* Q1 */}
-        <div>
-          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-            What part of the {formData.room.toLowerCase()} is not working or damaged? <span style={{ color: 'var(--danger)' }}>*</span>
-          </label>
-          <textarea
-            placeholder={`e.g. "The faucet under the sink" or "The light switch on the left wall"`}
-            value={formData.affectedPart}
-            onChange={e => set('affectedPart', e.target.value)}
-            rows={2}
-            style={{
-              width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem',
-              color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical',
-            }}
-          />
+  const singleSelectList = (options: string[], field: keyof JobFormData, label: string) => (
+    <div>
+      <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+        {label} <span style={{ color: 'var(--danger)' }}>*</span>
+      </label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
+        {options.map(opt => {
+          const selected = formData[field] === opt;
+          return (
+            <button key={opt} onClick={() => set(field, opt)} style={{
+              padding: 'var(--space-3)',
+              border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: selected ? 'var(--primary-light)' : 'var(--bg-surface)',
+              cursor: 'pointer', fontWeight: '600', fontSize: '0.82rem',
+              color: selected ? 'var(--primary)' : 'var(--text-secondary)',
+              fontFamily: 'inherit', textAlign: 'left' as const,
+            }}>{opt}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const yesNoToggle = (field: keyof JobFormData, label: string) => (
+    <div>
+      <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+        {label} <span style={{ color: 'var(--danger)' }}>*</span>
+      </label>
+      <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+        {['Yes', 'No'].map(opt => {
+          const selected = formData[field] === opt.toLowerCase();
+          return (
+            <button key={opt} onClick={() => set(field, opt.toLowerCase())} style={{
+              flex: 1, padding: 'var(--space-3)',
+              border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: selected ? 'var(--primary-light)' : 'var(--bg-surface)',
+              cursor: 'pointer', fontWeight: '700', fontSize: '1rem',
+              color: selected ? 'var(--primary)' : 'var(--text-primary)',
+              fontFamily: 'inherit',
+            }}>{opt}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderStep4 = () => {
+    const { tradeType } = formData;
+
+    if (tradeType === 'cleaning') return (
+      <div>
+        {stepHeader('Tell us about your cleaning request', 'Answer a few quick questions so cleaners arrive prepared.')}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          {singleSelectList(CLEANING_TYPES, 'cleaningType', 'What type of cleaning do you need?')}
+          {formData.cleaningType === 'Other' && (
+            <Input label="Describe the cleaning type" placeholder="e.g. Post-renovation clean" value={formData.cleaningOtherType}
+              onChange={e => set('cleaningOtherType', e.target.value)} />
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
+            <Input label="Sq ft *" placeholder="e.g. 1,200" value={formData.squareFootage}
+              onChange={e => set('squareFootage', e.target.value)} />
+            <Input label="Bedrooms" placeholder="e.g. 3" value={formData.bedrooms}
+              onChange={e => set('bedrooms', e.target.value)} />
+            <Input label="Bathrooms" placeholder="e.g. 2" value={formData.bathrooms}
+              onChange={e => set('bathrooms', e.target.value)} />
+          </div>
+          {multiSelectGrid(CLEANING_AREAS, 'cleaningAreas', 'What areas need to be cleaned?')}
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Please describe what needs to be done <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <textarea placeholder='e.g. "Full deep clean including baseboards, inside oven, and windows"'
+              value={formData.cleaningDescription} onChange={e => set('cleaningDescription', e.target.value)}
+              rows={3} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Special requirements or add-ons? <span style={{ color: 'var(--text-secondary)', fontWeight: '400' }}>(optional)</span>
+            </label>
+            <textarea placeholder='e.g. "Inside fridge/oven, pet hair removal"'
+              value={formData.cleaningSpecialRequirements} onChange={e => set('cleaningSpecialRequirements', e.target.value)}
+              rows={2} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+          </div>
         </div>
+      </div>
+    );
 
-        {/* Q2 */}
-        <div>
-          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-            Is anything else in the {formData.room.toLowerCase()} being affected because of this?
-          </label>
-          <textarea
-            placeholder={`e.g. "The cabinet under the sink is also getting wet" or "None"`}
-            value={formData.adjacentImpact}
-            onChange={e => set('adjacentImpact', e.target.value)}
-            rows={2}
-            style={{
-              width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem',
-              color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical',
-            }}
-          />
+    if (tradeType === 'snow-removal') return (
+      <div>
+        {stepHeader('Tell us about your snow removal request', 'Help us understand the scope of the job.')}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          {multiSelectGrid(SNOW_AREAS, 'snowAreas', 'What areas need snow removed?')}
+          <Input label="Approximate size of the area *" placeholder="e.g. 2-car driveway, 400 sq ft"
+            value={formData.snowAreaSize} onChange={e => set('snowAreaSize', e.target.value)} />
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              How deep is the snow currently? <span style={{ color: 'var(--text-secondary)', fontWeight: '400' }}>(optional)</span>
+            </label>
+            <Input placeholder='e.g. "2 inches", "6+ inches, drifting"'
+              value={formData.snowDepth} onChange={e => set('snowDepth', e.target.value)} />
+          </div>
+          {yesNoToggle('requiresSalting', 'Do you require salting / de-icing?')}
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Any specific requirements? <span style={{ color: 'var(--text-secondary)', fontWeight: '400' }}>(optional)</span>
+            </label>
+            <textarea placeholder='e.g. "Clear path to mailbox and garage, avoid piling near fence"'
+              value={formData.snowRequirements} onChange={e => set('snowRequirements', e.target.value)}
+              rows={2} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+          </div>
         </div>
+      </div>
+    );
 
-        {/* Q3 */}
-        <div>
-          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-            Is anything else in the house being impacted by this issue?
-          </label>
-          <textarea
-            placeholder={`e.g. "The water pressure everywhere dropped" or "No, it's isolated to the kitchen"`}
-            value={formData.housewideImpact}
-            onChange={e => set('housewideImpact', e.target.value)}
-            rows={2}
-            style={{
-              width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem',
-              color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical',
-            }}
-          />
+    if (tradeType === 'landscaping') return (
+      <div>
+        {stepHeader('Tell us about your landscaping request', 'Help us find the right professional for your yard.')}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          {singleSelectList(LANDSCAPING_TYPES, 'landscapingType', 'What type of landscaping service do you need?')}
+          <Input label="Approximate property size" placeholder="e.g. 5,000 sq ft lot"
+            value={formData.propertySize} onChange={e => set('propertySize', e.target.value)} />
+          {multiSelectGrid(LANDSCAPING_WORK_AREAS, 'workAreas', 'What areas need work?')}
+          {singleSelectList(YARD_CONDITIONS, 'yardCondition', 'What is the current condition of the yard?')}
+          {yesNoToggle('debrisRemoval', 'Do you need removal of waste / debris?')}
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Please describe what needs to be done <span style={{ color: 'var(--text-secondary)', fontWeight: '400' }}>(optional)</span>
+            </label>
+            <textarea placeholder='e.g. "Mow lawn, edge borders, remove weeds, trim bushes"'
+              value={formData.landscapingDescription} onChange={e => set('landscapingDescription', e.target.value)}
+              rows={3} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+          </div>
         </div>
+      </div>
+    );
 
-        {/* Q4 — Nature of job */}
-        <div>
-          <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-            What best describes the nature of this job? <span style={{ color: 'var(--danger)' }}>*</span>
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
-            {JOB_NATURE_OPTIONS.map(opt => (
-              <button
-                key={opt}
-                onClick={() => set('jobNature', opt)}
-                style={{
+    if (tradeType === 'other') return (
+      <div>
+        {stepHeader('Describe your job', 'Tell us what you need done so we can find the right person.')}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Describe the type of job <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <textarea placeholder='e.g. "Furniture assembly and mounting a TV wall bracket"'
+              value={formData.otherJobType} onChange={e => set('otherJobType', e.target.value)}
+              rows={3} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+            <div style={{ textAlign: 'right', fontSize: '0.72rem', color: formData.otherJobType.trim().length < 10 ? 'var(--danger)' : 'var(--text-secondary)', marginTop: '4px' }}>
+              {formData.otherJobType.trim().length} / 10 min
+            </div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Required specialization / skill <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <Input placeholder='e.g. "Handyman", "Carpenter", "General labour"'
+              value={formData.otherSpecialization} onChange={e => set('otherSpecialization', e.target.value)} />
+          </div>
+        </div>
+      </div>
+    );
+
+    // ── Generic intake (Plumbing, Electrical, HVAC, General Repairs) ──
+    return (
+      <div>
+        {stepHeader('Tell us more about the issue', 'Answer a few quick questions so tradespeople arrive prepared.')}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              What part of the {formData.room.toLowerCase()} is not working or damaged? <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <textarea placeholder={`e.g. "The faucet under the sink" or "The light switch on the left wall"`}
+              value={formData.affectedPart} onChange={e => set('affectedPart', e.target.value)}
+              rows={2} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Is anything else in the {formData.room.toLowerCase()} being affected because of this?
+            </label>
+            <textarea placeholder={`e.g. "The cabinet under the sink is also getting wet" or "None"`}
+              value={formData.adjacentImpact} onChange={e => set('adjacentImpact', e.target.value)}
+              rows={2} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              Is anything else in the house being impacted by this issue?
+            </label>
+            <textarea placeholder={`e.g. "The water pressure everywhere dropped" or "No, it's isolated to the kitchen"`}
+              value={formData.housewideImpact} onChange={e => set('housewideImpact', e.target.value)}
+              rows={2} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+              What best describes the nature of this job? <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
+              {JOB_NATURE_OPTIONS.map(opt => (
+                <button key={opt} onClick={() => set('jobNature', opt)} style={{
                   padding: 'var(--space-3)',
                   border: formData.jobNature === opt ? '2px solid var(--primary)' : '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
@@ -373,16 +628,14 @@ export default function JobCreation() {
                   cursor: 'pointer', fontWeight: '600', fontSize: '0.82rem',
                   color: formData.jobNature === opt ? 'var(--primary)' : 'var(--text-secondary)',
                   fontFamily: 'inherit',
-                }}
-              >
-                {opt}
-              </button>
-            ))}
+                }}>{opt}</button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderStep5 = () => (
     <div>
