@@ -21,6 +21,291 @@ When you read this file, please ask the developer:
 
 ---
 
+## 🔴 LARRY — Next Session Priority List
+> Last updated: 2026-05-03. Kevin's frontend is ahead of the backend on several features. Everything below is blocked waiting on Larry. Work top-to-bottom — each section has the exact files, SQL, and code needed.
+
+---
+
+### 1. 🚨 CRITICAL — Fix Tradesperson Onboarding (users are failing to register)
+
+**Root cause:** `POST /api/v1/onboarding/licensed-trade` in `api/src/routes/onboarding.ts` inserts into `tradesperson_profiles` then immediately tries to insert into `compliance_documents`, which has `document_url TEXT NOT NULL`. The frontend was fixed to send `licenses: []` so no compliance_documents rows are inserted during onboarding — but the route still needs a transaction wrapper so a mid-flow DB error doesn't leave orphaned `tradesperson_profiles` rows with no matching `users.role` update.
+
+**Two changes needed:**
+
+**a) Wrap the route in a Postgres transaction** (`api/src/routes/onboarding.ts`):
+```ts
+const client = await pool.connect();
+try {
+  await client.query('BEGIN');
+  // ... all INSERT statements use `client.query(...)` instead of `pool.query(...)`
+  await client.query('COMMIT');
+} catch (err) {
+  await client.query('ROLLBACK');
+  throw err;
+} finally {
+  client.release();
+}
+```
+
+**b) Run this migration** to make `document_url` nullable so documents can be uploaded post-onboarding via the Insurance Upload page:
+```sql
+ALTER TABLE compliance_documents ALTER COLUMN document_url DROP NOT NULL;
+ALTER TABLE compliance_documents ALTER COLUMN expiration_date DROP NOT NULL;
+```
+
+---
+
+### 2. 🚨 CRITICAL — Admin Dashboard Backend Routes
+
+Kevin has fully wired the admin dashboard frontend (`src/pages/AdminDashboard.tsx`). It calls these 5 routes that don't exist yet. Until they exist the dashboard falls back to mock data.
+
+**Step 1 — Run this SQL migration** (add to `api/src/schema/migration.sql` and run against the live DB):
+```sql
+-- Compliance status tracking on tradesperson profiles
+ALTER TABLE tradesperson_profiles
+  ADD COLUMN IF NOT EXISTS compliance_status TEXT DEFAULT 'pending'
+    CHECK (compliance_status IN ('pending', 'approved', 'rejected', 'more_docs')),
+  ADD COLUMN IF NOT EXISTS compliance_admin_note TEXT,
+  ADD COLUMN IF NOT EXISTS compliance_reviewed_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS compliance_reviewed_by UUID REFERENCES users(id);
+
+-- Extend role check to include admin
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN (
+  'homeowner','property_manager','realtor',
+  'licensed_tradesperson','unlicensed_tradesperson','admin'
+));
+
+-- Flagged accounts
+CREATE TABLE IF NOT EXISTS flagged_accounts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  flagged_by  UUID REFERENCES users(id),
+  flag_reason TEXT NOT NULL,
+  flag_type   TEXT CHECK (flag_type IN ('dispute','poor_reviews','expired_insurance','suspicious_activity')),
+  severity    TEXT CHECK (severity IN ('low','medium','high')) DEFAULT 'medium',
+  resolved_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_flagged_accounts_user ON flagged_accounts(user_id);
+CREATE INDEX IF NOT EXISTS idx_flagged_accounts_unresolved ON flagged_accounts(created_at DESC)
+  WHERE resolved_at IS NULL;
+
+-- Admin resolutions
+CREATE TABLE IF NOT EXISTS admin_resolutions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_user_id   UUID REFERENCES users(id),
+  target_user_id  UUID NOT NULL REFERENCES users(id),
+  action_type     TEXT NOT NULL CHECK (action_type IN (
+                    'warning','suspension','deactivation','explanation_request')),
+  reason          TEXT NOT NULL,
+  suspend_until   DATE,
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_admin_resolutions_target ON admin_resolutions(target_user_id);
+```
+
+**Step 2 — Add `requireAdmin` middleware** to `api/src/middleware/auth.ts`:
+```ts
+export async function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  if (!req.user) { res.status(401).json({ error: 'Unauthenticated' }); return; }
+  const token = req.headers.authorization!.split('Bearer ')[1];
+  try {
+    const decoded = await auth.verifyIdToken(token);
+    if (decoded.admin !== true && req.user.role !== 'admin') {
+      res.status(403).json({ error: 'Admin access required' }); return;
+    }
+    next();
+  } catch { res.status(401).json({ error: 'Token verification failed' }); }
+}
+```
+
+**Step 3 — Create `api/src/routes/admin.ts`** with these 5 routes (all use `requireAuth, requireAdmin`):
+
+| Route | What it does |
+|---|---|
+| `GET /api/v1/admin/compliance` | JOIN `tradesperson_profiles + users`; return compliance_status, document flags |
+| `POST /api/v1/admin/compliance/:id/decision` | Body: `{ decision, admin_note }` — update `compliance_status`; set `users.is_verified=true` on approval, `users.is_active=false` on rejection |
+| `GET /api/v1/admin/flagged-accounts` | SELECT from `flagged_accounts JOIN users` WHERE `resolved_at IS NULL` |
+| `POST /api/v1/admin/resolutions` | Body: `{ user_id, action_type, reason, suspend_until? }` — insert `admin_resolutions`, deactivate user if suspension/deactivation, resolve open flag rows |
+| `GET /api/v1/admin/metrics` | Aggregate counts from `users`, `jobs`, `payments` tables — see detailed query spec below |
+
+**Metrics query shape** — response must match this shape exactly (frontend reads these exact field names):
+```ts
+{
+  users: { homeowners, propertyManagers, realtors, tradespersons, total },
+  mau: { total, homeowners, tradespersons, others },
+  jobs: { open, inProgress, completed },
+  revenue: { gross, net, platformFee, opex },
+  funnel: {
+    customer: { visits, signups, onboarded, firstJob },
+    tradesperson: { signups, verified, firstBid, firstJobWon },
+  },
+  supplyDemand: [],   // leave empty for now
+  activationRate: number,
+}
+```
+
+**Step 4 — Register in `api/src/index.ts`**:
+```ts
+import adminRouter from './routes/admin';
+app.use('/api/v1/admin', adminRouter);
+```
+
+**Step 5 — Set Firebase admin custom claim** (one-time script, run from your machine):
+```ts
+// scripts/setAdminClaim.ts — run: npx ts-node scripts/setAdminClaim.ts
+import admin from 'firebase-admin';
+import serviceAccount from './serviceAccountKey.json';
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount as any) });
+const user = await admin.auth().getUserByEmail('admin@tradeson.com'); // replace with real admin email
+await admin.auth().setCustomUserClaims(user.uid, { admin: true });
+console.log('Done');
+```
+After running: the admin user must sign out and back in for the new token to carry the claim.
+
+**Step 6 — Seed a few `flagged_accounts` rows** manually so Kevin can test the UI:
+```sql
+INSERT INTO flagged_accounts (user_id, flag_reason, flag_type, severity)
+SELECT id, 'Test flag — payment dispute', 'dispute', 'high'
+FROM users WHERE role = 'licensed_tradesperson' LIMIT 1;
+```
+
+---
+
+### 3. 🟠 HIGH — Payment History Route
+
+Kevin wired `PaymentSettings.tsx` to call `GET /api/v1/payments/me`. It falls back to mock data until this route exists.
+
+**Create in `api/src/routes/payments.ts`** (or add to existing file if one exists):
+```ts
+// GET /api/v1/payments/me
+// Returns payments where the current user is payer OR payee
+// Joins invoices table to include pdf_url for the download link
+router.get('/me', requireAuth, async (req, res) => {
+  const { id } = req.user!;
+  const result = await pool.query(`
+    SELECT
+      p.id, p.amount, p.platform_fee, p.net_payout,
+      p.status, p.created_at AS date,
+      j.title AS job_title, j.category,
+      i.pdf_url AS invoice_url,
+      CASE WHEN p.payer_user_id = $1 THEN 'payment' ELSE 'earning' END AS tx_type
+    FROM payments p
+    JOIN jobs j ON j.id = p.job_id
+    LEFT JOIN invoices i ON i.payment_id = p.id
+    WHERE p.payer_user_id = $1 OR p.payee_user_id = $1
+    ORDER BY p.created_at DESC
+    LIMIT 100
+  `, [id]);
+  res.json(result.rows);
+});
+```
+
+**Response field mapping to frontend** (field names Kevin expects):
+- `jobTitle` ← `job_title`
+- `category` ← `category`
+- `amount` ← `amount` (customer view)
+- `gross` ← `amount` (tradesperson view)
+- `platformFee` ← `platform_fee`
+- `net` ← `net_payout`
+- `status` ← `status`
+- `date` ← `date` (ISO string)
+- `invoiceUrl` ← `invoice_url` (null until PDF is generated — download link only appears when non-null)
+
+---
+
+### 4. 🟠 HIGH — Firestore Security Rules: `support_tickets` collection
+
+Kevin built a Contact Support page (`src/pages/ContactSupport.tsx`) that writes to a new Firestore `support_tickets` collection. The current rules have **default deny** on unknown paths, so this collection is blocked.
+
+**Add to `firestore.rules`**:
+```
+match /support_tickets/{ticketId} {
+  // Any authenticated user can create a ticket
+  allow create: if request.auth != null
+    && request.resource.data.userId == request.auth.token.email;
+
+  // Only admins can read, update (triage), or list tickets
+  allow read, update: if request.auth.token.admin == true;
+
+  // Nobody can delete
+  allow delete: if false;
+}
+```
+
+**Deploy**: `firebase deploy --only firestore:rules`
+
+---
+
+### 5. 🟠 HIGH — Wire Data Layer (replace mock data with real API calls)
+
+Kevin's frontend is ready and waiting for these routes. The frontend falls back to mock data gracefully — these routes just make everything real.
+
+Priority order:
+
+| Screen | API call Kevin is making | Route needed |
+|---|---|---|
+| `JobBoardEnhanced.tsx` | `api.listJobs({ status: 'open' })` | `GET /api/v1/jobs?status=open` (may already exist — verify it returns the right shape) |
+| `CustomerDashboard.tsx` | `api.listJobs({ customerId: uid })` | `GET /api/v1/jobs?customerId=:uid` |
+| `TradespersonDashboard.tsx` | `api.listJobs({ acceptedTradespersonId: uid })` | `GET /api/v1/jobs?acceptedTradespersonId=:uid` |
+| `JobBoardEnhanced.tsx` — QuoteSubmissionModal | `api.submitQuote(jobId, data)` | `POST /api/v1/quotes/:jobId/quotes` |
+| `JobBoardEnhanced.tsx` — QuoteAcceptance | `api.acceptQuote(quoteId)` | `POST /api/v1/quotes/:quoteId/accept` |
+| `JobCreation.tsx` | `api.createJob(formData)` | `POST /api/v1/jobs` (may already exist) |
+
+---
+
+### 6. 🟠 HIGH — FCM Real-Time UX (push notifications)
+
+The service worker is registered (`public/firebase-messaging-sw.js`). Still missing:
+
+1. **Store FCM token on login** — on `AuthContext` auth state change, call `messaging.getToken()` and write to `Firestore users/{uid}.fcmToken`
+2. **Pub/Sub events from Cloud Run** — every route that creates/updates a job, quote, or booking should publish to a Pub/Sub topic
+3. **Cloud Function fan-out** — subscribe to Pub/Sub, read FCM token from Firestore, send push via `admin.messaging().send()`
+4. **Client `onMessage` handler** — Kevin will wire the foreground handler once Larry confirms the topic/payload shape
+
+Suggested Pub/Sub payload shape:
+```json
+{
+  "event": "quote.submitted",
+  "targetUserId": "<firebase_uid>",
+  "title": "New Quote Received",
+  "body": "Carlos Rivera submitted a quote for Kitchen Faucet Repair",
+  "data": { "jobId": "...", "quoteId": "..." }
+}
+```
+
+---
+
+### 7. 🟡 MEDIUM — Payout Trigger on Job Completion
+
+When a job status changes to `completed`, wire the call to `POST /api/v1/stripe/platform-payout` to transfer funds from the platform hold to the tradesperson's Connect account minus 10% fee.
+
+`PLATFORM_FEE_PERCENT=0.10` is already in `.env`. The route already exists in `api/src/routes/stripe.ts` — it just needs to be called automatically on job completion rather than manually.
+
+---
+
+### 8. 🟡 MEDIUM — Reviews Migration to Postgres
+
+`submitReview()` currently writes to Firestore `reviews` collection (`src/services/messagingService.ts`). Should move to `POST /api/v1/reviews` → Postgres `reviews` table (schema already exists). Kevin will update the frontend call once the route exists.
+
+---
+
+### 9. 🟡 MEDIUM — Nightly Flagged Account Auto-Population
+
+The `flagged_accounts` table won't self-populate. Set up a Cloud Scheduler cron (or Cloud Run scheduled job) to run nightly and insert rows for:
+- Tradespersons whose insurance certificate expired (check `compliance_documents.expiration_date < now()`)
+- Tradespersons whose 30-day avg rating drops below 2.5 (check `reviews` table)
+- Wire `charge.dispute.created` Stripe webhook to insert a `dispute` flag row
+
+---
+
+### 10. 🟡 MEDIUM — Admin Custom Claim + Admin User Setup
+
+See Step 5 in item #2 above. Also: make sure the admin user's `users.role` is set to `'admin'` in Postgres after running the migration that adds `'admin'` to the role CHECK constraint.
+
+---
+
 ## 📋 Project Overview
 
 **TradesOn** is a two-sided marketplace that:
