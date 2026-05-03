@@ -83,6 +83,27 @@ export const api = {
 
   getConnectStatus: () =>
     request('/api/v1/stripe/connect-status'),
+
+  // Admin — compliance
+  listComplianceSubmissions: () =>
+    request('/api/v1/admin/compliance'),
+
+  updateComplianceDecision: (id: string, decision: string, adminNote?: string) =>
+    request(`/api/v1/admin/compliance/${id}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, admin_note: adminNote ?? '' }),
+    }),
+
+  // Admin — accounts
+  listFlaggedAccounts: () =>
+    request('/api/v1/admin/flagged-accounts'),
+
+  applyResolution: (data: Record<string, unknown>) =>
+    request('/api/v1/admin/resolutions', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Admin — metrics
+  getPlatformMetrics: () =>
+    request('/api/v1/admin/metrics'),
 };
 
 export default api;

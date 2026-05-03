@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Shield, Users, Briefcase, DollarSign, AlertTriangle, CheckCircle,
@@ -9,6 +9,8 @@ import {
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import api from '../services/api';
+import { logAdminAction, getAuditLog } from '../services/messagingService';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -152,14 +154,37 @@ function SeverityBadge({ severity }: { severity: FlaggedAccount['severity'] }) {
 
 // ── Section: Compliance Review ─────────────────────────────────────────────
 
-function ComplianceSection() {
-  const [submissions, setSubmissions] = useState(mockSubmissions);
+function ComplianceSection({ adminEmail }: { adminEmail: string }) {
+  const [submissions, setSubmissions] = useState<ComplianceSubmission[]>(mockSubmissions);
   const [expanded, setExpanded] = useState<string | null>('cs1');
   const [notes, setNotes] = useState<Record<string, string>>({});
 
-  const handleDecision = (id: string, decision: ComplianceSubmission['status']) => {
+  useEffect(() => {
+    api.listComplianceSubmissions()
+      .then((data: any) => {
+        const items: ComplianceSubmission[] = Array.isArray(data) ? data : (data?.submissions ?? []);
+        if (items.length) { setSubmissions(items); setExpanded(items[0].id); }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleDecision = async (id: string, decision: ComplianceSubmission['status']) => {
+    const note = notes[id] ?? '';
+    const sub = submissions.find(s => s.id === id);
+    try { await api.updateComplianceDecision(id, decision, note); } catch {}
+    try {
+      await logAdminAction({
+        adminId: adminEmail, adminEmail,
+        actionType: decision === 'approved' ? 'Account Approved'
+          : decision === 'rejected' ? 'Account Rejected'
+          : 'More Docs Requested',
+        targetUserId: sub?.id ?? id,
+        targetUserEmail: sub?.email ?? '',
+        reason: note || (decision === 'approved' ? 'All documents verified and valid.' : ''),
+      });
+    } catch {}
     setSubmissions(prev => prev.map(s => s.id === id
-      ? { ...s, status: decision, adminNote: notes[id] || s.adminNote }
+      ? { ...s, status: decision, adminNote: note }
       : s
     ));
   };
@@ -277,10 +302,20 @@ function ComplianceSection() {
 // ── Section: Account Monitoring ────────────────────────────────────────────
 
 function AccountMonitoringSection({ onFlagAccount }: { onFlagAccount: (account: FlaggedAccount) => void }) {
+  const [accounts, setAccounts] = useState<FlaggedAccount[]>(mockFlaggedAccounts);
   const [search, setSearch] = useState('');
   const [notified, setNotified] = useState<Record<string, boolean>>({});
 
-  const filtered = mockFlaggedAccounts.filter(a =>
+  useEffect(() => {
+    api.listFlaggedAccounts()
+      .then((data: any) => {
+        const items: FlaggedAccount[] = Array.isArray(data) ? data : (data?.accounts ?? []);
+        if (items.length) setAccounts(items);
+      })
+      .catch(() => {});
+  }, []);
+
+  const filtered = accounts.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.email.toLowerCase().includes(search.toLowerCase())
   );
@@ -382,15 +417,46 @@ function AccountMonitoringSection({ onFlagAccount }: { onFlagAccount: (account: 
 
 // ── Section: Admin Resolutions ─────────────────────────────────────────────
 
-function ResolutionsSection({ preselectedAccount }: { preselectedAccount?: FlaggedAccount }) {
+function ResolutionsSection({ preselectedAccount, adminEmail }: { preselectedAccount?: FlaggedAccount; adminEmail: string }) {
+  const [accounts, setAccounts] = useState<FlaggedAccount[]>(mockFlaggedAccounts);
   const [selectedAccount, setSelectedAccount] = useState(preselectedAccount?.id ?? '');
   const [action, setAction] = useState('');
   const [reason, setReason] = useState('');
   const [suspendUntil, setSuspendUntil] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    api.listFlaggedAccounts()
+      .then((data: any) => {
+        const items: FlaggedAccount[] = Array.isArray(data) ? data : (data?.accounts ?? []);
+        if (items.length) setAccounts(items);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSubmit = async () => {
     if (!selectedAccount || !action || !reason) return;
+    const acct = accounts.find(a => a.id === selectedAccount);
+    try {
+      await api.applyResolution({
+        user_id: selectedAccount,
+        action_type: action,
+        reason,
+        ...(suspendUntil ? { suspend_until: suspendUntil } : {}),
+      });
+    } catch {}
+    try {
+      await logAdminAction({
+        adminId: adminEmail, adminEmail,
+        actionType: action === 'warning' ? 'Warning Issued'
+          : action === 'suspension' ? 'Temporary Suspension'
+          : action === 'deactivation' ? 'Permanent Deactivation'
+          : 'Explanation Requested',
+        targetUserId: selectedAccount,
+        targetUserEmail: acct?.email ?? '',
+        reason,
+      });
+    } catch {}
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
@@ -437,7 +503,7 @@ function ResolutionsSection({ preselectedAccount }: { preselectedAccount?: Flagg
                 }}
               >
                 <option value="">Select flagged account...</option>
-                {mockFlaggedAccounts.map(a => (
+                {accounts.map(a => (
                   <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
                 ))}
               </select>
@@ -530,6 +596,31 @@ function ResolutionsSection({ preselectedAccount }: { preselectedAccount?: Flagg
 // ── Section: Audit Log ─────────────────────────────────────────────────────
 
 function AuditLogSection() {
+  const [entries, setEntries] = useState<AuditEntry[]>(mockAuditLog);
+
+  const load = () => {
+    getAuditLog()
+      .then(data => {
+        if (data.length) {
+          setEntries(data.map(e => ({
+            id: e.id,
+            adminEmail: e.adminEmail,
+            actionType: e.actionType,
+            targetUser: e.targetUserEmail,
+            targetEmail: e.targetUserEmail,
+            reason: e.reason,
+            timestamp: e.timestamp.toLocaleString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric',
+              hour: 'numeric', minute: '2-digit',
+            }),
+          })));
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => { load(); }, []);
+
   const actionColor = (action: string) => {
     if (action.includes('Approved')) return 'var(--success)';
     if (action.includes('Rejected') || action.includes('Deactivat')) return 'var(--danger)';
@@ -551,6 +642,16 @@ function AuditLogSection() {
         </p>
       </div>
 
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-3)' }}>
+        <button onClick={load} style={{
+          background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+          padding: '6px 12px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
+          color: 'var(--primary)', fontFamily: 'inherit',
+        }}>
+          ↻ Refresh
+        </button>
+      </div>
+
       {/* Table */}
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -569,11 +670,11 @@ function AuditLogSection() {
               </tr>
             </thead>
             <tbody>
-              {mockAuditLog.map((entry, i) => (
+              {entries.map((entry, i) => (
                 <tr
                   key={entry.id}
                   style={{
-                    borderBottom: i < mockAuditLog.length - 1 ? '1px solid var(--border)' : 'none',
+                    borderBottom: i < entries.length - 1 ? '1px solid var(--border)' : 'none',
                     background: i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-base)',
                   }}
                 >
@@ -615,7 +716,14 @@ function AuditLogSection() {
 // ── Section: Platform Metrics ──────────────────────────────────────────────
 
 function MetricsSection() {
-  const m = platformMetrics;
+  const [m, setM] = useState(platformMetrics);
+
+  useEffect(() => {
+    api.getPlatformMetrics()
+      .then((data: any) => { if (data) setM(data); })
+      .catch(() => {});
+  }, []);
+
   const fmtCurrency = (n: number) => `$${n.toLocaleString()}`;
   const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
 
@@ -935,7 +1043,7 @@ export default function AdminDashboard() {
             <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
               Compliance Review
             </h2>
-            <ComplianceSection />
+            <ComplianceSection adminEmail={adminEmail} />
           </>
         )}
         {activeSection === 'accounts' && !flaggingAccount && (
@@ -963,7 +1071,7 @@ export default function AdminDashboard() {
                 </span>
               </div>
             </div>
-            <ResolutionsSection preselectedAccount={flaggingAccount} />
+            <ResolutionsSection preselectedAccount={flaggingAccount} adminEmail={adminEmail} />
           </>
         )}
         {activeSection === 'audit' && (

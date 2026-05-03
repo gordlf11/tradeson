@@ -34,6 +34,7 @@ import {
   getDocs,
   Timestamp,
   updateDoc,
+  limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -192,5 +193,37 @@ export async function logAdminAction(entry: {
   await addDoc(auditRef, {
     ...entry,
     timestamp: serverTimestamp(),
+  });
+}
+
+export interface AuditLogEntry {
+  id: string;
+  adminEmail: string;
+  actionType: string;
+  targetUserId: string;
+  targetUserEmail: string;
+  reason: string;
+  timestamp: Date;
+}
+
+/** Read the most recent admin audit log entries from Firestore. */
+export async function getAuditLog(maxEntries = 100): Promise<AuditLogEntry[]> {
+  const q = query(
+    collection(db, 'audit_log'),
+    orderBy('timestamp', 'desc'),
+    limit(maxEntries),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      adminEmail: data.adminEmail ?? '',
+      actionType: data.actionType ?? '',
+      targetUserId: data.targetUserId ?? '',
+      targetUserEmail: data.targetUserEmail ?? '',
+      reason: data.reason ?? '',
+      timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(),
+    };
   });
 }
