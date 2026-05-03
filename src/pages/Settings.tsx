@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, MapPin, CreditCard, Bell, Shield, LogOut, ChevronRight, Edit2, Plus, Check, RefreshCw } from 'lucide-react';
+import { User, MapPin, CreditCard, Bell, Shield, LogOut, ChevronRight, Edit2, Plus, Check, RefreshCw, HelpCircle } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -287,6 +287,34 @@ export default function Settings() {
             </Card>
           </div>
         ))}
+
+        {/* Support */}
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Help
+          </h3>
+          <Card style={{ padding: 0 }}>
+            <button
+              onClick={() => navigate('/contact-support')}
+              style={{
+                width: '100%', background: 'transparent', border: 'none', cursor: 'pointer',
+                padding: 'var(--space-4)', display: 'flex', alignItems: 'center',
+                gap: 'var(--space-3)', textAlign: 'left', transition: 'background-color 0.15s ease',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-base)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <div style={{ width: '40px', height: '40px', background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', flexShrink: 0 }}>
+                <HelpCircle size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '2px' }}>Contact Support</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Submit a ticket or chat with our team</div>
+              </div>
+              <ChevronRight size={18} color="var(--text-tertiary)" />
+            </button>
+          </Card>
+        </div>
 
         {/* Sign Out Button */}
         <Button

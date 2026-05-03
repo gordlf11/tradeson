@@ -104,6 +104,10 @@ export const api = {
   // Admin — metrics
   getPlatformMetrics: () =>
     request('/api/v1/admin/metrics'),
+
+  // Payments — transaction history for current user
+  listMyPayments: () =>
+    request('/api/v1/payments/me'),
 };
 
 export default api;

@@ -1,10 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, CreditCard, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { ChevronLeft, CreditCard, CheckCircle, AlertCircle, ExternalLink, ArrowDownLeft, ArrowUpRight, Download } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import StripeCheckoutWrapper from '../components/StripeCheckoutWrapper';
 import api from '../services/api';
+
+// ── Mock transaction data (replaced when api.listMyPayments() route is live) ──
+
+const MOCK_CUSTOMER_PAYMENTS = [
+  { id: 'p1', jobTitle: 'Kitchen Faucet Repair', category: 'Plumbing', amount: 285.00, status: 'completed', date: '2026-04-15', invoiceUrl: null },
+  { id: 'p2', jobTitle: 'HVAC Annual Tune-Up', category: 'HVAC', amount: 175.00, status: 'completed', date: '2026-03-22', invoiceUrl: null },
+  { id: 'p3', jobTitle: 'Electrical Outlet Install', category: 'Electrical', amount: 390.00, status: 'pending', date: '2026-05-01', invoiceUrl: null },
+];
+
+const MOCK_TRADE_EARNINGS = [
+  { id: 'e1', jobTitle: 'Bathroom Tile Replacement', gross: 520.00, platformFee: 52.00, net: 468.00, status: 'paid', date: '2026-04-18', invoiceUrl: null },
+  { id: 'e2', jobTitle: 'Deck Repair & Staining', gross: 380.00, platformFee: 38.00, net: 342.00, status: 'paid', date: '2026-03-30', invoiceUrl: null },
+  { id: 'e3', jobTitle: 'Drywall Patch & Paint', gross: 150.00, platformFee: 15.00, net: 135.00, status: 'processing', date: '2026-05-02', invoiceUrl: null },
+];
+
+const statusColor = (s: string) =>
+  s === 'completed' || s === 'paid' ? 'var(--success)' :
+  s === 'processing' ? 'var(--warning)' :
+  s === 'pending' ? 'var(--text-secondary)' : 'var(--danger)';
+
+function fmt(n: number) { return `$${n.toFixed(2)}`; }
 
 export default function PaymentSettings() {
   const navigate = useNavigate();
@@ -17,6 +38,9 @@ export default function PaymentSettings() {
   const [connectError, setConnectError] = useState('');
   const [statusLoading, setStatusLoading] = useState(isTrader && !isDemo);
 
+  const [payments, setPayments]   = useState<any[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+
   useEffect(() => {
     if (!isTrader) return;
     if (isDemo) {
@@ -27,6 +51,21 @@ export default function PaymentSettings() {
       .then((data: any) => setConnectStatus(data))
       .catch(() => setConnectStatus({ account_id: null, payout_enabled: false }))
       .finally(() => setStatusLoading(false));
+  }, [isTrader, isDemo]);
+
+  useEffect(() => {
+    if (isDemo) {
+      setPayments(isTrader ? MOCK_TRADE_EARNINGS : MOCK_CUSTOMER_PAYMENTS);
+      setPaymentsLoading(false);
+      return;
+    }
+    api.listMyPayments()
+      .then((data: any) => {
+        const rows = Array.isArray(data) ? data : (data?.payments ?? []);
+        setPayments(rows.length ? rows : (isTrader ? MOCK_TRADE_EARNINGS : MOCK_CUSTOMER_PAYMENTS));
+      })
+      .catch(() => setPayments(isTrader ? MOCK_TRADE_EARNINGS : MOCK_CUSTOMER_PAYMENTS))
+      .finally(() => setPaymentsLoading(false));
   }, [isTrader, isDemo]);
 
   const handleConnectPayout = async () => {
@@ -153,6 +192,95 @@ export default function PaymentSettings() {
             )}
           </Card>
         )}
+
+        {/* Transaction History */}
+        <div>
+          <h3 style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {isTrader ? 'Earnings History' : 'Payment History'}
+          </h3>
+
+          {paymentsLoading ? (
+            <Card style={{ padding: 'var(--space-5)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>Loading transactions…</p>
+            </Card>
+          ) : payments.length === 0 ? (
+            <Card style={{ padding: 'var(--space-5)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                {isTrader ? 'No earnings yet. Complete your first job to see payouts here.' : 'No payments yet. Complete your first job to see transactions here.'}
+              </p>
+            </Card>
+          ) : (
+            <Card style={{ padding: 0, overflow: 'hidden' }}>
+              {payments.map((tx, i) => isTrader ? (
+                /* Tradesperson earnings row */
+                <div key={tx.id} style={{
+                  padding: 'var(--space-4)',
+                  borderBottom: i < payments.length - 1 ? '1px solid var(--border)' : 'none',
+                  display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
+                }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0,
+                    background: 'rgba(52,199,89,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <ArrowDownLeft size={18} color="var(--success)" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {tx.jobTitle}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                      {tx.date} · Fee: {fmt(tx.platformFee)} · Gross: {fmt(tx.gross)}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                    <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--success)' }}>{fmt(tx.net)}</div>
+                    <div style={{ fontSize: '0.7rem', fontWeight: '600', color: statusColor(tx.status), textTransform: 'capitalize' }}>{tx.status}</div>
+                    {tx.invoiceUrl ? (
+                      <a href={tx.invoiceUrl} target="_blank" rel="noopener noreferrer" download style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '700', color: 'var(--primary)', textDecoration: 'none' }}>
+                        <Download size={12} /> Invoice
+                      </a>
+                    ) : (tx.status === 'completed' || tx.status === 'paid') ? (
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>Invoice pending</span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                /* Customer payment row */
+                <div key={tx.id} style={{
+                  padding: 'var(--space-4)',
+                  borderBottom: i < payments.length - 1 ? '1px solid var(--border)' : 'none',
+                  display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
+                }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0,
+                    background: 'rgba(255,74,107,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <ArrowUpRight size={18} color="var(--danger)" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {tx.jobTitle}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                      {tx.date} · {tx.category}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                    <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--text-primary)' }}>{fmt(tx.amount)}</div>
+                    <div style={{ fontSize: '0.7rem', fontWeight: '600', color: statusColor(tx.status), textTransform: 'capitalize' }}>{tx.status}</div>
+                    {tx.invoiceUrl ? (
+                      <a href={tx.invoiceUrl} target="_blank" rel="noopener noreferrer" download style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '700', color: 'var(--primary)', textDecoration: 'none' }}>
+                        <Download size={12} /> Invoice
+                      </a>
+                    ) : tx.status === 'completed' ? (
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>Invoice pending</span>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
 
         {/* Info card */}
         <Card style={{ padding: 'var(--space-4)', background: 'var(--bg-surface)' }}>

@@ -4,17 +4,17 @@ import {
   Shield, Users, Briefcase, DollarSign, AlertTriangle, CheckCircle,
   XCircle, FileText, TrendingUp, Eye,
   BarChart2, Flag, LogOut, ChevronDown, ChevronUp,
-  UserCheck, AlertOctagon, Lock
+  UserCheck, AlertOctagon, Lock, MessageCircle, ChevronRight
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import api from '../services/api';
-import { logAdminAction, getAuditLog } from '../services/messagingService';
+import { logAdminAction, getAuditLog, getSupportTickets, updateSupportTicket, SupportTicket } from '../services/messagingService';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type AdminSection = 'overview' | 'compliance' | 'accounts' | 'audit' | 'metrics';
+type AdminSection = 'overview' | 'compliance' | 'accounts' | 'audit' | 'metrics' | 'support';
 
 interface ComplianceSubmission {
   id: string;
@@ -891,6 +891,195 @@ function MetricsSection() {
   );
 }
 
+// ── Section: Support Tickets ───────────────────────────────────────────────
+
+const PRIORITY_COLORS: Record<string, string> = {
+  low: 'var(--success)', medium: 'var(--warning)', high: 'var(--danger)', urgent: '#7c3aed',
+};
+const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'urgent'];
+const TEAM_OPTIONS     = ['unassigned', 'account', 'technical'];
+const STATUS_OPTIONS   = ['open', 'in_progress', 'resolved', 'closed'];
+
+function SupportSection() {
+  const [tickets, setTickets]           = useState<SupportTicket[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [expanded, setExpanded]         = useState<string | null>(null);
+  const [saving, setSaving]             = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('open');
+
+  const load = () => {
+    getSupportTickets()
+      .then(data => { setTickets(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const updateField = async (ticketId: string, field: keyof Pick<SupportTicket, 'status' | 'priority' | 'team' | 'owner'>, value: string) => {
+    setSaving(ticketId);
+    try {
+      await updateSupportTicket(ticketId, { [field]: value });
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, [field]: value } : t));
+    } catch {}
+    setSaving(null);
+  };
+
+  const categoryLabel: Record<string, string> = {
+    job_issue: 'Job Issue', job_poster: 'Report User',
+    platform: 'Platform Feedback', troubleshooting: 'Troubleshooting', chat: 'Talk with Support',
+  };
+
+  const visible = filterStatus === 'all'
+    ? tickets
+    : tickets.filter(t => t.status === filterStatus);
+
+  const openCount = tickets.filter(t => t.status === 'open').length;
+
+  const selectStyle: React.CSSProperties = {
+    padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+    fontSize: '0.72rem', fontFamily: 'inherit', color: 'var(--text-primary)',
+    background: 'var(--bg-surface)', cursor: 'pointer',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          {['open', 'in_progress', 'resolved', 'all'].map(s => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              style={{
+                padding: '6px 14px', borderRadius: 'var(--radius-full)', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: '0.75rem', fontWeight: '700',
+                border: filterStatus === s ? '2px solid var(--primary)' : '1px solid var(--border)',
+                background: filterStatus === s ? 'var(--primary-light)' : 'var(--bg-surface)',
+                color: filterStatus === s ? 'var(--primary)' : 'var(--text-secondary)',
+              }}
+            >
+              {s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'open' && openCount > 0 && (
+                <span style={{ marginLeft: '6px', background: 'var(--danger)', color: 'white', borderRadius: '9999px', padding: '1px 6px', fontSize: '0.65rem' }}>
+                  {openCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button onClick={load} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary)', fontFamily: 'inherit' }}>
+          ↻ Refresh
+        </button>
+      </div>
+
+      {loading ? (
+        <Card style={{ padding: 'var(--space-5)', textAlign: 'center' }}>
+          <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.85rem' }}>Loading tickets…</p>
+        </Card>
+      ) : visible.length === 0 ? (
+        <Card style={{ padding: 'var(--space-5)', textAlign: 'center' }}>
+          <MessageCircle size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+          <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.85rem' }}>No {filterStatus !== 'all' ? filterStatus.replace('_', ' ') : ''} tickets.</p>
+        </Card>
+      ) : (
+        visible.map(ticket => (
+          <Card key={ticket.id} style={{ padding: 'var(--space-4)' }}>
+            {/* Header row */}
+            <div
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', cursor: 'pointer' }}
+              onClick={() => setExpanded(expanded === ticket.id ? null : ticket.id)}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.65rem', fontWeight: '800', padding: '2px 8px',
+                    borderRadius: '9999px', background: PRIORITY_COLORS[ticket.priority],
+                    color: 'white', textTransform: 'uppercase',
+                  }}>
+                    {ticket.priority}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', fontWeight: '600' }}>
+                    {categoryLabel[ticket.category] ?? ticket.category}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: ticket.status === 'open' ? 'var(--warning)' : ticket.status === 'resolved' ? 'var(--success)' : 'var(--text-secondary)', fontWeight: '700', textTransform: 'capitalize' }}>
+                    {ticket.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ticket.subject}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                  {ticket.userName || ticket.userEmail} · {ticket.userRole} · {ticket.createdAt.toLocaleDateString()}
+                </div>
+              </div>
+              <div style={{ color: 'var(--text-tertiary)', flexShrink: 0, marginTop: '2px' }}>
+                {expanded === ticket.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </div>
+            </div>
+
+            {/* Expanded detail */}
+            {expanded === ticket.id && (
+              <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)' }}>
+                {/* Description */}
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.5, marginBottom: 'var(--space-4)', background: 'var(--bg-base)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)' }}>
+                  {ticket.description}
+                </div>
+                {ticket.relatedJobId && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
+                    Related Job: <strong>{ticket.relatedJobId}</strong>
+                  </div>
+                )}
+
+                {/* Admin controls */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Priority</label>
+                    <select value={ticket.priority} onChange={e => updateField(ticket.id, 'priority', e.target.value)} style={selectStyle} disabled={saving === ticket.id}>
+                      {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Team</label>
+                    <select value={ticket.team} onChange={e => updateField(ticket.id, 'team', e.target.value)} style={selectStyle} disabled={saving === ticket.id}>
+                      {TEAM_OPTIONS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Status</label>
+                    <select value={ticket.status} onChange={e => updateField(ticket.id, 'status', e.target.value)} style={selectStyle} disabled={saving === ticket.id}>
+                      {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ').charAt(0).toUpperCase() + s.replace('_', ' ').slice(1)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Owner</label>
+                    <input
+                      type="text"
+                      defaultValue={ticket.owner === 'unassigned' ? '' : ticket.owner}
+                      placeholder="admin@tradeson.com"
+                      onBlur={e => {
+                        const val = e.target.value.trim() || 'unassigned';
+                        if (val !== ticket.owner) updateField(ticket.id, 'owner', val);
+                      }}
+                      style={{ ...selectStyle, width: '100%', boxSizing: 'border-box' }}
+                      disabled={saving === ticket.id}
+                    />
+                  </div>
+                </div>
+
+                {saving === ticket.id && (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--primary)', margin: 0 }}>Saving…</p>
+                )}
+              </div>
+            )}
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
 // ── Main Admin Dashboard ───────────────────────────────────────────────────
 
 export default function AdminDashboard() {
@@ -911,6 +1100,7 @@ export default function AdminDashboard() {
     { key: 'overview', label: 'Overview', icon: <BarChart2 size={15} /> },
     { key: 'compliance', label: 'Compliance', icon: <Shield size={15} />, badge: pendingCompliance },
     { key: 'accounts', label: 'Accounts', icon: <AlertTriangle size={15} />, badge: highSeverityFlags },
+    { key: 'support', label: 'Support', icon: <MessageCircle size={15} /> },
     { key: 'audit', label: 'Audit Log', icon: <FileText size={15} /> },
     { key: 'metrics', label: 'Metrics', icon: <TrendingUp size={15} /> },
   ];
@@ -1020,6 +1210,7 @@ export default function AdminDashboard() {
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                           {s.key === 'compliance' && 'Review tradesperson verification submissions'}
                           {s.key === 'accounts' && 'Monitor flagged accounts — flag to apply resolutions'}
+                          {s.key === 'support' && 'View and triage user support tickets'}
                           {s.key === 'audit' && 'Immutable log of all admin actions'}
                           {s.key === 'metrics' && 'Platform-wide performance and funnel metrics'}
                         </div>
@@ -1072,6 +1263,14 @@ export default function AdminDashboard() {
               </div>
             </div>
             <ResolutionsSection preselectedAccount={flaggingAccount} adminEmail={adminEmail} />
+          </>
+        )}
+        {activeSection === 'support' && (
+          <>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-4)' }}>
+              Support Tickets
+            </h2>
+            <SupportSection />
           </>
         )}
         {activeSection === 'audit' && (

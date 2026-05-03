@@ -196,6 +196,80 @@ export async function logAdminAction(entry: {
   });
 }
 
+// ── Support Tickets ────────────────────────────────────────────────────────
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  userRole: string;
+  category: string;
+  subject: string;
+  description: string;
+  relatedJobId?: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  team: 'account' | 'technical' | 'unassigned';
+  owner: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export async function submitSupportTicket(
+  ticket: Omit<SupportTicket, 'id' | 'status' | 'priority' | 'team' | 'owner' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  const ref = await addDoc(collection(db, 'support_tickets'), {
+    ...ticket,
+    status: 'open',
+    priority: 'medium',
+    team: 'unassigned',
+    owner: 'unassigned',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getSupportTickets(maxTickets = 200): Promise<SupportTicket[]> {
+  const q = query(
+    collection(db, 'support_tickets'),
+    orderBy('createdAt', 'desc'),
+    limit(maxTickets),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      userId: data.userId ?? '',
+      userEmail: data.userEmail ?? '',
+      userName: data.userName ?? '',
+      userRole: data.userRole ?? '',
+      category: data.category ?? '',
+      subject: data.subject ?? '',
+      description: data.description ?? '',
+      relatedJobId: data.relatedJobId,
+      status: data.status ?? 'open',
+      priority: data.priority ?? 'medium',
+      team: data.team ?? 'unassigned',
+      owner: data.owner ?? 'unassigned',
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
+    };
+  });
+}
+
+export async function updateSupportTicket(
+  ticketId: string,
+  updates: Partial<Pick<SupportTicket, 'status' | 'priority' | 'team' | 'owner'>>
+): Promise<void> {
+  const ref = doc(db, 'support_tickets', ticketId);
+  await updateDoc(ref, { ...updates, updatedAt: serverTimestamp() });
+}
+
+// ── Audit Log ──────────────────────────────────────────────────────────────
+
 export interface AuditLogEntry {
   id: string;
   adminEmail: string;

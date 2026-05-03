@@ -36,6 +36,7 @@ import JobDayOf from './pages/JobDayOf';
 import ErrorBoundary from './components/ErrorBoundary';
 import Demo from './pages/Demo';
 import DemoNavigator from './components/DemoNavigator';
+import ContactSupport from './pages/ContactSupport';
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -224,6 +225,7 @@ function AppRoutes() {
         <Route path="/privacy-settings" element={<RequireAuth><PrivacySettings /></RequireAuth>} />
         <Route path="/insurance-upload" element={<RequireAuth><InsuranceUpload /></RequireAuth>} />
         <Route path="/job-day-of" element={<RequireAuth><JobDayOf /></RequireAuth>} />
+        <Route path="/contact-support" element={<RequireAuth><ContactSupport /></RequireAuth>} />
       </Routes>
       <BottomNav />
       {localStorage.getItem('demoMode') === 'true' && <DemoNavigator />}
