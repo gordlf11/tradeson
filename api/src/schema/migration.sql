@@ -474,3 +474,55 @@ CREATE INDEX idx_audit_log_created ON audit_log(created_at DESC);
 -- ═══════════════════════════════════════════
 -- DONE — 25 tables, all indexes created
 -- ═══════════════════════════════════════════
+
+-- ═══════════════════════════════════════════
+-- 12. ADMIN COMPLIANCE + RESOLUTIONS (additive — safe to re-run)
+-- These are also applied automatically at startup by runMigrations() in index.ts.
+-- Apply manually with: psql $DATABASE_URL -f api/src/schema/migration.sql
+-- (the IF NOT EXISTS guards make the whole block idempotent)
+-- ═══════════════════════════════════════════
+
+-- Compliance status on tradesperson profiles (one decision per tradesperson)
+ALTER TABLE tradesperson_profiles
+  ADD COLUMN IF NOT EXISTS compliance_status TEXT DEFAULT 'pending'
+    CHECK (compliance_status IN ('pending','approved','rejected','more_docs')),
+  ADD COLUMN IF NOT EXISTS compliance_admin_note TEXT,
+  ADD COLUMN IF NOT EXISTS compliance_reviewed_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS compliance_reviewed_by UUID REFERENCES users(id);
+
+-- Add 'admin' to the users role check constraint
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN (
+  'homeowner','property_manager','realtor',
+  'licensed_tradesperson','unlicensed_tradesperson','admin'
+));
+
+-- Flagged accounts (admin queue)
+CREATE TABLE IF NOT EXISTS flagged_accounts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  flagged_by  UUID REFERENCES users(id),
+  flag_reason TEXT NOT NULL,
+  flag_type   TEXT CHECK (flag_type IN ('dispute','poor_reviews','expired_insurance','suspicious_activity')),
+  severity    TEXT CHECK (severity IN ('low','medium','high')) DEFAULT 'medium',
+  resolved_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_flagged_accounts_user ON flagged_accounts(user_id);
+CREATE INDEX IF NOT EXISTS idx_flagged_accounts_unresolved ON flagged_accounts(created_at DESC)
+  WHERE resolved_at IS NULL;
+
+-- Admin resolutions (warning / suspension / deactivation / explanation_request)
+CREATE TABLE IF NOT EXISTS admin_resolutions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_user_id   UUID REFERENCES users(id),
+  target_user_id  UUID NOT NULL REFERENCES users(id),
+  action_type     TEXT NOT NULL CHECK (action_type IN (
+                    'warning','suspension','deactivation','explanation_request')),
+  reason          TEXT NOT NULL,
+  suspend_until   DATE,
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_resolutions_target ON admin_resolutions(target_user_id);
