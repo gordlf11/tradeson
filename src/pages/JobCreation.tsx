@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Camera, Sparkles, AlertCircle, CheckCircle,
   Wrench, Zap, Droplets, Thermometer,
-  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake, HelpCircle
+  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
@@ -28,12 +28,8 @@ interface JobFormData {
   adjacentImpact: string;
   housewideImpact: string;
   jobNature: string;
-  // Step 4 — Other category
-  otherJobType: string;
-  otherSpecialization: string;
   // Step 4 — Cleaning intake
   cleaningType: string;
-  cleaningOtherType: string;
   squareFootage: string;
   bedrooms: string;
   bathrooms: string;
@@ -76,19 +72,35 @@ const TRADE_CATEGORIES = [
   { id: 'cleaning',     label: 'Cleaning',        icon: <Home size={20} /> },
   { id: 'landscaping',  label: 'Landscaping',     icon: <TreePine size={20} /> },
   { id: 'snow-removal', label: 'Snow Removal',    icon: <Snowflake size={20} /> },
-  { id: 'other',        label: 'Other',           icon: <HelpCircle size={20} /> },
 ];
 
 // ── Specialized intake option sets ────────────────────────────────────────
+// All option lists drawn from the trade taxonomy in
+// tests/feedback-runs/2026-05-01-feature-requests/notes.md (Section C).
+// Deliberately no "Other" — see notes.md for rationale.
 
-const CLEANING_TYPES = ['Standard', 'Deep clean', 'Move-in / Move-out', 'Post-construction', 'Other'];
-const CLEANING_AREAS = ['Kitchen', 'Bathrooms', 'Bedrooms', 'Living areas', 'Laundry room', 'Other'];
+const CLEANING_TYPES = [
+  'Standard', 'Deep clean', 'Move-in / Move-out', 'Post-construction',
+  'Carpet cleaning', 'Window cleaning', 'Junk removal',
+];
+const CLEANING_AREAS = [
+  'Kitchen', 'Bathrooms', 'Bedrooms', 'Living areas',
+  'Laundry room', 'Basement', 'Garage',
+];
 
-const SNOW_AREAS = ['Driveway', 'Sidewalks / walkways', 'Steps / entryways', 'Parking area', 'Roof', 'Other'];
+const SNOW_AREAS = [
+  'Driveway', 'Sidewalks / walkways', 'Steps / entryways', 'Parking area',
+  'Roof', 'Patio or deck', 'Mailbox or curb access',
+];
 
-const LANDSCAPING_TYPES = ['Lawn mowing / maintenance', 'Yard cleanup', 'Tree / shrub trimming', 'Garden design / planting', 'Other'];
+const LANDSCAPING_TYPES = [
+  'Lawn mowing / maintenance', 'Yard cleanup', 'Tree / shrub trimming',
+  'Garden design / planting', 'Mulching', 'Aeration / overseeding', 'Sod install',
+];
 const LANDSCAPING_WORK_AREAS = ['Front yard', 'Backyard', 'Side yard', 'Entire property'];
-const YARD_CONDITIONS = ['Well-maintained', 'Overgrown', 'Needs full cleanup', 'Other'];
+const YARD_CONDITIONS = [
+  'Well-maintained', 'Overgrown', 'Needs full cleanup', 'Recently done, just maintenance',
+];
 
 const SEVERITY_LEVELS = [
   { id: 'routine', label: 'Routine',  sub: 'Not urgent — schedule at your convenience', color: 'var(--success)' },
@@ -96,8 +108,10 @@ const SEVERITY_LEVELS = [
   { id: 'urgent',  label: 'Urgent',   sub: 'Immediate attention required',               color: 'var(--danger)' },
 ] as const;
 
+// Aligned with the Tradesperson Dashboard "Service Mix" buckets
+// (TradespersonDashboard.tsx). Renaming any of these breaks the rollup.
 const JOB_NATURE_OPTIONS = [
-  'Cosmetic', 'Routine Maintenance', 'Repair / Fix', 'Renovation', 'Other',
+  'Repair', 'Maintenance', 'New Install', 'Replacement',
 ];
 
 const TOTAL_STEPS = 5;
@@ -136,10 +150,7 @@ export default function JobCreation() {
     adjacentImpact: '',
     housewideImpact: '',
     jobNature: '',
-    otherJobType: '',
-    otherSpecialization: '',
     cleaningType: '',
-    cleaningOtherType: '',
     squareFootage: '',
     bedrooms: '',
     bathrooms: '',
@@ -203,9 +214,6 @@ export default function JobCreation() {
         if (formData.tradeType === 'landscaping') {
           return !!formData.landscapingType && formData.workAreas.length > 0;
         }
-        if (formData.tradeType === 'other') {
-          return formData.otherJobType.trim().length >= 10 && formData.otherSpecialization.trim().length >= 5;
-        }
         return !!formData.affectedPart && !!formData.jobNature;
       }
       case 5: return formData.description.trim().length >= 20;
@@ -245,8 +253,6 @@ export default function JobCreation() {
       adjacent_impact: formData.adjacentImpact,
       housewide_impact: formData.housewideImpact,
       // Specialized intake fields
-      other_job_type: formData.otherJobType || undefined,
-      other_specialization: formData.otherSpecialization || undefined,
       cleaning_type: formData.cleaningType || undefined,
       square_footage: formData.squareFootage || undefined,
       bedrooms: formData.bedrooms || undefined,
@@ -478,10 +484,6 @@ export default function JobCreation() {
         {stepHeader('Tell us about your cleaning request', 'Answer a few quick questions so cleaners arrive prepared.')}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           {singleSelectList(CLEANING_TYPES, 'cleaningType', 'What type of cleaning do you need?')}
-          {formData.cleaningType === 'Other' && (
-            <Input label="Describe the cleaning type" placeholder="e.g. Post-renovation clean" value={formData.cleaningOtherType}
-              onChange={e => set('cleaningOtherType', e.target.value)} />
-          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
             <Input label="Sq ft *" placeholder="e.g. 1,200" value={formData.squareFootage}
               onChange={e => set('squareFootage', e.target.value)} />
@@ -555,32 +557,6 @@ export default function JobCreation() {
             <textarea placeholder='e.g. "Mow lawn, edge borders, remove weeds, trim bushes"'
               value={formData.landscapingDescription} onChange={e => set('landscapingDescription', e.target.value)}
               rows={3} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
-          </div>
-        </div>
-      </div>
-    );
-
-    if (tradeType === 'other') return (
-      <div>
-        {stepHeader('Describe your job', 'Tell us what you need done so we can find the right person.')}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-          <div>
-            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-              Describe the type of job <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <textarea placeholder='e.g. "Furniture assembly and mounting a TV wall bracket"'
-              value={formData.otherJobType} onChange={e => set('otherJobType', e.target.value)}
-              rows={3} style={{ width: '100%', padding: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', fontSize: '0.9rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', resize: 'vertical' }} />
-            <div style={{ textAlign: 'right', fontSize: '0.72rem', color: formData.otherJobType.trim().length < 10 ? 'var(--danger)' : 'var(--text-secondary)', marginTop: '4px' }}>
-              {formData.otherJobType.trim().length} / 10 min
-            </div>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-              Required specialization / skill <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <Input placeholder='e.g. "Handyman", "Carpenter", "General labour"'
-              value={formData.otherSpecialization} onChange={e => set('otherSpecialization', e.target.value)} />
           </div>
         </div>
       </div>
