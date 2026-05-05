@@ -128,6 +128,11 @@ export default function RealtorOnboarding() {
         // Backend DB unavailable — continue anyway; profile syncs when DB is restored
         console.warn('Onboarding API error (non-blocking):', err.message);
       }
+      // Address fields — read by LocationSettings.tsx as a fallback when the API is down
+      if (formData.primaryAddress) localStorage.setItem('locationStreet', formData.primaryAddress);
+      if (formData.city) localStorage.setItem('locationCity', formData.city);
+      if (formData.state) localStorage.setItem('locationProvince', formData.state);
+      if (formData.zipCode) localStorage.setItem('locationPostal', formData.zipCode);
       localStorage.setItem('userRole', 'realtor');
       localStorage.setItem('hasOnboarded', 'true');
       setIsSubmitting(false);

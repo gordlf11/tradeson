@@ -182,6 +182,11 @@ export default function LicensedTradespersonOnboarding() {
     }
     if (formData.fullName) localStorage.setItem('userName', formData.fullName);
     if (formData.phoneNumber) localStorage.setItem('userPhone', formData.phoneNumber);
+    // Address fields — read by LocationSettings.tsx as a fallback when the API is down
+    if (formData.serviceAddress) localStorage.setItem('locationStreet', formData.serviceAddress);
+    if (formData.serviceCity) localStorage.setItem('locationCity', formData.serviceCity);
+    if (formData.serviceState) localStorage.setItem('locationProvince', formData.serviceState);
+    if (formData.serviceZip) localStorage.setItem('locationPostal', formData.serviceZip);
     if (formData.businessName) localStorage.setItem('tradespersonData', JSON.stringify({
       businessName: formData.businessName,
       serviceCity: formData.serviceCity,
