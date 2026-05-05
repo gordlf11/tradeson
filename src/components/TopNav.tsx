@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Calendar, Users, Home, Building2
 } from 'lucide-react';
 import { TradesOnWordmark } from './Logo';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TopNavProps {
   title?: string;
@@ -55,8 +56,17 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { firebaseUser, userProfile } = useAuth();
 
-  const userEmail = localStorage.getItem('userEmail') || 'user@tradeson.com';
+  // Prefer the live profile from PG, then the Firebase auth user,
+  // then localStorage breadcrumbs, then a generic placeholder.
+  const userEmail =
+    userProfile?.email ||
+    firebaseUser?.email ||
+    localStorage.getItem('userEmail') ||
+    'user@tradeson.com';
+  // userRole stays sourced from localStorage (kebab-case) — userProfile.role
+  // from PG is snake_case and would miss the case branches below.
   const userRole = localStorage.getItem('userRole') || 'homeowner';
   const menuItems = getRoleMenuItems(userRole);
 
