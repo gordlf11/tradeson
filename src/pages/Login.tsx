@@ -16,11 +16,18 @@ export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  // Always clear demo mode when the real login page is reached
+  // Only purge demo state. Preserve userRole + hasOnboarded so real users
+  // can resume after re-login when the API is briefly unavailable —
+  // otherwise they'd be kicked back to /role-selection and forced to redo
+  // onboarding every time. (Trade-off: a different user signing in on a
+  // shared device would inherit the prior user's local fallback. If
+  // multi-user-per-device becomes real, gate this on a stored UID match.)
   useEffect(() => {
-    localStorage.removeItem('demoMode');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('hasOnboarded');
+    if (localStorage.getItem('demoMode') === 'true') {
+      localStorage.removeItem('demoMode');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('hasOnboarded');
+    }
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -30,11 +37,25 @@ export default function Login() {
 
     try {
       const profile = await login(email, password);
-      // Admin users go straight to the admin dashboard
+
+      // Admin always routes directly to the admin dashboard
       if (profile?.role === 'admin') {
         navigate('/dashboard/admin');
+        return;
+      }
+
+      // PG profile present — DashboardRedirect routes to the right dashboard
+      if (profile) {
+        navigate('/dashboard');
+        return;
+      }
+
+      // No PG profile (API down or row not yet created). Trust the local
+      // hasOnboarded flag if set so users aren't bounced back through
+      // role-selection on every API hiccup.
+      if (localStorage.getItem('hasOnboarded') === 'true' && localStorage.getItem('userRole')) {
+        navigate('/dashboard');
       } else {
-        // All other roles go to role-selection (redirects to dashboard if onboarding is done)
         navigate('/role-selection');
       }
     } catch (err: any) {
