@@ -75,8 +75,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const profile = await api.getMe() as UserProfile;
           setUserProfile(profile);
         } catch {
-          // User exists in Firebase but not in our DB yet (pre-onboarding)
-          setUserProfile(null);
+          // Firebase user exists but no PG row. Could be a real new user
+          // who never finished signup, OR an account whose PG row got
+          // dropped (e.g. signup happened during a brief API outage).
+          // Self-heal: try to populate from Firebase identity + localStorage
+          // breadcrumbs. If the heal fails, fall back to null and let
+          // role-selection take over.
+          const healed = await selfHealProfile(user);
+          setUserProfile(healed);
         }
       } else if (!user) {
         setUserProfile(null);
@@ -152,8 +158,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile = await api.getMe() as UserProfile;
         setUserProfile(profile);
       } catch {
-        // User in Firebase but not in PG — will go to role-selection
-        setUserProfile(null);
+        // Firebase user has no PG row. Try to self-heal from Firebase
+        // identity + localStorage breadcrumbs before giving up.
+        profile = await selfHealProfile(cred.user);
+        setUserProfile(profile);
       }
       setLoading(false);
       return profile;
@@ -231,6 +239,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+// Maps the kebab-case role we store in localStorage during onboarding back
+// to the snake_case role the backend's user table accepts.
+const ROLE_LOCAL_TO_BACKEND: Record<string, string> = {
+  'homeowner':           'homeowner',
+  'property-manager':    'property_manager',
+  'realtor':             'realtor',
+  'licensed-trade':      'licensed_tradesperson',
+  'non-licensed-trade':  'unlicensed_tradesperson',
+};
+
+/**
+ * When a Firebase user exists but `GET /users/me` returns 404, this fills
+ * the gap by calling `POST /users` with the best identity we have and
+ * re-fetching the profile. Returns null if either call still fails.
+ *
+ * Triggered in two places:
+ *   - login() right after a successful signInWithEmailAndPassword
+ *   - onAuthStateChanged when the app boots and finds a stale Firebase
+ *     session whose PG row never landed (signup race, API outage, etc.)
+ */
+async function selfHealProfile(user: User): Promise<UserProfile | null> {
+  try {
+    const localRole = localStorage.getItem('userRole');
+    const role = (localRole && ROLE_LOCAL_TO_BACKEND[localRole]) || 'homeowner';
+    const fullName =
+      user.displayName ||
+      localStorage.getItem('userName') ||
+      user.email?.split('@')[0] ||
+      'New User';
+    const phone = localStorage.getItem('userPhone') || undefined;
+
+    await api.createUser({ full_name: fullName, role, phone_number: phone });
+    const profile = await api.getMe() as UserProfile;
+    console.info('Self-healed missing PG row for', user.email);
+    return profile;
+  } catch (err: any) {
+    // 409 (already exists) is fine — race with another tab; just re-fetch
+    if (err?.message?.includes('User already exists')) {
+      try {
+        return await api.getMe() as UserProfile;
+      } catch {
+        return null;
+      }
+    }
+    console.warn('Self-heal failed; userProfile will stay null:', err?.message);
+    return null;
+  }
 }
 
 function firebaseErrorMessage(code: string): string {
