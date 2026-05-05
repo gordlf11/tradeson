@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadFile } from '../services/firebase';
+import { TRADES } from '../config/tradeTaxonomy';
 
 interface LicensedTradespersonData {
   // Step 1 – Account Info
@@ -29,6 +30,7 @@ interface LicensedTradespersonData {
   // Step 3 – Trade Details
   primaryTrades: string[];
   subcategories: string[];
+  offeredServices: string[]; // flattened sub-service leaves sent as offered_services
   additionalServices: string;
 
   // Step 4 – Coverage
@@ -56,17 +58,10 @@ interface LicensedTradespersonData {
   marketingOptIn: boolean;
 }
 
-const PRIMARY_TRADES = ['Plumbing', 'Electrical', 'HVAC', 'General Contracting', 'Roofing', 'Carpentry', 'Masonry', 'Flooring', 'Cleaning', 'Landscaping', 'Snow Removal'];
-const SUBCATEGORIES: Record<string, string[]> = {
-  Plumbing: ['Drain Cleaning', 'Leak Repair', 'Water Heater', 'Pipe Installation'],
-  Electrical: ['Panel Upgrade', 'Outlet Installation', 'Lighting', 'Wiring'],
-  HVAC: ['AC Installation', 'Furnace Repair', 'Duct Cleaning', 'Tune-up'],
-  'General Contracting': ['Framing', 'Drywall', 'Demolition', 'Renovation'],
-  Roofing: ['Shingle Replacement', 'Flat Roof', 'Gutters', 'Inspection'],
-  Carpentry: ['Custom Cabinets', 'Trim Work', 'Decking', 'Framing'],
-  Masonry: ['Brick Work', 'Concrete', 'Stone Laying', 'Foundation'],
-  Flooring: ['Hardwood', 'Tile', 'Laminate', 'Carpet'],
-};
+// Derived from the canonical taxonomy — no hardcoded lists here.
+const SUBCATEGORIES: Record<string, string[]> = Object.fromEntries(
+  TRADES.map(t => [t.label, t.subServices.map(s => s.label)])
+);
 const ENTITY_TYPES = ['Sole Proprietor', 'LLC', 'S-Corp', 'C-Corp', 'Partnership'];
 const LICENSE_TYPES = ['General Contractor', 'Electrician', 'Plumber', 'HVAC Technician', 'Roofer', 'Other'];
 
@@ -102,6 +97,7 @@ export default function LicensedTradespersonOnboarding() {
     serviceZip: '',
     primaryTrades: [],
     subcategories: [],
+    offeredServices: [],
     additionalServices: '',
     serviceRadius: '25',
     areasServed: [],
@@ -125,12 +121,18 @@ export default function LicensedTradespersonOnboarding() {
     setFormData(prev => ({ ...prev, [field]: value }));
 
   const toggleList = (field: 'primaryTrades' | 'subcategories', value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: (prev[field] as string[]).includes(value)
+    setFormData(prev => {
+      const updated = (prev[field] as string[]).includes(value)
         ? (prev[field] as string[]).filter(v => v !== value)
-        : [...(prev[field] as string[]), value],
-    }));
+        : [...(prev[field] as string[]), value];
+
+      // Keep offeredServices in sync: rebuild from all selected subcategories
+      const offeredServices = field === 'subcategories'
+        ? updated
+        : prev.subcategories;
+
+      return { ...prev, [field]: updated, offeredServices };
+    });
   };
 
   const addAreaZip = () => {
@@ -161,6 +163,7 @@ export default function LicensedTradespersonOnboarding() {
         service_radius_miles: parseInt(formData.serviceRadius) || 25,
         primary_trades: formData.primaryTrades,
         subcategories: formData.subcategories,
+        offered_services: formData.offeredServices,
         additional_services: formData.additionalServices,
         business_entity_type: formData.businessEntityType,
         areas_served: formData.areasServed,
@@ -316,16 +319,16 @@ export default function LicensedTradespersonOnboarding() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
               {sectionLabel('Primary Trade(s)')}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
-                {PRIMARY_TRADES.map(trade => (
-                  <button key={trade} onClick={() => toggleList('primaryTrades', trade)} style={{
+                {TRADES.map(trade => (
+                  <button key={trade.id} onClick={() => toggleList('primaryTrades', trade.label)} style={{
                     padding: 'var(--space-3)',
-                    border: formData.primaryTrades.includes(trade) ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    border: formData.primaryTrades.includes(trade.label) ? '2px solid var(--primary)' : '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
-                    background: formData.primaryTrades.includes(trade) ? 'var(--primary-light)' : 'var(--bg-surface)',
+                    background: formData.primaryTrades.includes(trade.label) ? 'var(--primary-light)' : 'var(--bg-surface)',
                     cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem',
-                    color: formData.primaryTrades.includes(trade) ? 'var(--primary)' : 'var(--text-secondary)',
+                    color: formData.primaryTrades.includes(trade.label) ? 'var(--primary)' : 'var(--text-secondary)',
                     fontFamily: 'inherit',
-                  }}>{trade}</button>
+                  }}>{trade.label}</button>
                 ))}
               </div>
 

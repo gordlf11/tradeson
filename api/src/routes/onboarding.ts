@@ -193,41 +193,45 @@ router.post('/realtor', requireAuth, async (req: AuthenticatedRequest, res) => {
 // POST /api/v1/onboarding/licensed-trade
 router.post('/licensed-trade', requireAuth, async (req: AuthenticatedRequest, res) => {
   const id = await ensureUser(req);
+  const client = await pool.connect();
 
   try {
     const { business_name, service_address, service_city, service_state, service_zip,
-            service_radius_miles, primary_trades, subcategories, additional_services,
-            business_entity_type, areas_served, licenses } = req.body;
+            service_radius_miles, primary_trades, subcategories, offered_services,
+            additional_services, business_entity_type, areas_served, licenses } = req.body;
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO tradesperson_profiles
        (user_id, business_name, is_licensed, service_address, service_city, service_state, service_zip,
-        service_radius_miles, primary_trades, subcategories, additional_services, business_entity_type)
-       VALUES ($1, $2, TRUE, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        service_radius_miles, primary_trades, subcategories, offered_services, additional_services, business_entity_type)
+       VALUES ($1, $2, TRUE, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (user_id) DO UPDATE SET
          business_name = EXCLUDED.business_name, service_address = EXCLUDED.service_address,
          service_city = EXCLUDED.service_city, service_state = EXCLUDED.service_state,
          service_zip = EXCLUDED.service_zip, service_radius_miles = EXCLUDED.service_radius_miles,
          primary_trades = EXCLUDED.primary_trades, subcategories = EXCLUDED.subcategories,
+         offered_services = EXCLUDED.offered_services,
          additional_services = EXCLUDED.additional_services, business_entity_type = EXCLUDED.business_entity_type,
          updated_at = now()
        RETURNING id`,
       [id, business_name, service_address, service_city, service_state, service_zip,
-       service_radius_miles, primary_trades || [], subcategories || [], additional_services, business_entity_type]
+       service_radius_miles, primary_trades || [], subcategories || [], offered_services || [], additional_services, business_entity_type]
     );
 
     const profileId = result.rows[0].id;
 
     if (areas_served?.length) {
-      await pool.query('DELETE FROM service_areas WHERE tradesperson_profile_id = $1', [profileId]);
+      await client.query('DELETE FROM service_areas WHERE tradesperson_profile_id = $1', [profileId]);
       for (const zip of areas_served) {
-        await pool.query('INSERT INTO service_areas (tradesperson_profile_id, zip_code) VALUES ($1, $2)', [profileId, zip]);
+        await client.query('INSERT INTO service_areas (tradesperson_profile_id, zip_code) VALUES ($1, $2)', [profileId, zip]);
       }
     }
 
     if (licenses?.length) {
       for (const lic of licenses) {
-        await pool.query(
+        await client.query(
           `INSERT INTO compliance_documents (tradesperson_profile_id, license_type, license_number, expiration_date, document_url)
            VALUES ($1, $2, $3, $4, $5)`,
           [profileId, lic.license_type, lic.license_number, lic.expiration_date, lic.document_url]
@@ -235,60 +239,77 @@ router.post('/licensed-trade', requireAuth, async (req: AuthenticatedRequest, re
       }
     }
 
-    await pool.query(`UPDATE users SET role = 'licensed_tradesperson', updated_at = now() WHERE id = $1`, [id]);
+    await client.query(`UPDATE users SET role = 'licensed_tradesperson', updated_at = now() WHERE id = $1`, [id]);
+
+    await client.query('COMMIT');
+
+    // These run outside the transaction — non-fatal if they fail
     await saveAddressAndPrefs(id, req.body);
     await logAuditEvent(id, 'onboarding.licensed_trade.completed', 'users', id, {}, req.ip);
 
     res.json({ success: true, message: 'Licensed tradesperson onboarding complete' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Licensed trade onboarding error:', err);
     res.status(500).json({ error: 'Failed to save tradesperson profile' });
+  } finally {
+    client.release();
   }
 });
 
 // POST /api/v1/onboarding/non-licensed-trade
 router.post('/non-licensed-trade', requireAuth, async (req: AuthenticatedRequest, res) => {
   const id = await ensureUser(req);
+  const client = await pool.connect();
 
   try {
     const { business_name, service_address, service_city, service_state, service_zip,
-            service_radius_miles, primary_trades, subcategories, additional_services,
-            business_entity_type, areas_served } = req.body;
+            service_radius_miles, primary_trades, subcategories, offered_services,
+            additional_services, business_entity_type, areas_served } = req.body;
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO tradesperson_profiles
        (user_id, business_name, is_licensed, service_address, service_city, service_state, service_zip,
-        service_radius_miles, primary_trades, subcategories, additional_services, business_entity_type)
-       VALUES ($1, $2, FALSE, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        service_radius_miles, primary_trades, subcategories, offered_services, additional_services, business_entity_type)
+       VALUES ($1, $2, FALSE, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (user_id) DO UPDATE SET
          business_name = EXCLUDED.business_name, service_address = EXCLUDED.service_address,
          service_city = EXCLUDED.service_city, service_state = EXCLUDED.service_state,
          service_zip = EXCLUDED.service_zip, service_radius_miles = EXCLUDED.service_radius_miles,
          primary_trades = EXCLUDED.primary_trades, subcategories = EXCLUDED.subcategories,
+         offered_services = EXCLUDED.offered_services,
          additional_services = EXCLUDED.additional_services, business_entity_type = EXCLUDED.business_entity_type,
          updated_at = now()
        RETURNING id`,
       [id, business_name, service_address, service_city, service_state, service_zip,
-       service_radius_miles, primary_trades || [], subcategories || [], additional_services, business_entity_type]
+       service_radius_miles, primary_trades || [], subcategories || [], offered_services || [], additional_services, business_entity_type]
     );
 
     const profileId = result.rows[0].id;
 
     if (areas_served?.length) {
-      await pool.query('DELETE FROM service_areas WHERE tradesperson_profile_id = $1', [profileId]);
+      await client.query('DELETE FROM service_areas WHERE tradesperson_profile_id = $1', [profileId]);
       for (const zip of areas_served) {
-        await pool.query('INSERT INTO service_areas (tradesperson_profile_id, zip_code) VALUES ($1, $2)', [profileId, zip]);
+        await client.query('INSERT INTO service_areas (tradesperson_profile_id, zip_code) VALUES ($1, $2)', [profileId, zip]);
       }
     }
 
-    await pool.query(`UPDATE users SET role = 'unlicensed_tradesperson', updated_at = now() WHERE id = $1`, [id]);
+    await client.query(`UPDATE users SET role = 'unlicensed_tradesperson', updated_at = now() WHERE id = $1`, [id]);
+
+    await client.query('COMMIT');
+
     await saveAddressAndPrefs(id, req.body);
     await logAuditEvent(id, 'onboarding.unlicensed_trade.completed', 'users', id, {}, req.ip);
 
     res.json({ success: true, message: 'Unlicensed tradesperson onboarding complete' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Unlicensed trade onboarding error:', err);
     res.status(500).json({ error: 'Failed to save tradesperson profile' });
+  } finally {
+    client.release();
   }
 });
 

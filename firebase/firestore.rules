@@ -153,6 +153,20 @@ service cloud.firestore {
       }
     }
 
+    // ── support_tickets ──────────────────────────────────────────────────
+    // Written by ContactSupport.tsx. Any authenticated user can create a
+    // ticket for themselves; only admins can read or update (triage).
+    // Nobody can delete (audit trail must be preserved).
+
+    match /support_tickets/{ticketId} {
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.token.email;
+
+      allow read, update: if isAdmin();
+
+      allow delete: if false;
+    }
+
     // Live tracking — reserved for future tradesperson en-route feature.
     // Any signed-in user can read; only the tradesperson can write their
     // own location.

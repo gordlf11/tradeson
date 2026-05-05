@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Camera, Sparkles, AlertCircle, CheckCircle,
   Wrench, Zap, Droplets, Thermometer,
-  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake
+  Home, ArrowRight, ArrowLeft, X, TreePine, Snowflake,
+  Paintbrush, HardHat, Hammer, Building2, Truck
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Button } from '../components/ui/Button';
@@ -13,6 +14,7 @@ import { Input } from '../components/ui/Input';
 import { api } from '../services/api';
 import { uploadFile } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { TRADES, findTrade } from '../config/tradeTaxonomy';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -64,43 +66,37 @@ const ROOMS = [
   'Basement', 'Attic', 'Garage', 'Outdoor / Yard', 'Whole House', 'Other',
 ];
 
-const TRADE_CATEGORIES = [
-  { id: 'plumbing',      label: 'Plumbing',       icon: <Droplets size={20} /> },
-  { id: 'electrical',   label: 'Electrical',      icon: <Zap size={20} /> },
-  { id: 'hvac',         label: 'HVAC',            icon: <Thermometer size={20} /> },
-  { id: 'general',      label: 'General Repairs', icon: <Wrench size={20} /> },
-  { id: 'cleaning',     label: 'Cleaning',        icon: <Home size={20} /> },
-  { id: 'landscaping',  label: 'Landscaping',     icon: <TreePine size={20} /> },
-  { id: 'snow-removal', label: 'Snow Removal',    icon: <Snowflake size={20} /> },
-];
+// Trade cards derived from the canonical taxonomy — one source of truth.
+// Icons mapped by trade id; new trades added to TRADES get a fallback icon.
+const TRADE_ICON: Record<string, ReactElement> = {
+  'plumbing':          <Droplets size={20} />,
+  'electrical':        <Zap size={20} />,
+  'hvac':              <Thermometer size={20} />,
+  'handyman':          <Wrench size={20} />,
+  'cleaning':          <Home size={20} />,
+  'landscaping':       <TreePine size={20} />,
+  'snow-removal':      <Snowflake size={20} />,
+  'painting':          <Paintbrush size={20} />,
+  'roofing':           <HardHat size={20} />,
+  'carpentry':         <Hammer size={20} />,
+  'concrete-masonry':  <Building2 size={20} />,
+  'moving':            <Truck size={20} />,
+};
+const TRADE_CATEGORIES = TRADES.map(t => ({
+  id: t.id,
+  label: t.label,
+  icon: TRADE_ICON[t.id] ?? <Wrench size={20} />,
+}));
 
-// ── Specialized intake option sets ────────────────────────────────────────
-// All option lists drawn from the trade taxonomy in
-// tests/feedback-runs/2026-05-01-feature-requests/notes.md (Section C).
-// Deliberately no "Other" — see notes.md for rationale.
+// ── Specialized intake option sets (derived from taxonomy) ────────────────
+// Deliberately no "Other" — see notes.md Section C for rationale.
 
-const CLEANING_TYPES = [
-  'Standard', 'Deep clean', 'Move-in / Move-out', 'Post-construction',
-  'Carpet cleaning', 'Window cleaning', 'Junk removal',
-];
-const CLEANING_AREAS = [
-  'Kitchen', 'Bathrooms', 'Bedrooms', 'Living areas',
-  'Laundry room', 'Basement', 'Garage',
-];
-
-const SNOW_AREAS = [
-  'Driveway', 'Sidewalks / walkways', 'Steps / entryways', 'Parking area',
-  'Roof', 'Patio or deck', 'Mailbox or curb access',
-];
-
-const LANDSCAPING_TYPES = [
-  'Lawn mowing / maintenance', 'Yard cleanup', 'Tree / shrub trimming',
-  'Garden design / planting', 'Mulching', 'Aeration / overseeding', 'Sod install',
-];
+const CLEANING_TYPES    = findTrade('cleaning')!.subServices.map(s => s.label);
+const CLEANING_AREAS    = ['Kitchen', 'Bathrooms', 'Bedrooms', 'Living areas', 'Laundry room', 'Basement', 'Garage'];
+const SNOW_AREAS        = findTrade('snow-removal')!.subServices.map(s => s.label);
+const LANDSCAPING_TYPES = findTrade('landscaping')!.subServices.map(s => s.label);
 const LANDSCAPING_WORK_AREAS = ['Front yard', 'Backyard', 'Side yard', 'Entire property'];
-const YARD_CONDITIONS = [
-  'Well-maintained', 'Overgrown', 'Needs full cleanup', 'Recently done, just maintenance',
-];
+const YARD_CONDITIONS   = ['Well-maintained', 'Overgrown', 'Needs full cleanup', 'Recently done, just maintenance'];
 
 const SEVERITY_LEVELS = [
   { id: 'routine', label: 'Routine',  sub: 'Not urgent — schedule at your convenience', color: 'var(--success)' },

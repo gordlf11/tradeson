@@ -526,3 +526,96 @@ CREATE TABLE IF NOT EXISTS admin_resolutions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_admin_resolutions_target ON admin_resolutions(target_user_id);
+
+-- ═══════════════════════════════════════════
+-- 13. COMPLIANCE DOCUMENTS — nullable fields
+-- Allows documents to be uploaded post-onboarding via InsuranceUpload.
+-- Root cause of the licensed tradesperson onboarding registration bug:
+-- frontend sent licenses:[] but the NOT NULL constraint still blocked
+-- if the INSERT path was reached with any partial data.
+-- ═══════════════════════════════════════════
+
+ALTER TABLE compliance_documents ALTER COLUMN document_url DROP NOT NULL;
+ALTER TABLE compliance_documents ALTER COLUMN expiration_date DROP NOT NULL;
+
+-- ═══════════════════════════════════════════
+-- 14. TAXONOMY & MATCHER SCHEMA (PR 2)
+-- Run after tradeTaxonomy.ts is deployed so offered_services labels match.
+-- ═══════════════════════════════════════════
+
+-- Sub-service leaves the tradesperson offers (populated during onboarding,
+-- editable in Settings). Auto-migrated from primary_trades on deploy.
+ALTER TABLE tradesperson_profiles
+  ADD COLUMN IF NOT EXISTS offered_services TEXT[] DEFAULT '{}';
+
+-- Populate offered_services for existing tradespeople: expand each trade
+-- in primary_trades to all its sub-services using the canonical taxonomy.
+-- Tradespeople can prune unwanted sub-services in Settings after migration.
+-- Only runs for rows where offered_services is still empty.
+UPDATE tradesperson_profiles SET offered_services = (
+  SELECT ARRAY_AGG(sub) FROM (
+    SELECT UNNEST(ARRAY[
+      CASE WHEN 'Plumbing'            = ANY(primary_trades) THEN ARRAY['Drain cleaning','Leak repair','Toilet repair','Faucet / sink','Water heater','New install']                                                  ELSE '{}' END,
+      CASE WHEN 'Electrical'          = ANY(primary_trades) THEN ARRAY['Outlet / switch','Light fixture install','Ceiling fan','Panel work','EV charger','Troubleshooting']                                          ELSE '{}' END,
+      CASE WHEN 'HVAC'                = ANY(primary_trades) THEN ARRAY['Furnace repair','AC repair','Maintenance / tune-up','Duct cleaning','Thermostat install','New install']                                       ELSE '{}' END,
+      CASE WHEN 'General Contracting' = ANY(primary_trades)
+        OR 'General Repairs'          = ANY(primary_trades)
+        OR 'Handyman'                 = ANY(primary_trades)
+        OR 'Flooring'                 = ANY(primary_trades)
+                                      THEN ARRAY['Furniture assembly','TV mounting','Picture / shelf hanging','Door repair','Drywall patch','Caulking','Curtain / blind install','Childproofing'] ELSE '{}' END,
+      CASE WHEN 'Cleaning'            = ANY(primary_trades) THEN ARRAY['Standard','Deep clean','Move-in / Move-out','Post-construction','Carpet cleaning','Window cleaning','Junk removal']                          ELSE '{}' END,
+      CASE WHEN 'Landscaping'         = ANY(primary_trades) THEN ARRAY['Lawn mowing','Yard cleanup','Tree / shrub trimming','Garden design / planting','Mulching','Aeration / overseeding','Sod install']            ELSE '{}' END,
+      CASE WHEN 'Snow Removal'        = ANY(primary_trades) THEN ARRAY['Driveway','Sidewalks / walkways','Steps / entryways','Parking area','Roof','Patio or deck','Mailbox or curb access','Salting / de-icing']   ELSE '{}' END,
+      CASE WHEN 'Roofing'             = ANY(primary_trades) THEN ARRAY['Inspection','Leak repair','Shingle replacement','Gutter cleaning','Gutter repair']                                                           ELSE '{}' END,
+      CASE WHEN 'Carpentry'           = ANY(primary_trades) THEN ARRAY['Custom builds','Trim / molding','Decking','Framing','Cabinet install']                                                                       ELSE '{}' END,
+      CASE WHEN 'Masonry'             = ANY(primary_trades) THEN ARRAY['Concrete repair','Driveway / walkway','Brick / stone','Patio install']                                                                      ELSE '{}' END
+    ]) AS sub
+    WHERE sub IS NOT NULL AND sub != '{}'
+  ) expanded
+) WHERE (offered_services = '{}' OR offered_services IS NULL)
+  AND primary_trades != '{}';
+
+CREATE INDEX IF NOT EXISTS idx_tradesperson_offered_services
+  ON tradesperson_profiles USING GIN(offered_services);
+
+-- Structured intake answers collected during job creation for
+-- Cleaning, Snow Removal, and Landscaping jobs.
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS intake_answers JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS sub_service    TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_jobs_sub_service ON jobs(sub_service);
+
+-- Per-quote tool inventory from the QuoteSubmissionModal checklist.
+ALTER TABLE quotes
+  ADD COLUMN IF NOT EXISTS tool_inventory JSONB DEFAULT '{}';
+
+-- Match events: every time a tradesperson sees a job or takes an action,
+-- we log it. Used to train the ML matcher in the future (Track 2).
+CREATE TABLE IF NOT EXISTS match_events (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id           UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  tradesperson_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type       TEXT NOT NULL CHECK (event_type IN ('shown','viewed','quoted','accepted','rejected','messaged')),
+  score            DECIMAL(5,2),
+  context          JSONB DEFAULT '{}',
+  created_at       TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_match_events_job        ON match_events(job_id);
+CREATE INDEX IF NOT EXISTS idx_match_events_trade      ON match_events(tradesperson_id);
+CREATE INDEX IF NOT EXISTS idx_match_events_type_date  ON match_events(event_type, created_at DESC);
+
+-- Postgres indexes for high-traffic query patterns (Launch Readiness tracker)
+CREATE INDEX IF NOT EXISTS idx_jobs_status_trade_created
+  ON jobs(status, category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_customer_status_created
+  ON jobs(homeowner_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_tradesperson_status_created
+  ON jobs(assigned_tradesperson_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quotes_job_price
+  ON quotes(job_id, price ASC);
+CREATE INDEX IF NOT EXISTS idx_quotes_trade_created
+  ON quotes(tradesperson_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_created
+  ON reviews(reviewee_id, created_at DESC);

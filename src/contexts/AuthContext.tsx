@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { auth } from '../services/firebase';
+import { onMessage, getToken } from 'firebase/messaging';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db, initMessaging } from '../services/firebase';
 import api from '../services/api';
 
 interface UserProfile {
@@ -14,11 +16,19 @@ interface UserProfile {
   profile?: Record<string, unknown>;
 }
 
+export interface InAppNotification {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}
+
 interface AuthContextType {
   firebaseUser: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
   error: string | null;
+  inAppNotification: InAppNotification | null;
+  dismissNotification: () => void;
   login: (email: string, password: string) => Promise<UserProfile | null>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -39,8 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inAppNotification, setInAppNotification] = useState<InAppNotification | null>(null);
   // Flag to prevent onAuthStateChanged from racing with signup
   const isSigningUp = useRef(false);
+
+  const dismissNotification = useCallback(() => setInAppNotification(null), []);
 
   // Listen to Firebase auth state
   useEffect(() => {
@@ -84,6 +97,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 8000);
     return () => clearTimeout(timeout);
   }, [loading]);
+
+  // FCM: get token on login, store to Firestore users/{uid}.fcmToken,
+  // register foreground onMessage handler to show in-app toast.
+  useEffect(() => {
+    if (!firebaseUser || localStorage.getItem('demoMode') === 'true') return;
+
+    let unsubscribeFcm: (() => void) | undefined;
+
+    (async () => {
+      try {
+        const messaging = await initMessaging();
+        if (!messaging) return;
+
+        // Store FCM token on Firestore users/{uid} — rules allow owner to write fcmToken
+        const token = await getToken(messaging, {
+          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+        });
+        if (token) {
+          await setDoc(doc(db, 'users', firebaseUser.uid), { fcmToken: token }, { merge: true });
+        }
+
+        // Foreground message handler: show in-app notification toast
+        unsubscribeFcm = onMessage(messaging, (payload) => {
+          const { title, body } = payload.notification ?? {};
+          if (title) {
+            setInAppNotification({
+              title,
+              body: body ?? '',
+              data: payload.data as Record<string, string> | undefined,
+            });
+            // Auto-dismiss after 6 seconds
+            setTimeout(() => setInAppNotification(null), 6000);
+          }
+        });
+      } catch (err) {
+        // FCM unavailable in local dev (HTTP) or browser doesn't support it — non-fatal
+        console.warn('FCM setup skipped:', err);
+      }
+    })();
+
+    return () => unsubscribeFcm?.();
+  }, [firebaseUser]);
 
   const login = async (email: string, password: string): Promise<UserProfile | null> => {
     setError(null);
@@ -165,6 +220,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userProfile,
       loading,
       error,
+      inAppNotification,
+      dismissNotification,
       login,
       signup,
       logout,

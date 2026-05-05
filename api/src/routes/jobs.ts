@@ -1,7 +1,11 @@
 import { Router } from 'express';
+import Stripe from 'stripe';
 import pool from '../config/db';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { logAuditEvent } from '../middleware/audit';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT || '0.10');
 
 const router = Router();
 
@@ -135,6 +139,91 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
   } catch (err) {
     console.error('Get job error:', err);
     res.status(500).json({ error: 'Failed to fetch job' });
+  }
+});
+
+// PATCH /api/v1/jobs/:id/status
+// Updates job status. When status transitions to 'completed', automatically
+// triggers the Stripe platform payout (10% fee retained, remainder transferred
+// to the tradesperson's Connect account).
+router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const { id: userId } = req.user!;
+  const { id: jobId } = req.params;
+  const { status } = req.body;
+
+  const validStatuses = ['open','quoted','scheduled','en_route','in_progress','completed','cancelled','expired'];
+  if (!validStatuses.includes(status)) {
+    res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    return;
+  }
+
+  try {
+    const jobResult = await pool.query(
+      'SELECT * FROM jobs WHERE id = $1 AND deleted_at IS NULL',
+      [jobId]
+    );
+    if (jobResult.rows.length === 0) { res.status(404).json({ error: 'Job not found' }); return; }
+
+    const job = jobResult.rows[0];
+
+    const updateResult = await pool.query(
+      `UPDATE jobs SET status = $1, updated_at = now()
+         ${status === 'completed' ? ', completed_at = now()' : ''}
+       WHERE id = $2
+       RETURNING *`,
+      [status, jobId]
+    );
+
+    await logAuditEvent(userId!, 'job.status_changed', 'jobs', jobId, { from: job.status, to: status }, req.ip);
+
+    // Auto-trigger payout when job completes
+    if (status === 'completed' && job.status !== 'completed') {
+      try {
+        const paymentResult = await pool.query(
+          `SELECT p.*, tp.stripe_account_id
+           FROM payments p
+           JOIN tradesperson_profiles tp ON tp.user_id = p.payee_user_id
+           WHERE p.job_id = $1 AND p.status = 'processing'
+           LIMIT 1`,
+          [jobId]
+        );
+
+        const payment = paymentResult.rows[0];
+        if (payment?.stripe_account_id && payment?.stripe_payment_intent_id) {
+          const grossCents = Math.round(parseFloat(payment.amount) * 100);
+          const feeCents   = Math.round(grossCents * PLATFORM_FEE_PERCENT);
+          const payoutCents = grossCents - feeCents;
+
+          const transfer = await stripe.transfers.create({
+            amount:         payoutCents,
+            currency:       'usd',
+            destination:    payment.stripe_account_id,
+            transfer_group: `job_${jobId}`,
+            metadata:       { job_id: jobId, payment_intent_id: payment.stripe_payment_intent_id },
+          });
+
+          await pool.query(
+            `UPDATE payments SET stripe_transfer_id = $1, status = 'completed', updated_at = now()
+             WHERE id = $2`,
+            [transfer.id, payment.id]
+          );
+
+          await pool.query(
+            `UPDATE tradesperson_profiles SET jobs_completed = jobs_completed + 1, updated_at = now()
+             WHERE user_id = $1`,
+            [payment.payee_user_id]
+          );
+        }
+      } catch (payoutErr) {
+        // Non-fatal — log and continue. Payout can be retried manually via /stripe/platform-payout.
+        console.error('Auto-payout failed for job', jobId, payoutErr);
+      }
+    }
+
+    res.json(updateResult.rows[0]);
+  } catch (err) {
+    console.error('Update job status error:', err);
+    res.status(500).json({ error: 'Failed to update job status' });
   }
 });
 

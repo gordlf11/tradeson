@@ -9,6 +9,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { TRADES } from '../config/tradeTaxonomy';
 
 interface UnlicensedData {
   // Step 1 – Account Info
@@ -28,6 +29,7 @@ interface UnlicensedData {
   // Step 3 – Services Offered
   serviceCategories: string[];
   subcategories: string[];
+  offeredServices: string[]; // flattened sub-service leaves sent as offered_services
   additionalServices: string;
 
   // Step 4 – Coverage
@@ -47,20 +49,10 @@ interface UnlicensedData {
   marketingOptIn: boolean;
 }
 
-const SERVICE_CATEGORIES = [
-  'General Handyman', 'House Cleaning', 'Yard Work', 'Furniture Assembly',
-  'Moving Services', 'Interior Painting', 'Basic Repairs', 'Organization',
-  'Pet Services', 'Pressure Washing', 'Window Cleaning', 'Gutter Cleaning',
-  'Landscaping', 'Snow Removal',
-];
-
-const SUBCATEGORIES: Record<string, string[]> = {
-  'General Handyman': ['Minor Repairs', 'Mounting / Hanging', 'Caulking', 'Assembly'],
-  'House Cleaning': ['Deep Clean', 'Regular Maintenance', 'Move-In/Out', 'Post-Construction'],
-  'Yard Work': ['Mowing', 'Edging', 'Weeding', 'Leaf Removal'],
-  'Moving Services': ['Local Move', 'Packing Help', 'Loading / Unloading', 'Storage'],
-  'Interior Painting': ['Walls', 'Ceilings', 'Trim', 'Cabinets'],
-};
+// Derived from the canonical taxonomy — same source as licensed onboarding.
+const SUBCATEGORIES: Record<string, string[]> = Object.fromEntries(
+  TRADES.map(t => [t.label, t.subServices.map(s => s.label)])
+);
 
 const ENTITY_TYPES = ['Sole Proprietor', 'LLC', 'Partnership', 'Other'];
 
@@ -95,6 +87,7 @@ export default function UnlicensedTradespersonOnboarding() {
     zipCode: '',
     serviceCategories: [],
     subcategories: [],
+    offeredServices: [],
     additionalServices: '',
     serviceRadius: '25',
     areasServed: [],
@@ -112,12 +105,15 @@ export default function UnlicensedTradespersonOnboarding() {
     setFormData(prev => ({ ...prev, [field]: value }));
 
   const toggleList = (field: 'serviceCategories' | 'subcategories', value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: (prev[field] as string[]).includes(value)
+    setFormData(prev => {
+      const updated = (prev[field] as string[]).includes(value)
         ? (prev[field] as string[]).filter(v => v !== value)
-        : [...(prev[field] as string[]), value],
-    }));
+        : [...(prev[field] as string[]), value];
+
+      const offeredServices = field === 'subcategories' ? updated : prev.subcategories;
+
+      return { ...prev, [field]: updated, offeredServices };
+    });
   };
 
   const addAreaZip = () => {
@@ -148,6 +144,7 @@ export default function UnlicensedTradespersonOnboarding() {
         service_radius_miles: parseInt(formData.serviceRadius) || 25,
         primary_trades: formData.serviceCategories,
         subcategories: formData.subcategories,
+        offered_services: formData.offeredServices,
         additional_services: formData.additionalServices,
         business_entity_type: formData.businessEntityType,
         areas_served: formData.areasServed,
@@ -281,16 +278,16 @@ export default function UnlicensedTradespersonOnboarding() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
               {sectionLabel('Service Categories')}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
-                {SERVICE_CATEGORIES.map(cat => (
-                  <button key={cat} onClick={() => toggleList('serviceCategories', cat)} style={{
+                {TRADES.map(trade => (
+                  <button key={trade.id} onClick={() => toggleList('serviceCategories', trade.label)} style={{
                     padding: 'var(--space-3)',
-                    border: formData.serviceCategories.includes(cat) ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    border: formData.serviceCategories.includes(trade.label) ? '2px solid var(--primary)' : '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
-                    background: formData.serviceCategories.includes(cat) ? 'var(--primary-light)' : 'var(--bg-surface)',
+                    background: formData.serviceCategories.includes(trade.label) ? 'var(--primary-light)' : 'var(--bg-surface)',
                     cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem',
-                    color: formData.serviceCategories.includes(cat) ? 'var(--primary)' : 'var(--text-secondary)',
+                    color: formData.serviceCategories.includes(trade.label) ? 'var(--primary)' : 'var(--text-secondary)',
                     fontFamily: 'inherit',
-                  }}>{cat}</button>
+                  }}>{trade.label}</button>
                 ))}
               </div>
 

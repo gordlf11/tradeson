@@ -286,11 +286,12 @@ Single migration:
 - PR 6 *can* ship before PR 5 (matcher works on existing job data) but ranking quality stays low until intake_answers land.
 - PR 7 (PM multi-property capture) is independent of PR 6 — ships any time after PR 1 + PR 2.
 
-### Open questions before PR 1 starts
-1. **Naming**: "Handyman" replaces "General Repairs" in the taxonomy. Confirm? (Recommend yes — clearer to customers, matches industry terminology.)
-2. **Snow Removal as seasonal**: should we hide the Snow Removal trade entirely between May–October so customers don't see an empty category? Recommend yes; show in onboarding always (so tradespeople can opt in year-round) but hide from Job Creation outside the season.
-3. **Existing tradespeople**: tradespeople who onboarded with the old flat `primary_trades` get migrated to `offered_services` how? Auto-map each old category to "all sub-services in that trade" and let them prune in Settings. Agree?
-4. **Match score visibility**: do we show the score % to tradespeople ("you're an 87% match"), to customers, or hide it? Recommend hide for v1 — show ordering only.
+### Open questions — RESOLVED 2026-05-04 (Kevin)
+
+1. **Naming**: ✅ **"Handyman" confirmed.** Replaces "General Repairs" everywhere in taxonomy, onboarding, and UI copy.
+2. **Snow Removal as seasonal**: ✅ **Keep year-round — no seasonal hiding.** New joiners signing up in May should see Snow Removal so they understand the platform's full service offering. Show in Job Creation always.
+3. **Existing tradespeople**: ✅ **Auto-migrate confirmed.** When the PR 2 migration runs, expand each tradesperson's flat `primary_trades` entry to all sub-services in that trade and write to `offered_services`. They can prune unwanted sub-services in Settings post-migration. Keeps existing accounts visible in match results the moment PR 6 ships.
+4. **Match score visibility**: ✅ **Hidden — remove the score % entirely.** Don't show the number to tradespeople or customers. Surface ranking order only. No UI work needed for this; just don't expose the score field in the API response.
 
 ---
 

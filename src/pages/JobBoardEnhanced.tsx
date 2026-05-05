@@ -50,6 +50,8 @@ interface Job {
   clientAddress: string;
   status: 'open' | 'quoted' | 'accepted' | 'expired';
   likelihoodScore: number; // 0-100
+  intake_answers?: Record<string, unknown>; // structured intake from JobCreation
+  sub_service?: string;
 }
 
 // Jobs arrive with an empty quotes[] from listJobs(); quotes are lazy-loaded
@@ -374,6 +376,28 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
                 <X size={22} />
               </button>
             </div>
+
+            {/* Structured intake answers — gives tradespeople the facts before quoting */}
+            {job.intake_answers && Object.keys(job.intake_answers).length > 0 && (
+              <div style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-4)', border: '1px solid var(--border)' }}>
+                <p style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--primary)', marginBottom: 'var(--space-2)' }}>
+                  Job Details
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                  {Object.entries(job.intake_answers).map(([key, val]) => {
+                    if (!val || (Array.isArray(val) && val.length === 0)) return null;
+                    const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    const display = Array.isArray(val) ? (val as string[]).join(', ') : String(val);
+                    return (
+                      <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-3)', fontSize: '0.8rem' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: '500', flexShrink: 0 }}>{label}</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: '600', textAlign: 'right' }}>{display}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* My profile preview */}
             <Card style={{ padding: 'var(--space-3)', background: 'var(--primary-light)', border: '1px solid var(--primary)', marginBottom: 'var(--space-4)' }}>
@@ -1263,19 +1287,43 @@ export default function JobBoardEnhanced() {
 
                     {/* Job metadata */}
                     {isExpanded && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
-                        {[
-                          { label: 'Room', value: job.room },
-                          { label: 'Nature', value: job.jobNature },
-                          { label: 'Client', value: job.clientName },
-                          { label: 'Area', value: job.clientAddress },
-                        ].map(item => (
-                          <div key={item.label} style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-2) var(--space-3)' }}>
-                            <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</div>
-                            <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-primary)' }}>{item.value}</div>
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+                          {[
+                            { label: 'Room', value: job.room },
+                            { label: 'Nature', value: job.jobNature },
+                            { label: 'Client', value: job.clientName },
+                            { label: 'Area', value: job.clientAddress },
+                          ].map(item => (
+                            <div key={item.label} style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-2) var(--space-3)' }}>
+                              <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</div>
+                              <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-primary)' }}>{item.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Structured intake answers — only shown when present */}
+                        {job.intake_answers && Object.keys(job.intake_answers).length > 0 && (
+                          <div style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+                            <p style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--primary)', marginBottom: 'var(--space-2)' }}>
+                              Job Details
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                              {Object.entries(job.intake_answers).map(([key, val]) => {
+                                if (!val || (Array.isArray(val) && val.length === 0)) return null;
+                                const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                const display = Array.isArray(val) ? (val as string[]).join(', ') : String(val);
+                                return (
+                                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-3)', fontSize: '0.8rem' }}>
+                                    <span style={{ color: 'var(--text-secondary)', fontWeight: '500', flexShrink: 0 }}>{label}</span>
+                                    <span style={{ color: 'var(--text-primary)', fontWeight: '600', textAlign: 'right' }}>{display}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      </>
                     )}
 
                     <button onClick={() => setExpandedJobId(isExpanded ? null : job.id)} style={{
