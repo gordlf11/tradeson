@@ -638,3 +638,31 @@ ALTER TABLE jobs ADD CONSTRAINT jobs_status_check CHECK (status IN (
   'open','quoted','scheduled','en_route','in_progress',
   'pending_confirmation','completed','cancelled','expired'
 ));
+
+-- ═══════════════════════════════════════════
+-- 16. BROKER (REALTOR) COMMAND CENTER
+-- Referral link tracking + trusted tradesperson favorites
+-- ═══════════════════════════════════════════
+
+-- Unique referral code for the realtor's share link
+ALTER TABLE realtor_profiles
+  ADD COLUMN IF NOT EXISTS referral_code TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_realtor_referral_code
+  ON realtor_profiles(referral_code) WHERE referral_code IS NOT NULL;
+
+-- When a homeowner signs up via a realtor's referral link, track the source
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS referred_by_realtor_id UUID REFERENCES realtor_profiles(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by_realtor_id) WHERE referred_by_realtor_id IS NOT NULL;
+
+-- Realtor's curated list of trusted tradespeople (shown on dashboard, shareable)
+CREATE TABLE IF NOT EXISTS realtor_favorites (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  realtor_profile_id    UUID NOT NULL REFERENCES realtor_profiles(id) ON DELETE CASCADE,
+  tradesperson_user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  trade_category        TEXT,
+  note                  TEXT,
+  created_at            TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(realtor_profile_id, tradesperson_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_realtor_favorites_profile ON realtor_favorites(realtor_profile_id);

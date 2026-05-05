@@ -11,6 +11,7 @@ import webhooksRouter from './routes/webhooks';
 import adminRouter from './routes/admin';
 import paymentsRouter from './routes/payments';
 import reviewsRouter from './routes/reviews';
+import realtorRouter from './routes/realtor';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '8080', 10);
@@ -45,6 +46,7 @@ app.use('/api/v1/stripe', stripeRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/reviews', reviewsRouter);
+app.use('/api/v1/realtor', realtorRouter);
 
 // 404 handler
 app.use((_req, res) => {
@@ -200,6 +202,40 @@ async function runMigrations() {
     console.log('Migrations: pre-auth payment schema OK');
   } catch (err: any) {
     console.warn('Pre-auth migrations skipped:', err.message);
+  }
+
+  // Section 16 — broker command center schema
+  try {
+    await pool.query(`ALTER TABLE realtor_profiles ADD COLUMN IF NOT EXISTS referral_code TEXT;`);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_realtor_referral_code
+        ON realtor_profiles(referral_code) WHERE referral_code IS NOT NULL;
+    `);
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS referred_by_realtor_id UUID REFERENCES realtor_profiles(id) ON DELETE SET NULL;
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_referred_by
+        ON users(referred_by_realtor_id) WHERE referred_by_realtor_id IS NOT NULL;
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS realtor_favorites (
+        id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        realtor_profile_id    UUID NOT NULL REFERENCES realtor_profiles(id) ON DELETE CASCADE,
+        tradesperson_user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        trade_category        TEXT,
+        note                  TEXT,
+        created_at            TIMESTAMPTZ DEFAULT now(),
+        UNIQUE(realtor_profile_id, tradesperson_user_id)
+      );
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_realtor_favorites_profile ON realtor_favorites(realtor_profile_id);
+    `);
+    console.log('Migrations: broker command center schema OK');
+  } catch (err: any) {
+    console.warn('Broker schema migrations skipped:', err.message);
   }
 }
 

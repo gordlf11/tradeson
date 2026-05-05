@@ -19,6 +19,7 @@ import UnlicensedTradespersonOnboarding from './pages/UnlicensedTradespersonOnbo
 import TradespersonDashboard from './pages/TradespersonDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import RealtorDashboard from './pages/RealtorDashboard';
 
 // Main App
 import JobCreation from './pages/JobCreation';
@@ -47,6 +48,7 @@ function isTradeRole(role: string) {
 
 function getDashboardPath(role: string) {
   if (role === 'admin') return '/dashboard/admin';
+  if (role === 'realtor') return '/dashboard/realtor';
   return isTradeRole(role) ? '/dashboard/tradesperson' : '/dashboard/customer';
 }
 
@@ -211,6 +213,7 @@ function AppRoutes() {
         <Route path="/dashboard/tradesperson" element={<RequireAuth><ErrorBoundary><TradespersonDashboard /></ErrorBoundary></RequireAuth>} />
         <Route path="/dashboard/customer" element={<RequireAuth><ErrorBoundary><CustomerDashboard /></ErrorBoundary></RequireAuth>} />
         <Route path="/dashboard/admin" element={<RequireAuth><ErrorBoundary><AdminDashboard /></ErrorBoundary></RequireAuth>} />
+        <Route path="/dashboard/realtor" element={<RequireAuth><ErrorBoundary><RealtorDashboard /></ErrorBoundary></RequireAuth>} />
 
         {/* Main App — requires auth */}
         <Route path="/job-creation" element={<RequireAuth><JobCreation /></RequireAuth>} />

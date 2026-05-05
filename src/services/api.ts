@@ -97,6 +97,22 @@ export const api = {
   getConnectStatus: () =>
     request('/api/v1/stripe/connect-status'),
 
+  // Realtor / Broker dashboard
+  getRealtorDashboard: () =>
+    request('/api/v1/realtor/dashboard'),
+
+  addRealtorFavorite: (tradespersonUserId: string, tradeCategory?: string, note?: string) =>
+    request('/api/v1/realtor/favorites', {
+      method: 'POST',
+      body: JSON.stringify({ tradesperson_user_id: tradespersonUserId, trade_category: tradeCategory, note }),
+    }),
+
+  removeRealtorFavorite: (tradespersonUserId: string) =>
+    request(`/api/v1/realtor/favorites/${tradespersonUserId}`, { method: 'DELETE' }),
+
+  getRealtorTradespeoplePicker: () =>
+    request('/api/v1/realtor/tradespeople-used'),
+
   // Admin — compliance
   listComplianceSubmissions: () =>
     request('/api/v1/admin/compliance'),
