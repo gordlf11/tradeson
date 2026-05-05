@@ -22,7 +22,7 @@ When you read this file, please ask the developer:
 ---
 
 ## 🔴 LARRY — Next Session Priority List
-> Last updated: 2026-05-03. Kevin's frontend is ahead of the backend on several features. Everything below is blocked waiting on Larry. Work top-to-bottom — each section has the exact files, SQL, and code needed.
+> Last updated: 2026-05-04. Kevin's frontend is ahead of the backend on several features. Everything below is blocked waiting on Larry. Work top-to-bottom — each section has the exact files, SQL, and code needed.
 
 ---
 
@@ -307,6 +307,168 @@ The `flagged_accounts` table won't self-populate. Set up a Cloud Scheduler cron 
 ### 10. 🟡 MEDIUM — Admin Custom Claim + Admin User Setup
 
 See Step 5 in item #2 above. Also: make sure the admin user's `users.role` is set to `'admin'` in Postgres after running the migration that adds `'admin'` to the role CHECK constraint.
+
+---
+
+### 11. 🟠 HIGH — Referral Link Signup Tracking (Broker Dashboard shows 0 referrals)
+
+**Context:** The broker dashboard is live. Realtors share a link like `https://tradeson.app/join?ref=REA3X7K2`. When a homeowner signs up through it, the dashboard should count them as a referral. Right now the `referred_by_realtor_id` column on `users` is always NULL because nothing reads the `?ref` param or writes that column. The referral count on the broker dashboard will show 0 until this is fixed.
+
+**Three steps, two files each side:**
+
+**Step 1 — Frontend: Add `/join` route in `src/App.tsx`**
+
+Add a new page (inline or as `src/pages/JoinRedirect.tsx`) that captures the ref param and bounces to signup:
+
+```tsx
+// Inline in App.tsx — add above the <Routes> in AppRoutes
+// And add <Route path="/join" element={<JoinRedirect />} /> in the Routes block
+
+const JoinRedirect = () => {
+  const [params] = useSearchParams();
+  const code = params.get('ref');
+  if (code) localStorage.setItem('referralCode', code);
+  return <Navigate to="/signup" replace />;
+};
+```
+
+Also add the import at the top: `import { ..., useSearchParams } from 'react-router-dom';`
+
+**Step 2 — Frontend: Pass the code during signup in `src/pages/Signup.tsx`**
+
+After `auth.createUserWithEmailAndPassword` succeeds and before (or during) the `api.createUser()` call, read and clear the stored code:
+
+```ts
+const referralCode = localStorage.getItem('referralCode') || undefined;
+localStorage.removeItem('referralCode'); // consume it — don't re-use on next signup
+
+await api.createUser({
+  full_name: formData.name,
+  phone_number: formData.phone,
+  role: selectedRole,
+  referred_by_code: referralCode,   // ← add this field
+});
+```
+
+**Step 3 — Backend: Resolve the code to a profile ID in `api/src/routes/users.ts`**
+
+In the `POST /api/v1/users` handler, after inserting the user row, add:
+
+```ts
+const { referred_by_code } = req.body;
+
+if (referred_by_code) {
+  const rpResult = await pool.query(
+    'SELECT id FROM realtor_profiles WHERE referral_code = $1',
+    [referred_by_code]
+  );
+  if (rpResult.rows.length > 0) {
+    await pool.query(
+      'UPDATE users SET referred_by_realtor_id = $1 WHERE id = $2',
+      [rpResult.rows[0].id, newUserId]
+    );
+  }
+}
+```
+
+No migration needed — `referred_by_realtor_id` column already exists on `users` (added in Section 16, `api/src/index.ts` startup migration).
+
+**Verify:** After wiring, sign up a new homeowner using a broker's referral URL. The broker's dashboard KPI "Referral Signups" should increment from 0 to 1.
+
+---
+
+### 12. 🟠 HIGH — Auto-Release Payment Cron (3-hour hold expires silently without this)
+
+**Context:** When a tradesperson marks a job done, `jobs.auto_release_at` is set to `now() + 3 hours` and `jobs.status` becomes `pending_confirmation`. The customer sees a countdown and a "Confirm & Release Payment" button. If they don't tap it, **nothing happens today** — the tradesperson never gets paid and the job stays stuck in `pending_confirmation` forever. A scheduled job needs to sweep for expired holds and fire the capture.
+
+**The `confirm-complete` route already handles this case** via `?auto=1` — it skips the ownership check and just captures. The only missing piece is something that calls it on a schedule.
+
+**Recommended approach: internal bulk-release endpoint + Cloud Scheduler**
+
+**Step 1 — Add a bulk-release route** to `api/src/routes/jobs.ts` (or a new `api/src/routes/internal.ts`):
+
+```ts
+// POST /api/v1/internal/release-expired-holds
+// Called by Cloud Scheduler every 30 minutes. Protected by shared secret.
+router.post('/release-expired-holds', async (req, res) => {
+  const secret = req.headers['x-internal-secret'];
+  if (secret !== process.env.INTERNAL_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const expiredResult = await pool.query(`
+    SELECT id FROM jobs
+    WHERE status = 'pending_confirmation'
+      AND auto_release_at < now()
+  `);
+
+  const results: { jobId: string; result: string }[] = [];
+
+  for (const row of expiredResult.rows) {
+    try {
+      // Re-use the same capture + complete logic from confirm-complete
+      // Easiest: call the route internally via a shared helper function,
+      // OR inline the capture logic here (fetch piId, stripe.capture, update jobs + payments + profile)
+      const job = await pool.query('SELECT stripe_payment_intent_id, homeowner_user_id FROM jobs WHERE id = $1', [row.id]);
+      const piId = job.rows[0]?.stripe_payment_intent_id;
+
+      if (piId) await stripe.paymentIntents.capture(piId);
+
+      await pool.query(`
+        UPDATE jobs SET status = 'completed', completed_at = now() WHERE id = $1
+      `, [row.id]);
+      await pool.query(`
+        UPDATE payments SET status = 'completed' WHERE job_id = $1
+      `, [row.id]);
+      await pool.query(`
+        UPDATE tradesperson_profiles SET jobs_completed = jobs_completed + 1
+        WHERE user_id = (SELECT assigned_tradesperson_id FROM jobs WHERE id = $1)
+      `, [row.id]);
+
+      results.push({ jobId: row.id, result: 'released' });
+    } catch (err: any) {
+      results.push({ jobId: row.id, result: `error: ${err.message}` });
+    }
+  }
+
+  console.log('Auto-release sweep:', results);
+  res.json({ processed: results.length, results });
+});
+```
+
+**Step 2 — Register the route** in `api/src/index.ts`:
+
+```ts
+import internalRouter from './routes/internal'; // or add to jobsRouter if inlining
+app.use('/api/v1/internal', internalRouter);
+```
+
+**Step 3 — Add `INTERNAL_SECRET` to environment**
+
+In Cloud Run env vars (GCP Console → Cloud Run → tradeson-api → Edit & Deploy → Variables):
+```
+INTERNAL_SECRET=<generate a strong random string, e.g. openssl rand -hex 32>
+```
+
+Also add to `.env.example` so it's documented:
+```
+INTERNAL_SECRET=your-internal-cron-secret
+```
+
+**Step 4 — Create Cloud Scheduler job** (GCP Console → Cloud Scheduler → Create Job):
+
+| Field | Value |
+|---|---|
+| Name | `release-expired-payment-holds` |
+| Frequency | `*/30 * * * *` (every 30 minutes) |
+| Timezone | UTC |
+| Target | HTTP |
+| URL | `https://tradeson-app-63629008205.us-central1.run.app/api/v1/internal/release-expired-holds` |
+| HTTP method | POST |
+| Headers | `x-internal-secret: <same value as INTERNAL_SECRET env var>` |
+| Body | (empty) |
+
+**Verify:** Create a test job, accept a quote, manually set `auto_release_at = now() - interval '1 minute'` in the DB, then POST to the endpoint manually. Job should flip to `completed` and the payment row should update to `completed`.
 
 ---
 
