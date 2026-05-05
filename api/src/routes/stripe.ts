@@ -165,6 +165,116 @@ router.post('/platform-payout', requireAuth, async (req: AuthenticatedRequest, r
   }
 });
 
+// POST /api/v1/stripe/authorize-job
+// Places a manual-capture PaymentIntent hold on the job poster's card when a quote is accepted.
+// Funds are reserved but not captured until the job poster confirms completion (or auto-release fires).
+router.post('/authorize-job', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { job_id, quote_id } = req.body;
+    const userId = req.user!.id;
+
+    // Verify job poster owns this job and get their Stripe customer ID
+    const jobResult = await pool.query(
+      `SELECT j.*, u.stripe_customer_id
+       FROM jobs j JOIN users u ON u.id = j.homeowner_user_id
+       WHERE j.id = $1 AND j.homeowner_user_id = $2 AND j.deleted_at IS NULL`,
+      [job_id, userId]
+    );
+    if (jobResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found or not authorized' });
+    }
+    const job = jobResult.rows[0];
+
+    if (!job.stripe_customer_id) {
+      return res.status(400).json({ error: 'No payment method on file. Please add a card in Payment Settings.' });
+    }
+
+    // Get the accepted quote price and tradesperson's Stripe account
+    const quoteResult = await pool.query(
+      `SELECT q.price, q.tradesperson_user_id, tp.stripe_account_id
+       FROM quotes q
+       JOIN tradesperson_profiles tp ON tp.user_id = q.tradesperson_user_id
+       WHERE q.id = $1`,
+      [quote_id]
+    );
+    if (quoteResult.rows.length === 0) return res.status(404).json({ error: 'Quote not found' });
+    const quote = quoteResult.rows[0];
+
+    if (!quote.stripe_account_id) {
+      return res.status(400).json({ error: 'Tradesperson has not set up payouts. They must complete Stripe Connect before payment can be authorized.' });
+    }
+
+    // Use the customer's most recently added card
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: job.stripe_customer_id,
+      type: 'card',
+    });
+    if (paymentMethods.data.length === 0) {
+      return res.status(400).json({ error: 'No card on file. Please add a payment method in Settings → Payment.' });
+    }
+
+    const amountCents = Math.round(parseFloat(quote.price) * 100);
+    const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT);
+
+    // manual capture = pre-auth hold; funds reserved, not charged until capture()
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: 'usd',
+      customer: job.stripe_customer_id,
+      payment_method: paymentMethods.data[0].id,
+      capture_method: 'manual',
+      confirm: true,
+      application_fee_amount: platformFeeCents,
+      transfer_data: { destination: quote.stripe_account_id },
+      metadata: { job_id, quote_id },
+    });
+
+    const grossAmount   = (amountCents / 100).toFixed(2);
+    const feeAmount     = (platformFeeCents / 100).toFixed(2);
+    const netAmount     = ((amountCents - platformFeeCents) / 100).toFixed(2);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `INSERT INTO payments
+           (job_id, quote_id, payer_user_id, payee_user_id, amount, platform_fee, net_payout,
+            stripe_payment_intent_id, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'authorized')
+         ON CONFLICT DO NOTHING`,
+        [job_id, quote_id, userId, quote.tradesperson_user_id,
+         grossAmount, feeAmount, netAmount, paymentIntent.id]
+      );
+
+      await client.query(
+        `UPDATE jobs
+         SET stripe_payment_intent_id = $1, updated_at = now()
+         WHERE id = $2`,
+        [paymentIntent.id, job_id]
+      );
+
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      throw dbErr;
+    } finally {
+      client.release();
+    }
+
+    res.json({
+      payment_intent_id: paymentIntent.id,
+      amount_cents: amountCents,
+      platform_fee_cents: platformFeeCents,
+      net_payout_cents: amountCents - platformFeeCents,
+      status: paymentIntent.status,
+    });
+  } catch (err: any) {
+    console.error('authorize-job error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/v1/stripe/direct-charge
 // Customer pays tradesperson directly on their Connect account; platform collects application_fee_amount
 router.post('/direct-charge', requireAuth, async (req: AuthenticatedRequest, res) => {

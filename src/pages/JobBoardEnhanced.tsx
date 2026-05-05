@@ -48,10 +48,11 @@ interface Job {
   verified: boolean;
   clientName: string;
   clientAddress: string;
-  status: 'open' | 'quoted' | 'accepted' | 'expired';
+  status: 'open' | 'quoted' | 'accepted' | 'expired' | 'pending_confirmation';
   likelihoodScore: number; // 0-100
   intake_answers?: Record<string, unknown>; // structured intake from JobCreation
   sub_service?: string;
+  auto_release_at?: string; // ISO — 3-hour countdown for pending_confirmation jobs
 }
 
 // Jobs arrive with an empty quotes[] from listJobs(); quotes are lazy-loaded
@@ -98,10 +99,21 @@ function mapJobStatus(s: string | null | undefined): Job['status'] {
   const v = (s || '').toLowerCase();
   if (v === 'quoted')                                 return 'quoted';
   if (v === 'expired' || v === 'closed')              return 'expired';
+  if (v === 'pending_confirmation')                   return 'pending_confirmation';
   if (v === 'accepted' || v === 'scheduled' ||
       v === 'confirmed' || v === 'in_progress' ||
       v === 'completed')                              return 'accepted';
   return 'open';
+}
+
+function timeUntilRelease(iso: string | undefined): string {
+  if (!iso) return 'soon';
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (diffMs <= 0) return 'any moment';
+  const hrs = Math.floor(diffMs / 3600000);
+  const mins = Math.floor((diffMs % 3600000) / 60000);
+  if (hrs > 0) return `in ${hrs}h ${mins}m`;
+  return `in ${mins}m`;
 }
 
 function toBoardJob(row: any): Job {
@@ -125,6 +137,7 @@ function toBoardJob(row: any): Job {
     clientAddress: row.address || '—',
     status: mapJobStatus(row.status),
     likelihoodScore: 0, // TODO: AI match-score integration planned
+    auto_release_at: row.auto_release_at || undefined,
   };
 }
 
@@ -975,6 +988,7 @@ export default function JobBoardEnhanced() {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [quoteModalJob, setQuoteModalJob] = useState<Job | null>(null);
   const [compareModalJob, setCompareModalJob] = useState<Job | null>(null);
+  const [confirmingJobId, setConfirmingJobId] = useState<string | null>(null);
   const [refetchKey, setRefetchKey] = useState(0);
   const autoCompareHandled = useRef(false);
 
@@ -1057,11 +1071,27 @@ export default function JobBoardEnhanced() {
       return 0;
     });
 
-  const handleAcceptQuote = async (_jobId: string, quoteId: string) => {
-    // Hit the Cloud Run API. The backend writes PG + fans out FCM to the
-    // tradesperson; we just refetch the job list on success.
+  const handleAcceptQuote = async (jobId: string, quoteId: string) => {
     await api.acceptQuote(quoteId);
+    // Attempt pre-auth hold; non-blocking if tradesperson hasn't set up Stripe yet
+    try {
+      await api.authorizeJobPayment(jobId, quoteId);
+    } catch (err) {
+      console.warn('Pre-auth skipped (will fall back to manual payout):', err);
+    }
     setRefetchKey(k => k + 1);
+  };
+
+  const handleConfirmComplete = async (jobId: string) => {
+    setConfirmingJobId(jobId);
+    try {
+      await api.confirmJobComplete(jobId);
+      setRefetchKey(k => k + 1);
+    } catch (err) {
+      console.error('Confirm complete failed:', err);
+    } finally {
+      setConfirmingJobId(null);
+    }
   };
 
   const handleSubmitQuote = async (jobId: string, quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => {
@@ -1348,8 +1378,35 @@ export default function JobBoardEnhanced() {
                         {job.status === 'accepted' ? 'Job Accepted' : 'Submit Quote'}
                       </Button>
                     ) : (
-                      // Customer: compare quotes or waiting
-                      job.quotes.length > 0 ? (
+                      // Customer view
+                      job.status === 'pending_confirmation' ? (
+                        // Tradesperson marked done — show 3-hour confirmation window
+                        <div style={{
+                          background: 'rgba(52,199,89,0.08)', border: '2px solid var(--success)',
+                          borderRadius: 'var(--radius-md)', padding: 'var(--space-4)',
+                          display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                            <CheckCircle size={18} color="var(--success)" />
+                            <span style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                              Job marked complete by tradesperson
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                            Confirm to release payment to your tradesperson. If you take no action, payment auto-releases {timeUntilRelease(job.auto_release_at)}.
+                          </p>
+                          <Button
+                            variant="primary"
+                            fullWidth
+                            style={{ background: 'var(--success)', borderColor: 'var(--success)' }}
+                            icon={<CheckCircle size={16} />}
+                            loading={confirmingJobId === job.id}
+                            onClick={() => handleConfirmComplete(job.id)}
+                          >
+                            Confirm & Release Payment
+                          </Button>
+                        </div>
+                      ) : job.quotes.length > 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                           <div style={{
                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',

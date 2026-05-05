@@ -151,7 +151,7 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
   const { id: jobId } = req.params;
   const { status } = req.body;
 
-  const validStatuses = ['open','quoted','scheduled','en_route','in_progress','completed','cancelled','expired'];
+  const validStatuses = ['open','quoted','scheduled','en_route','in_progress','pending_confirmation','completed','cancelled','expired'];
   if (!validStatuses.includes(status)) {
     res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
     return;
@@ -166,9 +166,13 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
 
     const job = jobResult.rows[0];
 
+    const setPendingConfirmation = status === 'pending_confirmation' && job.status !== 'pending_confirmation';
+    const setCompleted = status === 'completed' && job.status !== 'completed';
+
     const updateResult = await pool.query(
       `UPDATE jobs SET status = $1, updated_at = now()
-         ${status === 'completed' ? ', completed_at = now()' : ''}
+         ${setCompleted ? ', completed_at = now()' : ''}
+         ${setPendingConfirmation ? ', auto_release_at = now() + interval \'3 hours\'' : ''}
        WHERE id = $2
        RETURNING *`,
       [status, jobId]
@@ -176,8 +180,9 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
 
     await logAuditEvent(userId!, 'job.status_changed', 'jobs', jobId, { from: job.status, to: status }, req.ip);
 
-    // Auto-trigger payout when job completes
-    if (status === 'completed' && job.status !== 'completed') {
+    // When tradesperson marks done and there is NO pre-auth hold (legacy jobs or
+    // tradesperson without Stripe Connect), fall back to immediate transfer on 'completed'.
+    if (setCompleted && !job.stripe_payment_intent_id) {
       try {
         const paymentResult = await pool.query(
           `SELECT p.*, tp.stripe_account_id
@@ -190,8 +195,8 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
 
         const payment = paymentResult.rows[0];
         if (payment?.stripe_account_id && payment?.stripe_payment_intent_id) {
-          const grossCents = Math.round(parseFloat(payment.amount) * 100);
-          const feeCents   = Math.round(grossCents * PLATFORM_FEE_PERCENT);
+          const grossCents  = Math.round(parseFloat(payment.amount) * 100);
+          const feeCents    = Math.round(grossCents * PLATFORM_FEE_PERCENT);
           const payoutCents = grossCents - feeCents;
 
           const transfer = await stripe.transfers.create({
@@ -215,8 +220,7 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
           );
         }
       } catch (payoutErr) {
-        // Non-fatal — log and continue. Payout can be retried manually via /stripe/platform-payout.
-        console.error('Auto-payout failed for job', jobId, payoutErr);
+        console.error('Auto-payout (legacy) failed for job', jobId, payoutErr);
       }
     }
 
@@ -224,6 +228,90 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
   } catch (err) {
     console.error('Update job status error:', err);
     res.status(500).json({ error: 'Failed to update job status' });
+  }
+});
+
+// POST /api/v1/jobs/:id/confirm-complete
+// Called by the job poster to confirm completion and capture the pre-auth hold.
+// Also handles auto-release: if auto_release_at has passed, any caller (or a cron) can trigger.
+router.post('/:id/confirm-complete', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const { id: userId, role } = req.user!;
+  const { id: jobId } = req.params;
+
+  try {
+    const jobResult = await pool.query(
+      `SELECT j.*,
+              p.id           AS payment_id,
+              p.payee_user_id,
+              p.stripe_payment_intent_id AS payment_pi_id
+       FROM jobs j
+       LEFT JOIN payments p ON p.job_id = j.id AND p.status = 'authorized'
+       WHERE j.id = $1 AND j.deleted_at IS NULL`,
+      [jobId]
+    );
+    if (jobResult.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+    const job = jobResult.rows[0];
+
+    // Only the job poster or an admin can confirm; auto-release cron passes ?auto=1
+    const isAutoRelease = req.query.auto === '1';
+    const canConfirm = job.homeowner_user_id === userId || role === 'admin' || isAutoRelease;
+    if (!canConfirm) {
+      return res.status(403).json({ error: 'Only the job poster can confirm completion' });
+    }
+
+    if (job.status !== 'pending_confirmation') {
+      return res.status(400).json({ error: `Job is not awaiting confirmation (status: ${job.status})` });
+    }
+
+    const piId = job.payment_pi_id || job.stripe_payment_intent_id;
+
+    if (!piId) {
+      // No pre-auth — mark complete without a capture (will need manual payout)
+      await pool.query(
+        `UPDATE jobs SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1`,
+        [jobId]
+      );
+      await logAuditEvent(userId!, 'job.confirmed_complete', 'jobs', jobId, { captured: false }, req.ip);
+      return res.json({ success: true, captured: false, message: 'Job marked complete — no payment hold to capture' });
+    }
+
+    // Capture the hold — this charges the job poster and routes to tradesperson via transfer_data
+    const captured = await stripe.paymentIntents.capture(piId);
+
+    await pool.query(
+      `UPDATE jobs SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1`,
+      [jobId]
+    );
+
+    if (job.payment_id) {
+      await pool.query(
+        `UPDATE payments SET status = 'completed', updated_at = now() WHERE id = $1`,
+        [job.payment_id]
+      );
+    }
+
+    if (job.payee_user_id) {
+      await pool.query(
+        `UPDATE tradesperson_profiles SET jobs_completed = jobs_completed + 1, updated_at = now()
+         WHERE user_id = $1`,
+        [job.payee_user_id]
+      );
+    }
+
+    await logAuditEvent(
+      userId!, 'job.payment_captured', 'jobs', jobId,
+      { payment_intent_id: piId, amount_received: captured.amount_received }, req.ip
+    );
+
+    res.json({
+      success: true,
+      captured: true,
+      payment_intent_id: captured.id,
+      amount_received: captured.amount_received,
+    });
+  } catch (err: any) {
+    console.error('confirm-complete error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

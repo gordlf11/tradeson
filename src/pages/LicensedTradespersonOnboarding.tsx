@@ -520,9 +520,34 @@ export default function LicensedTradespersonOnboarding() {
               </div>
 
               {sectionLabel('Payout Setup')}
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 var(--space-3)' }}>
-                Connect a bank account or debit card to receive earnings from completed jobs.
-              </p>
+
+              {/* Why Stripe Connect is required */}
+              <Card style={{ padding: 'var(--space-4)', background: 'var(--primary-light)', border: '1px solid var(--primary)' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start' }}>
+                  <CreditCard size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <p style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)', margin: '0 0 var(--space-2)' }}>
+                      Why is Stripe Connect required?
+                    </p>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 var(--space-2)', lineHeight: 1.55 }}>
+                      TradesOn collects payment from the job poster when a quote is accepted (funds are held securely, not charged yet). When you mark a job complete and the client confirms, your earnings transfer directly to your bank — no chasing invoices.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                      {[
+                        'Automatic bank deposit after every confirmed job',
+                        'TradesOn retains 10% platform fee — you keep 90%',
+                        'Secure KYC handled by Stripe — TradesOn never stores your bank details',
+                        'Payouts to US bank accounts typically arrive within 2 business days',
+                      ].map(point => (
+                        <div key={point} style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start', fontSize: '0.78rem', color: 'var(--text-primary)' }}>
+                          <CheckCircle size={13} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                          {point}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Card>
 
               {formData.stripeConnectSetup ? (
                 <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--success)' }}>
@@ -545,7 +570,7 @@ export default function LicensedTradespersonOnboarding() {
                     <span style={{ fontSize: '0.65rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '9999px' }}>TEST MODE</span>
                   </div>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                    Secure payouts via Stripe Connect Express. Set up your bank account or debit card once and get paid automatically on job completion.
+                    You'll be redirected to Stripe to verify your identity and connect a bank account or debit card. This takes about 3 minutes and only needs to be done once.
                   </p>
                   {connectError && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-3)', color: 'var(--danger)', fontSize: '0.8rem' }}>

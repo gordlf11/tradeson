@@ -182,6 +182,25 @@ async function runMigrations() {
   } catch (err: any) {
     console.warn('Taxonomy migrations skipped:', err.message);
   }
+
+  // PR 3 — pre-auth hold + 3-hour confirmation window
+  try {
+    await pool.query(`
+      ALTER TABLE jobs
+        ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT,
+        ADD COLUMN IF NOT EXISTS auto_release_at TIMESTAMPTZ;
+    `);
+    await pool.query(`ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_status_check;`);
+    await pool.query(`
+      ALTER TABLE jobs ADD CONSTRAINT jobs_status_check CHECK (status IN (
+        'open','quoted','scheduled','en_route','in_progress',
+        'pending_confirmation','completed','cancelled','expired'
+      ));
+    `);
+    console.log('Migrations: pre-auth payment schema OK');
+  } catch (err: any) {
+    console.warn('Pre-auth migrations skipped:', err.message);
+  }
 }
 
 // Start listening immediately so Cloud Run's startup probe passes even if

@@ -619,3 +619,22 @@ CREATE INDEX IF NOT EXISTS idx_quotes_trade_created
   ON quotes(tradesperson_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_created
   ON reviews(reviewee_id, created_at DESC);
+
+-- ═══════════════════════════════════════════
+-- 15. PRE-AUTH PAYMENT HOLD + 3-HOUR CONFIRMATION WINDOW
+-- When a quote is accepted, a Stripe PaymentIntent is created with
+-- capture_method: 'manual' (funds held on job poster's card).
+-- Tradesperson marks done → status becomes 'pending_confirmation'.
+-- Job poster confirms (or auto-release fires after 3 hours) → capture.
+-- ═══════════════════════════════════════════
+
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT,
+  ADD COLUMN IF NOT EXISTS auto_release_at TIMESTAMPTZ;
+
+-- Extend the status constraint to include the confirmation window step.
+ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_status_check;
+ALTER TABLE jobs ADD CONSTRAINT jobs_status_check CHECK (status IN (
+  'open','quoted','scheduled','en_route','in_progress',
+  'pending_confirmation','completed','cancelled','expired'
+));

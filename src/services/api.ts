@@ -66,6 +66,12 @@ export const api = {
 
   getJob: (id: string) => request(`/api/v1/jobs/${id}`),
 
+  updateJobStatus: (jobId: string, status: string) =>
+    request(`/api/v1/jobs/${jobId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
+  confirmJobComplete: (jobId: string) =>
+    request(`/api/v1/jobs/${jobId}/confirm-complete`, { method: 'POST' }),
+
   // Quotes
   submitQuote: (jobId: string, data: Record<string, unknown>) =>
     request(`/api/v1/quotes/${jobId}/quotes`, { method: 'POST', body: JSON.stringify(data) }),
@@ -76,6 +82,13 @@ export const api = {
   // Stripe — save card for future job payments (SetupIntent)
   createSetupIntent: () =>
     request('/api/v1/stripe/create-setup-intent', { method: 'POST' }),
+
+  // Stripe — pre-authorization hold placed when a quote is accepted
+  authorizeJobPayment: (jobId: string, quoteId: string) =>
+    request('/api/v1/stripe/authorize-job', {
+      method: 'POST',
+      body: JSON.stringify({ job_id: jobId, quote_id: quoteId }),
+    }),
 
   // Stripe Connect — tradesperson payout onboarding
   createConnectAccount: () =>
