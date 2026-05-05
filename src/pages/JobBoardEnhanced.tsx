@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import { TRADES } from '../config/tradeTaxonomy';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1007,7 +1008,15 @@ export default function JobBoardEnhanced() {
       return;
     }
 
-    if (!userProfile) return;
+    // No userProfile yet (auth still loading, or API returned null because
+    // it's offline). Show local jobs + fallback rather than spinning forever.
+    // Effect re-runs once userProfile loads; the API path replaces these.
+    if (!userProfile) {
+      const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
+      setJobs([...localJobs, ...FALLBACK_JOBS]);
+      setJobsLoading(false);
+      return;
+    }
 
     let cancelled = false;
 
@@ -1049,19 +1058,23 @@ export default function JobBoardEnhanced() {
     }
   }, [jobs, location.state]);
 
+  // Trade filter derived from the canonical taxonomy.
+  // Legacy 'general' tradeId on existing jobs is treated as Handyman matches
+  // so old data stays filterable after the General Repairs → Handyman rename.
+  const matchesTrade = (job: Job, tradeId: string) =>
+    job.tradeId === tradeId || (tradeId === 'handyman' && job.tradeId === 'general');
+
   const categories = [
     { id: 'all', label: 'All', count: jobs.length },
-    { id: 'plumbing', label: 'Plumbing', count: jobs.filter(j => j.tradeId === 'plumbing').length },
-    { id: 'electrical', label: 'Electrical', count: jobs.filter(j => j.tradeId === 'electrical').length },
-    { id: 'hvac', label: 'HVAC', count: jobs.filter(j => j.tradeId === 'hvac').length },
-    { id: 'general', label: 'General Repairs', count: jobs.filter(j => j.tradeId === 'general').length },
-    { id: 'cleaning', label: 'Cleaning', count: jobs.filter(j => j.tradeId === 'cleaning').length },
-    { id: 'landscaping', label: 'Landscaping', count: jobs.filter(j => j.tradeId === 'landscaping').length },
-    { id: 'snow-removal', label: 'Snow Removal', count: jobs.filter(j => j.tradeId === 'snow-removal').length },
+    ...TRADES.map(t => ({
+      id: t.id,
+      label: t.label,
+      count: jobs.filter(j => matchesTrade(j, t.id)).length,
+    })),
   ];
 
   const filteredJobs = jobs
-    .filter(j => selectedCategory === 'all' || j.tradeId === selectedCategory)
+    .filter(j => selectedCategory === 'all' || matchesTrade(j, selectedCategory))
     .filter(j => j.distance <= distanceFilter)
     .sort((a, b) => {
       if (sortBy === 'Likelihood Match') return b.likelihoodScore - a.likelihoodScore;
