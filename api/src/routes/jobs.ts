@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import pool from '../config/db';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { logAuditEvent } from '../middleware/audit';
+import { publish } from '../services/pubsub';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT || '0.10');
@@ -61,6 +62,17 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
 
     const job = result.rows[0];
     await logAuditEvent(id, 'job.created', 'jobs', job.id, { category, severity }, req.ip);
+
+    // Fan-out: confirm to the customer their job is live and waiting for quotes.
+    // (Pushing the new job to ELIGIBLE TRADESPEOPLE is a separate matcher concern —
+    // PR 6 will own that pull-model recommendation surface.)
+    void publish({
+      event: 'job.created',
+      targetUserId: id,
+      title: 'Your job is live',
+      body: `${title.slice(0, 80)} — waiting for quotes from local pros.`,
+      data: { jobId: String(job.id), category: String(category) },
+    });
 
     res.status(201).json(job);
   } catch (err) {
@@ -179,6 +191,16 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
     );
 
     await logAuditEvent(userId!, 'job.status_changed', 'jobs', jobId, { from: job.status, to: status }, req.ip);
+
+    // Fan-out: notify the customer that the tradesperson moved the job forward
+    // (or vice versa). The fan-out function looks up the recipient by job role.
+    void publish({
+      event: 'job.status_changed',
+      targetUserId: job.homeowner_user_id,
+      title: 'Job status updated',
+      body: `${job.title?.slice(0, 70) ?? 'Your job'} is now ${status}`,
+      data: { jobId: String(jobId), from: String(job.status), to: String(status) },
+    });
 
     // When tradesperson marks done and there is NO pre-auth hold (legacy jobs or
     // tradesperson without Stripe Connect), fall back to immediate transfer on 'completed'.

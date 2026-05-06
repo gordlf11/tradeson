@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../config/db';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { logAuditEvent } from '../middleware/audit';
+import { publish } from '../services/pubsub';
 import { messaging } from '../services/firebase';
 
 const router = Router();
@@ -46,6 +47,18 @@ router.post('/:jobId/quotes', requireAuth, async (req: AuthenticatedRequest, res
     );
     if (jobResult.rows.length > 0) {
       const { homeowner_user_id, tradesperson_name } = jobResult.rows[0];
+
+      // Pub/Sub fan-out: Cloud Function `fcm-fanout` consumes this and sends the push.
+      void publish({
+        event: 'quote.submitted',
+        targetUserId: homeowner_user_id,
+        title: 'New Quote Received',
+        body: `${tradesperson_name} submitted a quote for $${price}`,
+        data: { job_id: jobId, quote_id: String(quote.id), type: 'quote_received' },
+      });
+
+      // TODO(K-D): remove this inline FCM block once the fan-out function is verified
+      // live in production. The Pub/Sub event above will deliver the same push.
       const tokenResult = await pool.query(
         'SELECT token FROM device_tokens WHERE user_id = $1 AND is_active = true',
         [homeowner_user_id]
@@ -120,12 +133,23 @@ router.post('/:id/accept', requireAuth, async (req: AuthenticatedRequest, res) =
       [quote.tradesperson_user_id, quote.job_id]
     );
 
-    // Send instant FCM to tradesperson — bid accepted!
+    const customerName = req.user!.full_name;
+
+    // Pub/Sub fan-out: Cloud Function `fcm-fanout` consumes this and sends the push.
+    void publish({
+      event: 'quote.accepted',
+      targetUserId: quote.tradesperson_user_id,
+      title: 'Bid Accepted!',
+      body: `${customerName} accepted your quote for $${quote.price}`,
+      data: { job_id: String(quote.job_id), quote_id: String(quoteId), type: 'quote_accepted' },
+    });
+
+    // TODO(K-D): remove this inline FCM block once the fan-out function is verified
+    // live in production. The Pub/Sub event above will deliver the same push.
     const tokenResult = await pool.query(
       'SELECT token FROM device_tokens WHERE user_id = $1 AND is_active = true',
       [quote.tradesperson_user_id]
     );
-    const customerName = req.user!.full_name;
     for (const { token } of tokenResult.rows) {
       try {
         await messaging.send({

@@ -225,66 +225,73 @@ Ship Phase 1 + Phase 2 + Phase 3 together as one PR per category. Cleaning first
 
 ---
 
-## J. Unified implementation roadmap (REVISED 2026-05-04)
+## J. Unified implementation roadmap (REVISED 2026-05-05)
 
-Items C, E, G, I are interlocked: the matching algorithm (G) needs the taxonomy (C) and the offered-services profile field; the intake forms (I) reference the same taxonomy; PM multi-property (E) is independent. Build them in this order so nothing waits on a circular dependency.
+Items C, E, G, I are interlocked: the matching algorithm (G) needs the taxonomy (C) and the offered-services profile field; the intake forms (I) reference the same taxonomy; PM multi-property (E) is independent. The roadmap below is the snapshot after the 2026-05-04 production push.
 
-**Reality check (2026-05-04):** Kevin shipped commit 74e253b yesterday which includes:
-- Cleaning / Snow / Landscaping intake forms (~PR 4 equivalent — including hardcoded option lists with "Other", which the 2026-05-04 follow-up commit cleaned up)
-- Tools-on-quote checklist on `QuoteSubmissionModal` (replaces the planned profile-level `users.tools`)
-- Multi-role basic UI (~item F equivalent)
-- Service Mix dashboard buckets (Repair / Maintenance / New Install / Replacement)
+**Reality check (2026-05-05):** Two big production drops have happened since this section was first written.
 
-The roadmap below reflects what's still left.
+- **2026-05-03 (74e253b)** — Kevin: Cleaning / Snow / Landscaping intake forms, tools-on-quote checklist, multi-role basic UI, Service Mix dashboard buckets.
+- **2026-05-04 (d026489)** — Kevin: Trade taxonomy file, tradesperson sub-services picker, full schema migration, payments + reviews routes, FCM client wiring, job-status PATCH with auto-Stripe-payout, support tickets Firestore rules.
 
-### Sequencing — five remaining PRs
+The roadmap below reflects what's still left after both drops.
 
-**PR 1 — Trade taxonomy as code (Larry, ~½ day)** — *not yet started*
-- New file `src/config/tradeTaxonomy.ts` exporting the 12-trade × N-sub-services tree from item C.
-- Replace hardcoded category lists in `JobCreation.tsx` (TRADE_CATEGORIES, CLEANING_TYPES, SNOW_AREAS, LANDSCAPING_TYPES, etc.) with imports from this file. Same for tradesperson onboarding `PRIMARY_TRADES` + `SUBCATEGORIES`.
-- *No DB or API changes.* Pure refactor + new constants. Ships safely.
+### Sequencing — what's done vs what's left
 
-**PR 2 — Schema: offered_services, intake_answers, sub_service, tool_inventory, match_events (Larry, ~1 day)** — *not yet started*
-Single migration:
-- `users.offered_services text[] DEFAULT '{}'` (sub-service leaves from PR 1's taxonomy)
-- `jobs.intake_answers jsonb DEFAULT '{}'` (the structured fields Kevin's intake forms collect)
-- `jobs.sub_service text` (the leaf category from intake)
-- `quotes.tool_inventory jsonb DEFAULT '{}'` (Kevin's per-quote tools checklist target)
-- New `match_events` table per item G spec
-- Cloud Run routes updated to read/write the new columns; defaults preserve existing behavior.
+**PR 1 — Trade taxonomy as code (SHIPPED 2026-05-04, commit d026489)** — *done*
+- `src/config/tradeTaxonomy.ts` exports 12 trades × N sub-services + `findTrade()` helper.
+- "Handyman" replaced "General Repairs" (open question #1 confirmed).
+- 5 new trades added (Painting, Roofing, Carpentry, Concrete & Masonry, Moving).
+- `JobCreation.tsx` and both tradesperson onboardings now derive their lists from this file via `TRADES.map(...)` and `findTrade('cleaning')!.subServices.map(...)`.
 
-**PR 3 — Tradesperson onboarding: sub-services picker (Kevin, ~½ day)** — *not yet started*
-- `LicensedTradespersonOnboarding` + `UnlicensedTradespersonOnboarding`: replace the flat `primary_trades` step with a two-tier picker (pick trade → pick sub-services within that trade).
-- Writes to `users.offered_services`. (No tools step — captured per-quote.)
+**PR 2 — Schema migration (SHIPPED 2026-05-04, commit d026489)** — *done*
+- Added `users.offered_services text[]`, `jobs.intake_answers jsonb`, `jobs.sub_service text`, `quotes.tool_inventory jsonb`, `match_events` table, plus indexes.
+- Auto-migration: existing tradespeople's flat `primary_trades` expanded to all sub-services in that trade and written to `offered_services` (open question #3 confirmed).
+- Made `compliance_documents.document_url` and `expiration_date` nullable so docs can be uploaded post-onboarding via Insurance Upload.
+- All wired into `runMigrations()` in `api/src/index.ts` so Cloud Run boot converges live DB.
 
-**PR 4 — Job Creation intake forms (SHIPPED 2026-05-03, cleaned up 2026-05-04)** — *done*
-- Kevin shipped Cleaning / Snow / Landscaping intake forms in `JobCreation.tsx`.
-- Follow-up commit removed "Other" from all option lists and dropped the `'other'` trade card to align with item C taxonomy.
-- Still TODO when PR 2 lands: send `intake_answers` + `sub_service` to the API instead of the flat fields the form currently sends.
+**PR 3 — Tradesperson onboarding sub-services picker (SHIPPED 2026-05-04, commit d026489)** — *done*
+- Both `LicensedTradespersonOnboarding` and `UnlicensedTradespersonOnboarding` now use a two-tier picker (trade → sub-services).
+- Writes both `primary_trades` (legacy) and `offered_services` (new).
+- Onboarding API routes wrapped in PG transactions with ROLLBACK so partial onboarding never leaves orphan rows.
 
-**PR 5 — Job Board + Quote Submission intake display (Kevin, ~½ day)** — *not yet started*
-- Render `intake_answers` as a structured "Job Details" block on Job Board cards and inside `QuoteSubmissionModal` (above the existing tools checklist Kevin shipped).
+**PR 4 — Job Creation intake forms (SHIPPED 2026-05-03, cleaned up 2026-05-04, commit c99a131)** — *done*
+- Forms shipped 74e253b; "Other" removed in c99a131.
+- Currently sending the flat fields (`cleaning_type`, `snow_areas`, etc.) to the API. PR 5 below covers the migration to a single `intake_answers` JSONB payload.
+
+**PR 5 — Send intake_answers + sub_service from JobCreation; render on Job Board (Kevin, ~½ day)** — *not yet started*
+- Today the form sends `cleaning_type`, `snow_areas`, `landscaping_type`, etc. as separate fields.
+- Now that `jobs.intake_answers` exists in the schema, JobCreation should pack the per-trade fields into one JSONB blob and send it as `intake_answers`. Also send `sub_service` (the leaf category — `cleaningType`, `landscapingType`, or first item of `snowAreas`).
+- `JobBoardEnhanced.tsx`: render `intake_answers` as a structured "Job Details" block on each card.
+- `QuoteSubmissionModal`: surface the same intake summary at the top, above Kevin's existing tools checklist.
 
 **PR 6 — Logic-based matcher + event emission (Larry, ~2 days)** — *not yet started*
 - New API routes: `GET /jobs/:id/recommended-tradespeople`, `GET /tradespeople/me/recommended-jobs`.
-- Scoring engine per item G revised spec (skills 50 / distance 25 / ratings 25).
+- Scoring engine per item G revised spec (skills 50 / distance 25 / ratings 25). Score field NOT exposed in API response (open question #4 — hide score).
 - `match_events` row written on every Job Board view (`shown` event) and on every quote action.
 - UI: tradesperson Job Board defaults to "Recommended for you" sort; customer Quote Comparison gets a "Recommended pros" panel.
 
 **PR 7 — PM multi-property capture + portfolio view (Kevin + Larry, ~1.5 days)** — *not yet started*
-- New `pm_properties` table (`id, user_id, address_line_1, city, state, zip, property_type, created_at`) — single migration, additive.
+- `managed_properties` table already exists in the original schema (per migration.sql line 109). PR 7 just needs to wire the UI.
 - `PropertyManagerOnboarding`: replace the single-address step with a "Properties you manage" step (add/remove rows, address + city + zip + type per row).
 - `CustomerDashboard` for PMs: group jobs by property, with a property selector at the top. Job Creation pre-fills the property address from a dropdown.
 - `users.address` stays as the PM's billing/HQ address (separate from managed properties).
 
-### Total sizing
-~5–6 days of focused work remaining. Shipping in this order means each PR is independently mergeable to master and adds visible value, while building toward the whole picture.
+### Bonus shipped in d026489 (outside Section J scope, knocks out CLAUDE.md launch-readiness items)
+
+- ✅ **`api/src/routes/payments.ts`** — `GET /api/v1/payments/me` (CLAUDE.md launch-readiness item: Payment History)
+- ✅ **`api/src/routes/reviews.ts`** — `POST /api/v1/reviews` + `GET /api/v1/reviews/:tradespersonId`; updates rolling rating on `tradesperson_profiles` (CLAUDE.md item: Reviews migration to Postgres)
+- ✅ **`api/src/routes/jobs.ts` PATCH** — `/api/v1/jobs/:id/status` auto-fires `/stripe/platform-payout` on `completed` transition (CLAUDE.md item: Payout trigger on job completion)
+- ✅ **FCM token storage** — `src/contexts/AuthContext.tsx` writes `fcmToken` to Firestore on login + foreground `onMessage` handler with in-app notification banner (CLAUDE.md item: FCM Real-Time UX, ~50% complete; still missing Pub/Sub fan-out from Cloud Run writes)
+- ✅ **`firebase/firestore.rules`** — `support_tickets` collection rules added
+
+### Total sizing remaining
+~3 days of focused work: PR 5 (~½ day, Kevin), PR 6 (~2 days, Larry), PR 7 (~1.5 days, Kevin + Larry).
 
 ### Critical dependencies
-- PR 1 unblocks everything else.
-- PR 2 unblocks PR 3, 5, 6, 7.
-- PR 6 *can* ship before PR 5 (matcher works on existing job data) but ranking quality stays low until intake_answers land.
-- PR 7 (PM multi-property capture) is independent of PR 6 — ships any time after PR 1 + PR 2.
+- PR 1, 2, 3 are all done — nothing blocks PR 5, 6, or 7 anymore.
+- PR 6 *can* ship before PR 5 (matcher works on existing job data) but ranking quality stays low until intake_answers land via PR 5.
+- PR 7 (PM multi-property capture) is independent — ships any time.
 
 ### Open questions — RESOLVED 2026-05-04 (Kevin)
 
@@ -292,6 +299,64 @@ Single migration:
 2. **Snow Removal as seasonal**: ✅ **Keep year-round — no seasonal hiding.** New joiners signing up in May should see Snow Removal so they understand the platform's full service offering. Show in Job Creation always.
 3. **Existing tradespeople**: ✅ **Auto-migrate confirmed.** When the PR 2 migration runs, expand each tradesperson's flat `primary_trades` entry to all sub-services in that trade and write to `offered_services`. They can prune unwanted sub-services in Settings post-migration. Keeps existing accounts visible in match results the moment PR 6 ships.
 4. **Match score visibility**: ✅ **Hidden — remove the score % entirely.** Don't show the number to tradespeople or customers. Surface ranking order only. No UI work needed for this; just don't expose the score field in the API response.
+
+---
+
+## K. Larry's immediate backlog (queued by Kevin 2026-05-05)
+
+Items Kevin left for Larry on the live deploy. Listed in dependency order.
+
+### K-A — Set Kevin's admin claim + smoke admin metrics
+- `node scripts/setAdminClaim.mjs kevinbradfo@gmail.com`
+- Kevin signs out + back in on prod to refresh his token
+- Smoke: load `/dashboard/admin` → click Metrics → confirm 200 from `/api/v1/admin/metrics`
+- **Status:** in-flight this session
+
+### K-B — Firestore rules deploy (`support_tickets`)
+- `firebase deploy --only firestore:rules`
+- Activates Kevin's `support_tickets` rules so users can create their own tickets and admins can read/update.
+- **Status:** in-flight this session
+
+### K-C — Cloud SQL schema migration (unblocks PR 6 + PR 7)
+- The migration in `api/src/schema/migration.sql` is fully idempotent. Run it once against the live Cloud SQL instance:
+  ```
+  psql $DATABASE_URL -f api/src/schema/migration.sql
+  ```
+- Or rely on `runMigrations()` at next Cloud Run boot — it mirrors the same statements inline (commits `5667df5` + `d026489`). Restarting the Cloud Run service is enough.
+- After this lands: PR 6 (logic-based matcher) and PR 7 (PM multi-property) have everything they need (`users.offered_services`, `jobs.intake_answers`, `jobs.sub_service`, `quotes.tool_inventory`, `match_events`, `pm_properties` already present in original schema).
+- **Status:** waiting on Larry's manual psql run.
+
+### K-D — FCM server-side (Pub/Sub publisher + Cloud Function fan-out)
+The client side is already shipped (`d026489` — token storage, `onMessage` handler, in-app banner). What's missing is the server side that actually delivers pushes when something happens.
+
+Two pieces:
+1. **Pub/Sub publisher in Cloud Run** — small helper in `api/src/services/pubsub.ts`. Each route that should fan out (job created, quote submitted, quote accepted, job status changed, message sent) calls `publish('quote.submitted', { targetUserId, title, body, data })`. Helper is best-effort: if publish fails we log + continue (don't block the user-facing write).
+2. **Cloud Function fan-out** — separate Cloud Function (`functions/fcm-fanout/`) that subscribes to the Pub/Sub topic, pulls the recipient's FCM token from Firestore (`users/{uid}.fcmToken`), and sends via `admin.messaging().send()`.
+
+Pub/Sub event shape (per CLAUDE.md):
+```json
+{
+  "event": "quote.submitted",
+  "targetUserId": "<firebase_uid>",
+  "title": "New Quote Received",
+  "body": "Carlos Rivera submitted a quote for Kitchen Faucet Repair",
+  "data": { "jobId": "...", "quoteId": "..." }
+}
+```
+
+GCP wiring needed (Larry runs manually since I can't reach gcloud from here):
+```
+gcloud pubsub topics create tradeson-events
+gcloud functions deploy fcm-fanout \
+  --gen2 --region us-central1 --runtime nodejs20 \
+  --entry-point fanout \
+  --trigger-topic tradeson-events \
+  --service-account=tradeson-fcm@tradeson-491518.iam.gserviceaccount.com
+```
+
+Cloud Run service account needs `roles/pubsub.publisher` on the project.
+
+- **Status:** code drafted this session, deployment pending.
 
 ---
 

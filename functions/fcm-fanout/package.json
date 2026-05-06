@@ -1,0 +1,11 @@
+{
+  "name": "fcm-fanout",
+  "version": "1.0.0",
+  "description": "Cloud Function — subscribes to Pub/Sub tradeson-events, fans out to FCM",
+  "main": "index.js",
+  "engines": { "node": "20" },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0",
+    "firebase-admin": "^13.0.0"
+  }
+}

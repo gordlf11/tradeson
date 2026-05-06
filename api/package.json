@@ -10,13 +10,14 @@
     "migrate": "psql $DATABASE_URL -f src/schema/migration.sql"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^7.9.0",
+    "@google-cloud/pubsub": "^5.3.0",
+    "@google-cloud/storage": "^7.14.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "firebase-admin": "^13.0.0",
     "helmet": "^8.0.0",
     "pg": "^8.13.0",
-    "@google-cloud/bigquery": "^7.9.0",
-    "@google-cloud/storage": "^7.14.0",
     "stripe": "^17.0.0",
     "uuid": "^11.0.0"
   },
