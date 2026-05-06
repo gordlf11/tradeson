@@ -160,7 +160,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
 // to the tradesperson's Connect account).
 router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { id: userId } = req.user!;
-  const { id: jobId } = req.params;
+  const jobId = String(req.params.id);
   const { status } = req.body;
 
   const validStatuses = ['open','quoted','scheduled','en_route','in_progress','pending_confirmation','completed','cancelled','expired'];
@@ -258,7 +258,7 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
 // Also handles auto-release: if auto_release_at has passed, any caller (or a cron) can trigger.
 router.post('/:id/confirm-complete', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { id: userId, role } = req.user!;
-  const { id: jobId } = req.params;
+  const jobId = String(req.params.id);
 
   try {
     const jobResult = await pool.query(
