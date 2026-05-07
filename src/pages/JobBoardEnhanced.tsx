@@ -280,7 +280,14 @@ function StarRow({ rating, count }: { rating: number; count?: number }) {
 interface QuoteModalProps {
   job: Job;
   onClose: () => void;
-  onSubmit: (quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => Promise<void>;
+  onSubmit: (quote: {
+    price: number;
+    hours: number;
+    overage: number;
+    message: string;
+    availability: Availability[];
+    tools: ToolItem[];
+  }) => Promise<void>;
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -358,6 +365,7 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
         overage: parseFloat(overage),
         message,
         availability,
+        tools,
       });
       setSubmitted(true);
       setTimeout(onClose, 1800);
@@ -1107,17 +1115,30 @@ export default function JobBoardEnhanced() {
     }
   };
 
-  const handleSubmitQuote = async (jobId: string, quote: { price: number; hours: number; overage: number; message: string; availability: Availability[] }) => {
-    // TODO: `availability` is captured in the modal but not yet accepted by
-    // the API. Once the backend adds an availability payload we can pass
-    // `quote.availability` through as well.
-    void quote.availability;
-
+  const handleSubmitQuote = async (
+    jobId: string,
+    quote: {
+      price: number;
+      hours: number;
+      overage: number;
+      message: string;
+      availability: Availability[];
+      tools: ToolItem[];
+    },
+  ) => {
+    // tool_inventory matches the JSONB column added in PR 2 (commit d026489).
+    // availability is sent alongside; backend currently no-ops on it but the
+    // payload is captured for when scheduling reads it post-acceptance.
     await api.submitQuote(jobId, {
       price: quote.price,
       estimated_hours: quote.hours,
       hourly_overage_rate: quote.overage,
       message: quote.message,
+      availability: quote.availability,
+      tool_inventory: quote.tools.map(t => ({
+        name: t.name,
+        provider_has: t.providerHas,
+      })),
     });
     setRefetchKey(k => k + 1);
   };
