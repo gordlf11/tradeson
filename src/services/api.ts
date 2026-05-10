@@ -137,6 +137,13 @@ export const api = {
   // Payments — transaction history for current user
   listMyPayments: () =>
     request('/api/v1/payments/me'),
+
+  // Reviews
+  submitReview: (data: { job_id: string; reviewee_id: string; rating: number; comment?: string }) =>
+    request('/api/v1/reviews', { method: 'POST', body: JSON.stringify(data) }),
+
+  listReviews: (tradespersonId: string) =>
+    request(`/api/v1/reviews/${tradespersonId}`),
 };
 
 export default api;

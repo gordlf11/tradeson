@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Briefcase, Calendar, Plus, LayoutDashboard, Home, Building2, Users } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -38,6 +38,17 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Demo from './pages/Demo';
 import DemoNavigator from './components/DemoNavigator';
 import ContactSupport from './pages/ContactSupport';
+
+// ── Referral link handler ─────────────────────────────────────────────────
+// Saves ?ref=CODE to localStorage then bounces to /signup.
+// The AuthContext signup() reads and clears the code before calling api.createUser().
+
+const JoinRedirect = () => {
+  const [params] = useSearchParams();
+  const code = params.get('ref');
+  if (code) localStorage.setItem('referralCode', code);
+  return <Navigate to="/signup" replace />;
+};
 
 // ── Role helpers ──────────────────────────────────────────────────────────
 
@@ -192,6 +203,9 @@ function AppRoutes() {
       <Routes>
         {/* Demo mode — public, activates demo and hard-redirects */}
         <Route path="/demo" element={<Demo />} />
+
+        {/* Referral link — public */}
+        <Route path="/join" element={<JoinRedirect />} />
 
         {/* Auth — public */}
         <Route path="/" element={<Navigate to="/login" replace />} />

@@ -86,13 +86,38 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { id, role } = req.user!;
   if (!id) { res.status(401).json({ error: 'User not found' }); return; }
 
-  const { status, category, zip_code, limit = '20', offset = '0' } = req.query;
+  const { status, category, zip_code, limit = '20', offset = '0', acceptedTradespersonId, customerId } = req.query;
 
   try {
     let query: string;
     let params: any[];
 
-    if (role === 'licensed_tradesperson' || role === 'unlicensed_tradesperson') {
+    if (acceptedTradespersonId) {
+      // Tradesperson dashboard — jobs assigned to this tradesperson (all statuses)
+      query = `SELECT j.*,
+                 u.full_name as customer_name,
+                 (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count
+               FROM jobs j
+               JOIN users u ON j.homeowner_user_id = u.id
+               WHERE j.assigned_tradesperson_id = $1 AND j.deleted_at IS NULL
+                 ${status ? 'AND j.status = $5' : ''}
+               ORDER BY j.created_at DESC
+               LIMIT $3 OFFSET $4`;
+      params = [acceptedTradespersonId, null, parseInt(limit as string), parseInt(offset as string)];
+      if (status) params.push(status);
+    } else if (customerId) {
+      // Customer dashboard — jobs posted by a specific homeowner (for admin/realtor views)
+      query = `SELECT j.*,
+                 (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count,
+                 (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name
+               FROM jobs j
+               WHERE j.homeowner_user_id = $1 AND j.deleted_at IS NULL
+                 ${status ? 'AND j.status = $5' : ''}
+               ORDER BY j.created_at DESC
+               LIMIT $3 OFFSET $4`;
+      params = [customerId, null, parseInt(limit as string), parseInt(offset as string)];
+      if (status) params.push(status);
+    } else if (role === 'licensed_tradesperson' || role === 'unlicensed_tradesperson') {
       // Tradespeople see open jobs (job board)
       query = `SELECT j.*, u.full_name as customer_name,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count

@@ -182,7 +182,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Now create the user in PostgreSQL
       try {
-        await api.createUser({ full_name: name, role: 'homeowner' });
+        const referralCode = localStorage.getItem('referralCode') || undefined;
+        localStorage.removeItem('referralCode');
+        await api.createUser({ full_name: name, role: 'homeowner', referred_by_code: referralCode } as any);
         const profile = await api.getMe() as UserProfile;
         setUserProfile(profile);
       } catch (apiErr) {

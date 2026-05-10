@@ -12,6 +12,7 @@ import adminRouter from './routes/admin';
 import paymentsRouter from './routes/payments';
 import reviewsRouter from './routes/reviews';
 import realtorRouter from './routes/realtor';
+import internalRouter from './routes/internal';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '8080', 10);
@@ -47,6 +48,7 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/reviews', reviewsRouter);
 app.use('/api/v1/realtor', realtorRouter);
+app.use('/api/v1/internal', internalRouter);
 
 // 404 handler
 app.use((_req, res) => {

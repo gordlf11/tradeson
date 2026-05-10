@@ -37,6 +37,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import api from './api';
 
 export interface Message {
   id: string;
@@ -161,7 +162,7 @@ export async function getUserThreads(userId: string): Promise<Thread[]> {
   });
 }
 
-/** Write a review to Firestore. */
+/** Submit a review — writes to Postgres via the API (not Firestore). */
 export async function submitReview(review: {
   jobId: string;
   jobTitle: string;
@@ -173,10 +174,11 @@ export async function submitReview(review: {
   rating: number;
   comment: string;
 }): Promise<void> {
-  const reviewsRef = collection(db, 'reviews');
-  await addDoc(reviewsRef, {
-    ...review,
-    createdAt: serverTimestamp(),
+  await api.submitReview({
+    job_id: review.jobId,
+    reviewee_id: review.tradespersonId,
+    rating: review.rating,
+    comment: review.comment || undefined,
   });
 }
 
