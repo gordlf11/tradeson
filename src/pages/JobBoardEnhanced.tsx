@@ -144,29 +144,6 @@ function toBoardJob(row: any): Job {
 
 // ── Local jobs (created in this session, stored in localStorage) ───────────
 
-function localJobToBoard(j: any): Job {
-  const category = j.category || 'General';
-  return {
-    id: j.id,
-    title: j.title,
-    category,
-    tradeId: category.toLowerCase().replace(/\s+/g, '-'),
-    severity: mapSeverity(j.severity),
-    distance: 0,
-    postedAt: 'just now',
-    expiresInHours: 24,
-    description: j.description || '',
-    room: j.room || '—',
-    jobNature: j.job_nature || '—',
-    photos: 0,
-    quotes: [],
-    verified: true,
-    clientName: 'You',
-    clientAddress: localStorage.getItem('locationStreet') || '—',
-    status: 'open',
-    likelihoodScore: 0,
-  };
-}
 
 // ── Fallback mock data (shown when API is unavailable) ─────────────────────
 
