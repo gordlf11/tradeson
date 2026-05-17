@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter } from 'lucide-react';
+import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter, RefreshCw } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -1040,7 +1040,7 @@ export default function JobBoardEnhanced() {
         const payload = (res as { jobs?: any[] }) || {};
         const rows = payload.jobs || [];
         const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
-        setJobs(rows.length > 0 ? [...localJobs, ...rows.map(toBoardJob)] : [...localJobs, ...FALLBACK_JOBS]);
+        setJobs([...localJobs, ...rows.map(toBoardJob)]);
       })
       .catch(() => {
         if (cancelled) return;
@@ -1083,7 +1083,7 @@ export default function JobBoardEnhanced() {
 
   const filteredJobs = jobs
     .filter(j => selectedCategory === 'all' || matchesTrade(j, selectedCategory))
-    .filter(j => j.distance <= distanceFilter)
+    .filter(j => j.distance === 0 || j.distance <= distanceFilter)
     .sort((a, b) => {
       if (sortBy === 'Likelihood Match') return b.likelihoodScore - a.likelihoodScore;
       if (sortBy === 'Newest') return a.postedAt.localeCompare(b.postedAt);
@@ -1166,6 +1166,18 @@ export default function JobBoardEnhanced() {
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', paddingBottom: '90px' }}>
         <div style={{ padding: 'var(--space-4)' }}>
 
+          {/* Tradesperson intro banner */}
+          {isTradeUser && (
+            <div style={{ marginBottom: 'var(--space-4)', background: 'var(--primary-light)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)' }}>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '600' }}>
+                Browse open jobs in your area
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--primary)', opacity: 0.8 }}>
+                Filter by trade, submit a quote, and get hired. New jobs are posted daily.
+              </p>
+            </div>
+          )}
+
           {/* Controls row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1174,6 +1186,15 @@ export default function JobBoardEnhanced() {
             </div>
             {isTradeUser && (
               <div style={{ display: 'flex', gap: 'var(--space-2)', position: 'relative' }}>
+                {/* Refresh */}
+                <button onClick={() => setRefetchKey(k => k + 1)} style={{
+                  padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
+                  background: 'var(--bg-surface)', color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                }}>
+                  <RefreshCw size={12} /> Refresh
+                </button>
                 {/* Sort */}
                 <button onClick={() => setShowSortMenu(v => !v)} style={{
                   padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
@@ -1206,29 +1227,31 @@ export default function JobBoardEnhanced() {
             )}
           </div>
 
-          {/* Distance slider — visible for both roles */}
-          <div style={{ marginBottom: 'var(--space-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Filter size={12} /> Distance
-              </span>
-              <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--primary)' }}>
-                {distanceFilter === 60 ? 'Any distance' : `Within ${distanceFilter} mi`}
-              </span>
+          {/* Distance slider — hidden for trade users until geo is wired; shown for homeowners */}
+          {!isTradeUser && (
+            <div style={{ marginBottom: 'var(--space-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Filter size={12} /> Distance
+                </span>
+                <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--primary)' }}>
+                  {distanceFilter === 60 ? 'Any distance' : `Within ${distanceFilter} mi`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={60}
+                value={distanceFilter}
+                onChange={e => setDistanceFilter(Number(e.target.value))}
+                style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                <span>1 mi</span>
+                <span>60 mi</span>
+              </div>
             </div>
-            <input
-              type="range"
-              min={1}
-              max={60}
-              value={distanceFilter}
-              onChange={e => setDistanceFilter(Number(e.target.value))}
-              style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-              <span>1 mi</span>
-              <span>60 mi</span>
-            </div>
-          </div>
+          )}
 
           {/* Category filter dropdown */}
           <div style={{ marginBottom: 'var(--space-4)', position: 'relative' }}>
@@ -1311,11 +1334,6 @@ export default function JobBoardEnhanced() {
                       <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                         <Badge variant={sb.variant} size="sm">{sb.label}</Badge>
                         {job.verified && <Badge variant="primary" size="sm">Verified</Badge>}
-                        {isTradeUser && (
-                          <Badge variant={job.likelihoodScore > 80 ? 'success' : 'neutral'} size="sm">
-                            {job.likelihoodScore}% match
-                          </Badge>
-                        )}
                       </div>
                       <span style={{ fontSize: '0.72rem', color: expiryColor(job.expiresInHours), display: 'flex', alignItems: 'center', gap: '3px', fontWeight: '600', flexShrink: 0 }}>
                         <Clock size={11} />
@@ -1326,9 +1344,11 @@ export default function JobBoardEnhanced() {
                     <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)' }}>{job.title}</h3>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <MapPin size={12} /> {job.distance} mi
-                      </span>
+                      {job.distance > 0 && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <MapPin size={12} /> {job.distance} mi
+                        </span>
+                      )}
                       <span>{job.category}</span>
                       {job.photos > 0 && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>

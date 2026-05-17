@@ -99,10 +99,14 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
   const getRoleDisplayName = (role: string) => {
     switch (role) {
       case 'homeowner': return 'Homeowner';
-      case 'property-manager': return 'Property Manager';
+      case 'property-manager':
+      case 'property_manager': return 'Property Manager';
       case 'realtor': return 'Realtor';
-      case 'licensed-trade': return 'Licensed Tradesperson';
-      case 'non-licensed-trade': return 'Service Provider';
+      case 'licensed-trade':
+      case 'licensed_tradesperson': return 'Licensed Tradesperson';
+      case 'non-licensed-trade':
+      case 'unlicensed_tradesperson': return 'Service Provider';
+      case 'admin': return 'Admin';
       default: return 'User';
     }
   };

@@ -74,6 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const profile = await api.getMe() as UserProfile;
           setUserProfile(profile);
+          // Keep localStorage in sync with the real DB role so TopNav/BottomNav
+          // always reflect the correct role even across re-logins.
+          if (profile?.role) {
+            localStorage.setItem('userRole', dbRoleToLocal(profile.role));
+          }
         } catch {
           // Firebase user exists but no PG row. Could be a real new user
           // who never finished signup, OR an account whose PG row got
@@ -252,6 +257,20 @@ const ROLE_LOCAL_TO_BACKEND: Record<string, string> = {
   'licensed-trade':      'licensed_tradesperson',
   'non-licensed-trade':  'unlicensed_tradesperson',
 };
+
+// Inverse map — converts the DB snake_case role back to the kebab-case value
+// that TopNav / BottomNav switch statements expect in localStorage.
+function dbRoleToLocal(dbRole: string): string {
+  const map: Record<string, string> = {
+    'homeowner':              'homeowner',
+    'property_manager':       'property-manager',
+    'realtor':                'realtor',
+    'licensed_tradesperson':  'licensed-trade',
+    'unlicensed_tradesperson':'non-licensed-trade',
+    'admin':                  'admin',
+  };
+  return map[dbRole] ?? dbRole;
+}
 
 /**
  * When a Firebase user exists but `GET /users/me` returns 404, this fills
