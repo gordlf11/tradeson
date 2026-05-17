@@ -92,6 +92,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
     let query: string;
     let params: any[];
 
+    // Param numbering is now sequential per branch (no unused slots). Earlier
+    // versions passed a placeholder null in $2 which Postgres rejected with
+    // 42P18 "could not determine data type of parameter $2".
     if (acceptedTradespersonId) {
       // Tradesperson dashboard — jobs assigned to this tradesperson (all statuses)
       query = `SELECT j.*,
@@ -100,10 +103,10 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
                FROM jobs j
                JOIN users u ON j.homeowner_user_id = u.id
                WHERE j.assigned_tradesperson_id = $1 AND j.deleted_at IS NULL
-                 ${status ? 'AND j.status = $5' : ''}
+                 ${status ? 'AND j.status = $4' : ''}
                ORDER BY j.created_at DESC
-               LIMIT $3 OFFSET $4`;
-      params = [acceptedTradespersonId, null, parseInt(limit as string), parseInt(offset as string)];
+               LIMIT $2 OFFSET $3`;
+      params = [acceptedTradespersonId, parseInt(limit as string), parseInt(offset as string)];
       if (status) params.push(status);
     } else if (customerId) {
       // Customer dashboard — jobs posted by a specific homeowner (for admin/realtor views)
@@ -112,23 +115,24 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
                  (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name
                FROM jobs j
                WHERE j.homeowner_user_id = $1 AND j.deleted_at IS NULL
-                 ${status ? 'AND j.status = $5' : ''}
+                 ${status ? 'AND j.status = $4' : ''}
                ORDER BY j.created_at DESC
-               LIMIT $3 OFFSET $4`;
-      params = [customerId, null, parseInt(limit as string), parseInt(offset as string)];
+               LIMIT $2 OFFSET $3`;
+      params = [customerId, parseInt(limit as string), parseInt(offset as string)];
       if (status) params.push(status);
     } else if (role === 'licensed_tradesperson' || role === 'unlicensed_tradesperson') {
-      // Tradespeople see open jobs (job board)
+      // Tradespeople see open jobs (job board). The caller's user id isn't
+      // used in the filter — open jobs are visible to all eligible TPs.
       query = `SELECT j.*, u.full_name as customer_name,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count
                FROM jobs j
                JOIN users u ON j.homeowner_user_id = u.id
                WHERE j.deleted_at IS NULL AND j.status = COALESCE($1, 'open')
-                 ${category ? 'AND j.category = $5' : ''}
-                 ${zip_code ? 'AND j.zip_code = $6' : ''}
+                 ${category ? 'AND j.category = $4' : ''}
+                 ${zip_code ? `AND j.zip_code = $${category ? 5 : 4}` : ''}
                ORDER BY j.created_at DESC
-               LIMIT $3 OFFSET $4`;
-      params = [status || 'open', id, parseInt(limit as string), parseInt(offset as string)];
+               LIMIT $2 OFFSET $3`;
+      params = [status || 'open', parseInt(limit as string), parseInt(offset as string)];
       if (category) params.push(category);
       if (zip_code) params.push(zip_code);
     } else {
@@ -138,10 +142,10 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
                  (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name
                FROM jobs j
                WHERE j.homeowner_user_id = $1 AND j.deleted_at IS NULL
-                 ${status ? 'AND j.status = $5' : ''}
+                 ${status ? 'AND j.status = $4' : ''}
                ORDER BY j.created_at DESC
-               LIMIT $3 OFFSET $4`;
-      params = [id, null, parseInt(limit as string), parseInt(offset as string)];
+               LIMIT $2 OFFSET $3`;
+      params = [id, parseInt(limit as string), parseInt(offset as string)];
       if (status) params.push(status);
     }
 

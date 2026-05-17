@@ -225,7 +225,7 @@ CREATE TABLE jobs (
   category                  TEXT NOT NULL,
   room                      TEXT NOT NULL,
   severity                  TEXT CHECK (severity IN ('routine','moderate','urgent')),
-  job_nature                TEXT CHECK (job_nature IN ('Cosmetic','Routine Maintenance','Repair / Fix','Renovation','Other')),
+  job_nature                TEXT CHECK (job_nature IN ('Repair','Maintenance','New Install','Replacement')),
   affected_part             TEXT,
   adjacent_impact           TEXT,
   housewide_impact          TEXT,
