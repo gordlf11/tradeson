@@ -269,10 +269,11 @@ export default function JobCreation() {
       landscaping_description: formData.landscapingDescription || undefined,
     };
 
-    let jobId = `local_${Date.now()}`;
+    let jobId: string;
     try {
       const job = await api.createJob(payload) as { id?: string };
-      jobId = job?.id ?? jobId;
+      if (!job?.id) throw new Error('No job ID returned from server');
+      jobId = job.id;
 
       if (formData.photos.length > 0 && firebaseUser) {
         await Promise.all(
@@ -284,24 +285,10 @@ export default function JobCreation() {
         );
       }
     } catch (err) {
-      // API unavailable — continue gracefully so the user always sees confirmation
-      console.warn('Job creation API error (non-blocking):', err instanceof Error ? err.message : err);
+      setSubmitError(err instanceof Error ? err.message : 'Failed to post job. Please try again.');
+      setIsSubmitting(false);
+      return;
     }
-
-    // Persist locally so the job appears on "Jobs I Posted" immediately
-    const localJob = {
-      id: jobId,
-      title: derivedTitle,
-      description: formData.description,
-      category: formData.tradeType,
-      room: formData.room,
-      severity: formData.severity,
-      status: 'open',
-      created_at: new Date().toISOString(),
-      quote_count: 0,
-    };
-    const existing = JSON.parse(localStorage.getItem('localJobs') || '[]');
-    localStorage.setItem('localJobs', JSON.stringify([localJob, ...existing]));
 
     setIsSubmitting(false);
     setStep(6 as any);
