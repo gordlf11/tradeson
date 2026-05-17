@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TradesOn — Backend Architecture (5 Paths)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', themeVariables: { fontFamily: 'ui-sans-serif, system-ui' } });
+</script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto; }
+  pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace; }
+  .lane-ui  { background: #eff6ff; border-color: #bfdbfe; }
+  .lane-api { background: #f5f3ff; border-color: #ddd6fe; }
+  .lane-bus { background: #fef3c7; border-color: #fde68a; }
+  .lane-db  { background: #ecfdf5; border-color: #bbf7d0; }
+  .lane-ext { background: #ffe4e6; border-color: #fecdd3; }
+  .json-key { color: #c026d3; }
+  .json-str { color: #16a34a; }
+  .json-num { color: #2563eb; }
+  .json-bool{ color: #ea580c; }
+  details[open] summary .arrow { transform: rotate(90deg); }
+  .arrow { transition: transform 0.15s ease; display: inline-block; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+    <h1 class="text-lg font-semibold tracking-tight">TradesOn — Backend Architecture</h1>
+    <p class="text-xs text-slate-500">Same 5 paths as the testing guide, viewed through the API + event bus + database layers.</p>
+  </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-12 gap-6">
+
+  <aside class="col-span-12 lg:col-span-3">
+    <div class="bg-white border border-slate-200 rounded-lg p-4 sticky top-24">
+      <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">Layers</div>
+      <ul class="text-xs space-y-1 mb-4">
+        <li><span class="inline-block w-3 h-3 rounded-sm align-middle lane-ui border"></span> Frontend UI</li>
+        <li><span class="inline-block w-3 h-3 rounded-sm align-middle lane-api border"></span> Backend API (Cloud Run)</li>
+        <li><span class="inline-block w-3 h-3 rounded-sm align-middle lane-bus border"></span> Event Bus (Pub/Sub + FCM)</li>
+        <li><span class="inline-block w-3 h-3 rounded-sm align-middle lane-db border"></span> Persistence (Postgres / Firestore)</li>
+        <li><span class="inline-block w-3 h-3 rounded-sm align-middle lane-ext border"></span> External (Stripe / FCM)</li>
+      </ul>
+      <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">Paths</div>
+      <ol class="text-sm space-y-1">
+        <li><a class="block px-2 py-1 rounded hover:bg-slate-100" href="#p1">1. Create Job</a></li>
+        <li><a class="block px-2 py-1 rounded hover:bg-slate-100" href="#p2">2. Select Job</a></li>
+        <li><a class="block px-2 py-1 rounded hover:bg-slate-100" href="#p3">3. Accept &amp; Schedule</a></li>
+        <li><a class="block px-2 py-1 rounded hover:bg-slate-100" href="#p4">4. Day-of Messaging</a></li>
+        <li><a class="block px-2 py-1 rounded hover:bg-slate-100" href="#p5">5. Payout on Completion</a></li>
+      </ol>
+      <div class="mt-6 text-xs text-slate-500 uppercase tracking-wide">Companion</div>
+      <a class="block mt-1 text-sm text-blue-600 hover:underline" href="./testing-guide.html">testing-guide.html →</a>
+    </div>
+  </aside>
+
+  <main class="col-span-12 lg:col-span-9 space-y-12">
+
+    <!-- Foundations -->
+    <section class="bg-white border border-slate-200 rounded-lg p-5">
+      <h2 class="text-lg font-semibold mb-3">Foundations</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div>
+          <h3 class="font-semibold text-slate-700 mb-1">Transport &amp; Auth</h3>
+          <ul class="list-disc list-inside space-y-1 text-slate-600">
+            <li>All UI ↔ API calls use <span class="font-medium">HTTPS / TLS 1.2+</span> (Cloud Run managed cert).</li>
+            <li>All API calls carry <code class="bg-slate-100 px-1 py-0.5 rounded text-xs">Authorization: Bearer &lt;firebase_id_token&gt;</code>, an RS256 JWT (1h lifetime, auto-refreshed).</li>
+            <li>Admin routes require an additional custom claim: <code class="bg-slate-100 px-1 py-0.5 rounded text-xs">admin: true</code>.</li>
+            <li>Real-time chat uses <span class="font-medium">Firestore WebSocket</span> channel via the Firebase JS SDK (<code>onSnapshot</code>).</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-semibold text-slate-700 mb-1">Idempotency &amp; Fallback</h3>
+          <ul class="list-disc list-inside space-y-1 text-slate-600">
+            <li>Mutating routes accept <code class="bg-slate-100 px-1 py-0.5 rounded text-xs">Idempotency-Key</code> (client-generated UUID v4) for safe retry within 24h.</li>
+            <li>Onboarding writes are wrapped in PG transactions — rollback on partial failure.</li>
+            <li>API call failures during onboarding are non-blocking: UI navigates forward, localStorage stores breadcrumbs, self-heal runs on next login.</li>
+            <li>Pub/Sub deliveries are at-least-once with 7-day retention + exponential backoff. Consumers (Cloud Function <code>fcm-fanout</code>) are written to be idempotent.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="font-semibold text-slate-700 mb-2 mt-5">Cross-cutting flow (every mutating request)</h3>
+      <div class="mermaid bg-slate-50 border border-slate-200 rounded p-3 text-xs">
+sequenceDiagram
+  autonumber
+  participant UI as Frontend UI
+  participant API as Cloud Run Express
+  participant PG as Cloud SQL Postgres
+  participant PS as Pub/Sub topic
+  participant FN as Cloud Function fcm-fanout
+  participant FCM as Firebase Cloud Messaging
+  UI->>API: HTTPS request, Bearer JWT, Idempotency-Key
+  API->>API: requireAuth verifies RS256 sig and freshness
+  API->>PG: BEGIN, INSERT or UPDATE, COMMIT
+  API-->>UI: 2xx response, typically under 100ms
+  API-)PS: publish event payload, fire-and-forget
+  PS->>FN: at-least-once delivery
+  FN->>FN: Firestore lookup users uid fcmToken
+  FN->>FCM: admin.messaging.send payload
+  FCM-->>UI: push notification on recipient device
+      </div>
+    </section>
+
+    <!-- ====================================================== Path 1 -->
+    <section id="p1" class="bg-white border border-slate-200 rounded-lg p-5 scroll-mt-24">
+      <h2 class="text-lg font-semibold mb-2">1 — Create a Job</h2>
+      <p class="text-sm text-slate-600 mb-4">Homeowner posts a repair request. Photos go directly to Firebase Storage; metadata + photo URLs go to Postgres via the REST API.</p>
+
+      <div class="mermaid bg-slate-50 border border-slate-200 rounded p-3 text-xs">
+flowchart LR
+  classDef ui fill:#eff6ff,stroke:#bfdbfe,color:#1e3a8a;
+  classDef api fill:#f5f3ff,stroke:#ddd6fe,color:#5b21b6;
+  classDef bus fill:#fef3c7,stroke:#fde68a,color:#92400e;
+  classDef db fill:#ecfdf5,stroke:#bbf7d0,color:#065f46;
+  classDef ext fill:#ffe4e6,stroke:#fecdd3,color:#9f1239;
+  HOUI["HO Browser — JobCreation.tsx"]:::ui
+  FBStor["Firebase Storage"]:::db
+  API["POST /api/v1/jobs"]:::api
+  PG[("jobs + job_photos + audit_log")]:::db
+  PS{{Pub/Sub: tradeson-events}}:::bus
+  FN[fcm-fanout Cloud Function]:::bus
+  FCM[FCM service]:::ext
+  TPUI[TP devices]:::ui
+  HOUI -- "1. upload photos" --> FBStor
+  HOUI -- "2. POST jobs payload" --> API
+  API -- "3. INSERT" --> PG
+  API -. "4. publish job.created" .-> PS
+  PS --> FN
+  FN -- "5. Firestore lookup token" --> FN
+  FN -- "6. send push" --> FCM
+  FCM --> TPUI
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Command — <code>create_job_command</code></summary>
+          <pre class="mt-2"><span class="json-key">POST</span> /api/v1/jobs
+<span class="json-key">Idempotency-Key</span>: 8c2e3f1a-b8d4-4e22-9c8a-...
+
+<span class="json-key">{</span>
+  <span class="json-key">"title"</span>:          <span class="json-str">"Kitchen sink leak under cabinet"</span>,
+  <span class="json-key">"category"</span>:       <span class="json-str">"plumbing"</span>,
+  <span class="json-key">"severity"</span>:       <span class="json-str">"medium"</span>,
+  <span class="json-key">"intake_answers"</span>: <span class="json-key">{ ... }</span>,
+  <span class="json-key">"photo_urls"</span>:     [<span class="json-str">"https://firebasestorage..."</span>]
+<span class="json-key">}</span></pre>
+        </details>
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Event — <code>job.created</code></summary>
+          <pre class="mt-2"><span class="json-key">topic</span>: tradeson-events
+<span class="json-key">attributes</span>: <span class="json-key">{</span> event: <span class="json-str">"job.created"</span> <span class="json-key">}</span>
+
+<span class="json-key">{</span>
+  <span class="json-key">"event"</span>:           <span class="json-str">"job.created"</span>,
+  <span class="json-key">"targetUserId"</span>:    <span class="json-str">"usr_homeowner_test"</span>,
+  <span class="json-key">"title"</span>:           <span class="json-str">"Your job is live"</span>,
+  <span class="json-key">"body"</span>:            <span class="json-str">"Looking for a plumber for: Kitchen sink leak"</span>,
+  <span class="json-key">"data"</span>: <span class="json-key">{</span> <span class="json-key">"jobId"</span>: <span class="json-str">"job_01H..."</span>, <span class="json-key">"category"</span>: <span class="json-str">"plumbing"</span> <span class="json-key">}</span>,
+  <span class="json-key">"_meta"</span>: <span class="json-key">{</span>
+    <span class="json-key">"correlation_id"</span>: <span class="json-str">"req_01H..."</span>,
+    <span class="json-key">"timestamp"</span>:      <span class="json-str">"2026-05-17T18:42:11Z"</span>,
+    <span class="json-key">"idempotency_key"</span>: <span class="json-str">"8c2e3f1a-..."</span>
+  <span class="json-key">}</span>
+<span class="json-key">}</span></pre>
+        </details>
+      </div>
+
+      <div class="mt-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">Failure paths:</span>
+        <ul class="list-disc list-inside ml-2 space-y-0.5">
+          <li>503 from API (DB unreachable) → UI still navigates to /job-board (non-blocking pattern). User re-tries on next session.</li>
+          <li>Pub/Sub publish failure → logged + swallowed. The job exists in PG; the missing push notification can be backfilled via a delta job (not currently scheduled — acceptable at current scale).</li>
+          <li>FCM token-not-registered → fan-out function cleans up the stale token in Firestore.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================================================== Path 2 -->
+    <section id="p2" class="bg-white border border-slate-200 rounded-lg p-5 scroll-mt-24">
+      <h2 class="text-lg font-semibold mb-2">2 — Select a Job &amp; Submit a Quote</h2>
+      <p class="text-sm text-slate-600 mb-4">Tradesperson sees the job board (auto-filtered by trade + service radius), opens a job, and submits a quote with their tool inventory + availability.</p>
+
+      <div class="mermaid bg-slate-50 border border-slate-200 rounded p-3 text-xs">
+flowchart LR
+  classDef ui fill:#eff6ff,stroke:#bfdbfe,color:#1e3a8a;
+  classDef api fill:#f5f3ff,stroke:#ddd6fe,color:#5b21b6;
+  classDef bus fill:#fef3c7,stroke:#fde68a,color:#92400e;
+  classDef db fill:#ecfdf5,stroke:#bbf7d0,color:#065f46;
+  classDef ext fill:#ffe4e6,stroke:#fecdd3,color:#9f1239;
+  TPUI["TP Browser — JobBoardEnhanced.tsx"]:::ui
+  L["GET /api/v1/jobs status=open"]:::api
+  S["POST /api/v1/quotes/jobId/quotes"]:::api
+  PG[("quotes + audit_log + match_events")]:::db
+  PS{{Pub/Sub: tradeson-events}}:::bus
+  FN[fcm-fanout]:::bus
+  FCM[FCM]:::ext
+  HOUI[HO devices]:::ui
+  TPUI --> L --> PG
+  L -. "match_events 'shown' per visible job" .-> PG
+  TPUI -- "submit quote" --> S
+  S --> PG
+  S -. "publish quote.submitted" .-> PS
+  PS --> FN --> FCM --> HOUI
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Command — <code>submit_quote_command</code></summary>
+          <pre class="mt-2"><span class="json-key">{</span>
+  <span class="json-key">"price"</span>:                <span class="json-num">250</span>,
+  <span class="json-key">"estimated_hours"</span>:      <span class="json-num">2</span>,
+  <span class="json-key">"hourly_overage_rate"</span>:  <span class="json-num">75</span>,
+  <span class="json-key">"tool_inventory"</span>: [
+    <span class="json-key">{</span> <span class="json-key">"name"</span>: <span class="json-str">"Pipe wrench"</span>, <span class="json-key">"provider_has"</span>: <span class="json-bool">true</span> <span class="json-key">}</span>
+  ],
+  <span class="json-key">"availability"</span>: [
+    <span class="json-key">{</span> <span class="json-key">"date"</span>: <span class="json-str">"2026-05-18"</span>, <span class="json-key">"start"</span>: <span class="json-str">"09:00"</span>, <span class="json-key">"end"</span>: <span class="json-str">"12:00"</span> <span class="json-key">}</span>
+  ]
+<span class="json-key">}</span></pre>
+        </details>
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Event — <code>quote.submitted</code></summary>
+          <pre class="mt-2"><span class="json-key">{</span>
+  <span class="json-key">"event"</span>:        <span class="json-str">"quote.submitted"</span>,
+  <span class="json-key">"targetUserId"</span>: <span class="json-str">"usr_homeowner_test"</span>,
+  <span class="json-key">"title"</span>:        <span class="json-str">"New Quote Received"</span>,
+  <span class="json-key">"body"</span>:         <span class="json-str">"Carlos R. submitted a quote for $250"</span>,
+  <span class="json-key">"data"</span>: <span class="json-key">{</span>
+    <span class="json-key">"jobId"</span>:   <span class="json-str">"job_01H..."</span>,
+    <span class="json-key">"quoteId"</span>: <span class="json-str">"qt_01H..."</span>,
+    <span class="json-key">"type"</span>:    <span class="json-str">"quote_received"</span>
+  <span class="json-key">}</span>,
+  <span class="json-key">"_meta"</span>: <span class="json-key">{ ... }</span>
+<span class="json-key">}</span></pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ====================================================== Path 3 -->
+    <section id="p3" class="bg-white border border-slate-200 rounded-lg p-5 scroll-mt-24">
+      <h2 class="text-lg font-semibold mb-2">3 — Accept Quote &amp; Schedule</h2>
+      <p class="text-sm text-slate-600 mb-4">Homeowner accepts → Stripe pre-auth hold on customer card → both parties land on /scheduling → slot locked.</p>
+
+      <div class="mermaid bg-slate-50 border border-slate-200 rounded p-3 text-xs">
+sequenceDiagram
+  autonumber
+  participant HO as HO Browser
+  participant API as Cloud Run API
+  participant PG as Postgres
+  participant ST as Stripe
+  participant PS as Pub/Sub
+  participant FN as fcm-fanout
+  participant TP as TP device
+  HO->>API: POST quotes accept
+  API->>PG: UPDATE quotes accepted, siblings rejected, UPDATE jobs assigned
+  API-->>HO: 200
+  HO->>API: POST stripe authorize-job with quote_id
+  API->>ST: paymentIntents.create manual capture
+  ST-->>API: pi_xxx requires_capture
+  API->>PG: INSERT INTO payments status pending pi_id
+  API-->>HO: 200 payment_intent_id
+  API-)PS: publish quote.accepted
+  PS->>FN: deliver event
+  FN->>TP: push "Bid Accepted!"
+  HO->>API: POST appointments with job_id, quote_id, slots
+  API->>PG: INSERT INTO appointments
+  API-->>HO: 201 appt_id
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Command — <code>accept_quote_command</code></summary>
+          <pre class="mt-2"><span class="json-key">POST</span> /api/v1/quotes/qt_01H.../accept
+(no body)
+
+<span class="json-key">// Server then:</span>
+INSERT INTO payments (
+  job_id, payer_user_id, amount,
+  stripe_payment_intent_id, status
+) VALUES (
+  'job_01H...', 'usr_homeowner', 25000,
+  'pi_3PRA2K...', 'pending'
+);</pre>
+        </details>
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Event — <code>quote.accepted</code></summary>
+          <pre class="mt-2"><span class="json-key">{</span>
+  <span class="json-key">"event"</span>:        <span class="json-str">"quote.accepted"</span>,
+  <span class="json-key">"targetUserId"</span>: <span class="json-str">"usr_tradesperson_test"</span>,
+  <span class="json-key">"title"</span>:        <span class="json-str">"Bid Accepted!"</span>,
+  <span class="json-key">"data"</span>: <span class="json-key">{</span>
+    <span class="json-key">"jobId"</span>:   <span class="json-str">"job_01H..."</span>,
+    <span class="json-key">"quoteId"</span>: <span class="json-str">"qt_01H..."</span>,
+    <span class="json-key">"type"</span>:    <span class="json-str">"quote_accepted"</span>
+  <span class="json-key">}</span>
+<span class="json-key">}</span></pre>
+        </details>
+      </div>
+
+      <div class="mt-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">Schema boundary:</span> The HO's accept action triggers a Stripe API call from our server. The pre-auth hold ID (<code>pi_xxx</code>) is the bridge — it's the only piece of state shared between our DB and Stripe's vault. We never see card numbers; Stripe never sees user PII beyond a customer ID.</div>
+    </section>
+
+    <!-- ====================================================== Path 4 -->
+    <section id="p4" class="bg-white border border-slate-200 rounded-lg p-5 scroll-mt-24">
+      <h2 class="text-lg font-semibold mb-2">4 — Day-of Messaging &amp; Job Start</h2>
+      <p class="text-sm text-slate-600 mb-4">Two different real-time channels: chat uses Firestore <code>onSnapshot</code> (WebSocket-backed); status changes go through REST + Pub/Sub → FCM.</p>
+
+      <div class="mermaid bg-slate-50 border border-slate-200 rounded p-3 text-xs">
+flowchart LR
+  classDef ui fill:#eff6ff,stroke:#bfdbfe,color:#1e3a8a;
+  classDef api fill:#f5f3ff,stroke:#ddd6fe,color:#5b21b6;
+  classDef bus fill:#fef3c7,stroke:#fde68a,color:#92400e;
+  classDef db fill:#ecfdf5,stroke:#bbf7d0,color:#065f46;
+  classDef ext fill:#ffe4e6,stroke:#fecdd3,color:#9f1239;
+
+  TP["TP browser"]:::ui
+  HO["HO browser"]:::ui
+  FS[("Firestore — threads + messages")]:::db
+  API["PATCH /api/v1/jobs/id/status"]:::api
+  PG[("jobs + audit_log")]:::db
+  PS{{Pub/Sub tradeson-events}}:::bus
+  FN[fcm-fanout]:::bus
+  FCM[FCM]:::ext
+
+  TP -- "addDoc()" --> FS
+  FS -. "onSnapshot WebSocket" .-> HO
+  TP -- "Start Job" --> API --> PG
+  API -. "publish job.status_changed" .-> PS --> FN --> FCM --> HO
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Direct Firestore write (chat message)</summary>
+          <pre class="mt-2"><span class="json-key">// Client SDK:</span>
+addDoc(collection(db, <span class="json-str">'threads'</span>, threadId, <span class="json-str">'messages'</span>), <span class="json-key">{</span>
+  senderId:   currentUser.uid,
+  senderName: profile.full_name,
+  text:       <span class="json-str">'On my way — ETA 9:25'</span>,
+  createdAt:  serverTimestamp(),
+  read:       <span class="json-bool">false</span>
+<span class="json-key">}</span>);
+
+<span class="json-key">// Security rule:</span>
+match /threads/{threadId}/messages/{msgId} <span class="json-key">{</span>
+  allow read, create: if request.auth.uid in
+    get(/databases/$(database)/documents/threads/$(threadId)).data.participants;
+<span class="json-key">}</span></pre>
+        </details>
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Event — <code>job.status_changed</code> (in_progress)</summary>
+          <pre class="mt-2"><span class="json-key">{</span>
+  <span class="json-key">"event"</span>:        <span class="json-str">"job.status_changed"</span>,
+  <span class="json-key">"targetUserId"</span>: <span class="json-str">"usr_homeowner_test"</span>,
+  <span class="json-key">"title"</span>:        <span class="json-str">"Job started"</span>,
+  <span class="json-key">"body"</span>:         <span class="json-str">"Carlos has started your kitchen sink leak repair"</span>,
+  <span class="json-key">"data"</span>: <span class="json-key">{</span>
+    <span class="json-key">"jobId"</span>: <span class="json-str">"job_01H..."</span>,
+    <span class="json-key">"from"</span>:  <span class="json-str">"scheduled"</span>,
+    <span class="json-key">"to"</span>:    <span class="json-str">"in_progress"</span>
+  <span class="json-key">}</span>,
+  <span class="json-key">"_meta"</span>: <span class="json-key">{</span>
+    <span class="json-key">"correlation_id"</span>: <span class="json-str">"req_01H..."</span>,
+    <span class="json-key">"timestamp"</span>:      <span class="json-str">"2026-05-18T09:32:01Z"</span>
+  <span class="json-key">}</span>
+<span class="json-key">}</span></pre>
+        </details>
+      </div>
+
+      <div class="mt-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">Why two channels?</span> Chat needs sub-second bidirectional updates → Firestore listener. Status changes need durability + a single source of truth + cross-stream effects (audit log, billing) → REST + PG + Pub/Sub.</div>
+    </section>
+
+    <!-- ====================================================== Path 5 -->
+    <section id="p5" class="bg-white border border-slate-200 rounded-lg p-5 scroll-mt-24">
+      <h2 class="text-lg font-semibold mb-2">5 — Payout on Completion</h2>
+      <p class="text-sm text-slate-600 mb-4">The hardest path. TP marks done → 3-hour HO confirmation window → Stripe capture + Connect transfer minus 10% platform fee. Cloud Scheduler auto-releases stalled holds.</p>
+
+      <div class="mermaid bg-slate-50 border border-slate-200 rounded p-3 text-xs">
+sequenceDiagram
+  autonumber
+  participant TP as TP Browser
+  participant HO as HO Browser
+  participant API as Cloud Run API
+  participant PG as Postgres
+  participant ST as Stripe
+  participant CS as Cloud Scheduler
+  participant PS as Pub/Sub
+  participant FN as fcm-fanout
+  TP->>API: PATCH jobs status pending_confirmation
+  API->>PG: UPDATE jobs status, auto_release_at now plus 3h
+  API-)PS: publish job.status_changed pending_confirmation
+  PS->>FN: deliver event
+  FN->>HO: push "Confirm and release payment"
+  alt HO confirms within 3h
+    HO->>API: POST jobs confirm-complete
+    API->>ST: paymentIntents.capture pi_xxx
+    ST-->>API: charge succeeded
+    API->>ST: transfers.create amount times 0.90 to tp_stripe_acct
+    ST-->>API: transfer created
+    API->>PG: UPDATE jobs status completed, UPDATE payments status completed
+    API-)PS: publish job.status_changed completed
+    PS->>FN: deliver event
+    FN->>TP: push "You've been paid!"
+  else HO inactive after 3h
+    CS->>API: POST internal release-expired-holds every 30 min
+    API->>PG: SELECT jobs WHERE pending_confirmation AND expired
+    loop each expired job
+      API->>ST: capture and transfer
+      API->>PG: UPDATE jobs and payments
+    end
+  end
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Command — <code>confirm_complete_command</code></summary>
+          <pre class="mt-2"><span class="json-key">POST</span> /api/v1/jobs/job_01H.../confirm-complete
+(no body — server resolves payment intent from PG)
+
+<span class="json-key">// Stripe calls (server-side):</span>
+stripe.paymentIntents.capture(<span class="json-str">'pi_3PRA2K...'</span>);
+stripe.transfers.create(<span class="json-key">{</span>
+  amount:      <span class="json-num">22500</span>,      <span class="json-key">// 90% of 25000</span>
+  currency:    <span class="json-str">'usd'</span>,
+  destination: <span class="json-str">'acct_tradesperson_stripe_id'</span>,
+  source_transaction: <span class="json-str">'ch_xxx'</span>,
+  metadata: <span class="json-key">{</span> job_id, quote_id <span class="json-key">}</span>
+<span class="json-key">}</span>);</pre>
+        </details>
+        <details class="border border-slate-200 rounded p-3" open>
+          <summary class="cursor-pointer font-medium text-slate-700"><span class="arrow">▸</span> Events emitted</summary>
+          <pre class="mt-2"><span class="json-key">// 1. To tradesperson:</span>
+<span class="json-key">{</span>
+  <span class="json-key">"event"</span>:        <span class="json-str">"job.status_changed"</span>,
+  <span class="json-key">"targetUserId"</span>: <span class="json-str">"usr_tradesperson_test"</span>,
+  <span class="json-key">"title"</span>:        <span class="json-str">"You've been paid!"</span>,
+  <span class="json-key">"data"</span>: <span class="json-key">{</span>
+    <span class="json-key">"jobId"</span>:      <span class="json-str">"job_01H..."</span>,
+    <span class="json-key">"net_payout"</span>: <span class="json-num">22500</span>,
+    <span class="json-key">"from"</span>:       <span class="json-str">"pending_confirmation"</span>,
+    <span class="json-key">"to"</span>:         <span class="json-str">"completed"</span>
+  <span class="json-key">}</span>
+<span class="json-key">}</span>
+
+<span class="json-key">// 2. Inbound from Stripe later:</span>
+<span class="json-key">POST</span> /api/v1/stripe/webhooks (signature-verified)
+<span class="json-key">{</span>
+  <span class="json-key">"type"</span>: <span class="json-str">"transfer.created"</span>,
+  <span class="json-key">"data"</span>: <span class="json-key">{</span> <span class="json-key">"object"</span>: <span class="json-key">{</span> <span class="json-key">"id"</span>: <span class="json-str">"tr_..."</span> <span class="json-key">}</span> <span class="json-key">}</span>
+<span class="json-key">}</span></pre>
+        </details>
+      </div>
+
+      <div class="mt-3 text-xs text-slate-500 space-y-1">
+        <div><span class="font-semibold text-slate-700">Schema boundary:</span> Money never lives in our DB. Authoritative balance state is in Stripe; we store only Stripe object IDs (<code>pi_</code>, <code>tr_</code>, <code>acct_</code>) + denormalized amounts for UX display.</div>
+        <div><span class="font-semibold text-slate-700">Failure path:</span> If Stripe capture fails (card declined post-auth), the API returns 402 to the HO confirm call; job stays in <code>pending_confirmation</code>; admin gets a flagged_account row. The auto-release cron will retry on its next pass (every 30 min).</div>
+        <div><span class="font-semibold text-slate-700">Authorization on the cron:</span> <code>X-Internal-Secret</code> header matches a Cloud Run env var; the route 401s otherwise. Cloud Scheduler is the only caller in production.</div>
+      </div>
+    </section>
+
+    <!-- Summary -->
+    <section class="bg-white border border-slate-200 rounded-lg p-5">
+      <h2 class="text-lg font-semibold mb-3">All commands &amp; events at a glance</h2>
+      <table class="text-sm w-full">
+        <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
+          <tr><th class="text-left py-2">Path</th><th class="text-left">Command (HTTP)</th><th class="text-left">PG write</th><th class="text-left">Pub/Sub event</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr><td class="py-2">1</td><td><code class="bg-slate-100 px-1 rounded text-xs">POST /jobs</code></td><td>jobs + audit_log</td><td><code class="bg-amber-50 px-1 rounded text-xs">job.created</code></td></tr>
+          <tr><td class="py-2">2</td><td><code class="bg-slate-100 px-1 rounded text-xs">POST /quotes/:id/quotes</code></td><td>quotes + audit_log</td><td><code class="bg-amber-50 px-1 rounded text-xs">quote.submitted</code></td></tr>
+          <tr><td class="py-2">3</td><td><code class="bg-slate-100 px-1 rounded text-xs">POST /quotes/:id/accept</code><br><code class="bg-slate-100 px-1 rounded text-xs">POST /stripe/authorize-job</code><br><code class="bg-slate-100 px-1 rounded text-xs">POST /appointments</code></td><td>quotes, jobs, payments, appointments</td><td><code class="bg-amber-50 px-1 rounded text-xs">quote.accepted</code></td></tr>
+          <tr><td class="py-2">4</td><td>Firestore write (chat)<br><code class="bg-slate-100 px-1 rounded text-xs">PATCH /jobs/:id/status</code></td><td>jobs + audit_log</td><td><code class="bg-amber-50 px-1 rounded text-xs">job.status_changed</code></td></tr>
+          <tr><td class="py-2">5</td><td><code class="bg-slate-100 px-1 rounded text-xs">PATCH /jobs/:id/status</code><br><code class="bg-slate-100 px-1 rounded text-xs">POST /jobs/:id/confirm-complete</code><br><code class="bg-slate-100 px-1 rounded text-xs">POST /internal/release-expired-holds</code></td><td>jobs + payments + tradesperson_profiles</td><td><code class="bg-amber-50 px-1 rounded text-xs">job.status_changed</code> × 2</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>
