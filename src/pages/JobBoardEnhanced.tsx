@@ -1008,44 +1008,32 @@ export default function JobBoardEnhanced() {
     || userRole === 'licensed_tradesperson' || userRole === 'non_licensed_tradesperson';
 
   useEffect(() => {
-    // Demo mode: skip API call and profile check — show mock data immediately
+    // Demo mode only: show mock data
     if (localStorage.getItem('demoMode') === 'true') {
-      const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
-      setJobs([...localJobs, ...FALLBACK_JOBS]);
+      setJobs(FALLBACK_JOBS);
       setJobsLoading(false);
       return;
     }
 
-    // No userProfile yet (auth still loading, or API returned null because
-    // it's offline). Show local jobs + fallback rather than spinning forever.
-    // Effect re-runs once userProfile loads; the API path replaces these.
-    if (!userProfile) {
-      const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
-      setJobs([...localJobs, ...FALLBACK_JOBS]);
-      setJobsLoading(false);
-      return;
-    }
+    // Wait for auth to resolve before hitting the API
+    if (!userProfile) return;
 
     let cancelled = false;
 
     setJobsLoading(true);
     setJobsError(null);
 
-    // The API auto-filters by the signed-in user's role:
-    //   tradespeople → open jobs on the board
-    //   homeowners / property managers / realtors → jobs they've posted
     api.listJobs()
       .then((res) => {
         if (cancelled) return;
         const payload = (res as { jobs?: any[] }) || {};
         const rows = payload.jobs || [];
-        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
-        setJobs([...localJobs, ...rows.map(toBoardJob)]);
+        setJobs(rows.map(toBoardJob));
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
-        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToBoard);
-        setJobs([...localJobs, ...FALLBACK_JOBS]);
+        setJobsError(err?.message || 'Failed to load jobs');
+        setJobs([]);
       })
       .finally(() => {
         if (!cancelled) setJobsLoading(false);
