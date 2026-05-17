@@ -962,7 +962,7 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
 // ── Main Job Board ─────────────────────────────────────────────────────────
 
 export default function JobBoardEnhanced() {
-  const { userProfile } = useAuth();
+  const { userProfile, loading: authLoading } = useAuth();
   const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
@@ -992,8 +992,15 @@ export default function JobBoardEnhanced() {
       return;
     }
 
-    // Wait for auth to resolve before hitting the API
-    if (!userProfile) return;
+    // Still waiting for auth to resolve
+    if (authLoading) return;
+
+    // Auth resolved but no PG profile — user row missing in DB
+    if (!userProfile) {
+      setJobsLoading(false);
+      setJobsError('Your account profile could not be loaded. Please sign out and sign back in.');
+      return;
+    }
 
     let cancelled = false;
 
@@ -1017,7 +1024,7 @@ export default function JobBoardEnhanced() {
       });
 
     return () => { cancelled = true; };
-  }, [userProfile, refetchKey]);
+  }, [userProfile, authLoading, refetchKey]);
 
   // Auto-open comparison modal once when navigated from the Dashboard "Compare Quotes" button
   useEffect(() => {
