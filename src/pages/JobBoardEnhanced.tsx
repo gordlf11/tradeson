@@ -1227,31 +1227,29 @@ export default function JobBoardEnhanced() {
             )}
           </div>
 
-          {/* Distance slider — hidden for trade users until geo is wired; shown for homeowners */}
-          {!isTradeUser && (
-            <div style={{ marginBottom: 'var(--space-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Filter size={12} /> Distance
-                </span>
-                <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--primary)' }}>
-                  {distanceFilter === 60 ? 'Any distance' : `Within ${distanceFilter} mi`}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={60}
-                value={distanceFilter}
-                onChange={e => setDistanceFilter(Number(e.target.value))}
-                style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                <span>1 mi</span>
-                <span>60 mi</span>
-              </div>
+          {/* Distance slider — visible for both roles */}
+          <div style={{ marginBottom: 'var(--space-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Filter size={12} /> Distance
+              </span>
+              <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--primary)' }}>
+                {distanceFilter === 60 ? 'Any distance' : `Within ${distanceFilter} mi`}
+              </span>
             </div>
-          )}
+            <input
+              type="range"
+              min={1}
+              max={60}
+              value={distanceFilter}
+              onChange={e => setDistanceFilter(Number(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              <span>1 mi</span>
+              <span>60 mi</span>
+            </div>
+          </div>
 
           {/* Category filter dropdown */}
           <div style={{ marginBottom: 'var(--space-4)', position: 'relative' }}>
