@@ -50,6 +50,14 @@ interface ApiJobRow {
 }
 
 // Map Postgres job status → the dashboard's ActiveJob status variants.
+function timeUntil(iso: string): string {
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return 'Expired';
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 function mapStatus(pgStatus: string): ActiveJob['status'] {
   switch (pgStatus) {
     case 'in_progress': return 'in-progress';
@@ -115,7 +123,7 @@ const FALLBACK_ACTIVE_JOBS: ActiveJob[] = [
   },
 ];
 
-const mockPendingQuotes: PendingQuote[] = [
+const FALLBACK_PENDING_QUOTES: PendingQuote[] = [
   { id: 'q1', jobTitle: 'Water Heater Replacement', client: 'Tom Chen', quotedPrice: 850, submittedAt: '3 hrs ago', expiresIn: '21h 14m', bidsTotal: 3 },
   { id: 'q2', jobTitle: 'Basement Flood Cleanup', client: 'Linda Ross', quotedPrice: 1200, submittedAt: '8 hrs ago', expiresIn: '40h 02m', bidsTotal: 2 },
 ];
@@ -153,12 +161,16 @@ export default function TradespersonDashboard() {
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(true);
 
   useEffect(() => {
-    // Demo mode: skip API call, show mock data immediately — don't wait for userProfile
+    // Demo mode: show mock data only
     if (localStorage.getItem('demoMode') === 'true') {
       setActiveJobs(FALLBACK_ACTIVE_JOBS);
+      setPendingQuotes(FALLBACK_PENDING_QUOTES);
       setJobsLoading(false);
+      setQuotesLoading(false);
       return;
     }
 
@@ -166,25 +178,40 @@ export default function TradespersonDashboard() {
 
     let cancelled = false;
 
+    // Fetch assigned (active) jobs
     setJobsLoading(true);
-    setJobsError(null);
-
-    api.listJobs()
+    api.listJobs({ acceptedTradespersonId: userProfile.id })
       .then((res) => {
         if (cancelled) return;
-        const payload = (res as { jobs?: ApiJobRow[] }) || {};
-        const rows = payload.jobs || [];
-        const mine = rows.filter((r) => r.assigned_tradesperson_id === userProfile.id);
-        setActiveJobs(mine.length > 0 ? mine.map(toActiveJob) : FALLBACK_ACTIVE_JOBS);
+        const rows = (res as { jobs?: ApiJobRow[] }).jobs || [];
+        setActiveJobs(rows.map(toActiveJob));
       })
       .catch(() => {
-        if (cancelled) return;
-        // API unavailable — show demo data so the dashboard is always populated
-        setActiveJobs(FALLBACK_ACTIVE_JOBS);
+        if (!cancelled) setJobsError('Could not load active jobs');
       })
-      .finally(() => {
-        if (!cancelled) setJobsLoading(false);
-      });
+      .finally(() => { if (!cancelled) setJobsLoading(false); });
+
+    // Fetch pending quotes submitted by this tradesperson
+    setQuotesLoading(true);
+    api.listMyQuotes()
+      .then((res) => {
+        if (cancelled) return;
+        const rows = (res as { quotes?: any[] }).quotes || [];
+        setPendingQuotes(rows
+          .filter((q) => q.status === 'pending')
+          .map((q) => ({
+            id: q.id,
+            jobTitle: q.job_title,
+            client: q.client_name,
+            quotedPrice: parseFloat(q.price),
+            submittedAt: new Date(q.created_at).toLocaleDateString(),
+            expiresIn: q.expires_at ? timeUntil(q.expires_at) : '—',
+            bidsTotal: parseInt(q.bids_total) || 1,
+          }))
+        );
+      })
+      .catch(() => { /* non-fatal — quotes section stays empty */ })
+      .finally(() => { if (!cancelled) setQuotesLoading(false); });
 
     return () => { cancelled = true; };
   }, [userProfile]);
@@ -364,14 +391,18 @@ export default function TradespersonDashboard() {
           {/* Pending Quotes */}
           <div>
             {sectionHeader('Pending Quotes', 'Awaiting customer selection')}
-            {mockPendingQuotes.length === 0 ? (
+            {quotesLoading ? (
+              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading quotes…</p>
+              </Card>
+            ) : pendingQuotes.length === 0 ? (
               <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
                 <Briefcase size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No pending quotes. Browse the job board to submit new quotes.</p>
               </Card>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {mockPendingQuotes.map(q => (
+                {pendingQuotes.map(q => (
                   <Card key={q.id} style={{ padding: 'var(--space-4)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
                       <div>

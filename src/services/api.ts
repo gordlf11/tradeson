@@ -79,6 +79,8 @@ export const api = {
   acceptQuote: (quoteId: string) =>
     request(`/api/v1/quotes/${quoteId}/accept`, { method: 'POST' }),
 
+  listMyQuotes: () => request('/api/v1/quotes/mine'),
+
   // Stripe — save card for future job payments (SetupIntent)
   createSetupIntent: () =>
     request('/api/v1/stripe/create-setup-intent', { method: 'POST' }),

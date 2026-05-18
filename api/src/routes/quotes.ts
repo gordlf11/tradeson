@@ -7,6 +7,35 @@ import { messaging } from '../services/firebase';
 
 const router = Router();
 
+// GET /api/v1/quotes/mine — Tradesperson's own submitted quotes with job context
+router.get('/mine', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const { id, role } = req.user!;
+  if (role !== 'licensed_tradesperson' && role !== 'unlicensed_tradesperson') {
+    res.status(403).json({ error: 'Only tradespeople can access this endpoint' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT q.id, q.job_id, q.price, q.estimated_hours, q.message, q.status,
+              q.created_at, q.expires_at,
+              j.title AS job_title, j.category,
+              u.full_name AS client_name,
+              (SELECT COUNT(*) FROM quotes q2 WHERE q2.job_id = q.job_id) AS bids_total
+       FROM quotes q
+       JOIN jobs j ON j.id = q.job_id
+       JOIN users u ON u.id = j.homeowner_user_id
+       WHERE q.tradesperson_user_id = $1
+       ORDER BY q.created_at DESC`,
+      [id]
+    );
+    res.json({ quotes: result.rows });
+  } catch (err) {
+    console.error('List my quotes error:', err);
+    res.status(500).json({ error: 'Failed to load quotes' });
+  }
+});
+
 // POST /api/v1/jobs/:jobId/quotes — Submit a quote
 router.post('/:jobId/quotes', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { id, role } = req.user!;
