@@ -22,6 +22,8 @@ interface ActiveJob {
   status: 'confirmed' | 'en-route' | 'in-progress' | 'completed';
   scheduledDate: string;
   estimatedValue: number;
+  category?: string;
+  subService?: string;
 }
 
 // Postgres row shape returned from GET /api/v1/jobs (snake_case).
@@ -35,6 +37,7 @@ interface ApiJobRow {
   category?: string | null;
   room?: string | null;
   severity?: string | null;
+  sub_service?: string | null;
   status: string;
   created_at: string;
   expires_at?: string | null;
@@ -87,6 +90,8 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
       ? new Date(row.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
       : '—',
     estimatedValue,
+    category: row.category || undefined,
+    subService: row.sub_service || undefined,
   };
 }
 
@@ -140,6 +145,125 @@ const statusConfig: Record<ActiveJob['status'], { label: string; variant: 'succe
   completed:   { label: 'Completed',   variant: 'neutral', color: 'var(--text-secondary)' },
 };
 
+// Canonical taxonomy — trade → sub-services (mirrors onboarding dropdowns)
+const TRADE_SERVICES: Record<string, string[]> = {
+  'Plumbing':           ['Drain cleaning','Leak repair','Toilet repair','Faucet / sink','Water heater','New install'],
+  'Electrical':         ['Outlet / switch','Light fixture install','Ceiling fan','Panel work','EV charger','Troubleshooting'],
+  'HVAC':               ['Furnace repair','AC repair','Maintenance / tune-up','Duct cleaning','Thermostat install','New install'],
+  'General Repairs':    ['Furniture assembly','TV mounting','Picture / shelf hanging','Door repair','Drywall patch','Caulking','Curtain / blind install','Childproofing'],
+  'Handyman':           ['Furniture assembly','TV mounting','Picture / shelf hanging','Door repair','Drywall patch','Caulking','Curtain / blind install','Childproofing'],
+  'Cleaning':           ['Standard','Deep clean','Move-in / Move-out','Post-construction','Carpet cleaning','Window cleaning','Junk removal'],
+  'Landscaping':        ['Lawn mowing','Yard cleanup','Tree / shrub trimming','Garden design / planting','Mulching','Aeration / overseeding','Sod install'],
+  'Snow Removal':       ['Driveway','Sidewalks / walkways','Steps / entryways','Parking area','Roof','Patio or deck','Mailbox or curb access','Salting / de-icing'],
+  'Roofing':            ['Inspection','Leak repair','Shingle replacement','Gutter cleaning','Gutter repair'],
+  'Carpentry':          ['Custom builds','Trim / molding','Decking','Framing','Cabinet install'],
+  'Masonry':            ['Concrete repair','Driveway / walkway','Brick / stone','Patio install'],
+};
+
+const TRADE_COLORS: Record<string, string> = {
+  'Plumbing': '#2196F3', 'Electrical': '#F76B26', 'HVAC': '#9C27B0',
+  'General Repairs': '#4CAF50', 'Handyman': '#4CAF50', 'Cleaning': '#00BCD4',
+  'Landscaping': '#8BC34A', 'Snow Removal': '#90CAF9', 'Roofing': '#795548',
+  'Carpentry': '#FF9800', 'Masonry': '#607D8B',
+};
+
+function ServiceMixSection({ offeredServices, primaryTrades, completedJobs }: {
+  offeredServices: string[];
+  primaryTrades: string[];
+  completedJobs: ActiveJob[];
+}) {
+  // Group offered services by parent trade
+  const byTrade: { trade: string; services: string[]; jobCount: number }[] = primaryTrades.map(trade => {
+    const canonical = TRADE_SERVICES[trade] || [];
+    const offered = offeredServices.filter(s => canonical.includes(s));
+    const jobCount = completedJobs.filter(j =>
+      j.category?.toLowerCase().includes(trade.toLowerCase()) ||
+      trade.toLowerCase().includes(j.category?.toLowerCase() || '__')
+    ).length;
+    return { trade, services: offered.length > 0 ? offered : canonical, jobCount };
+  });
+
+  // If no onboarding data, show a placeholder
+  if (byTrade.length === 0) {
+    return (
+      <div>
+        {sectionHeader('Service Mix', 'Your expertise breakdown')}
+        <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+            Complete your trade onboarding to see your service breakdown here.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  const totalServices = byTrade.reduce((s, t) => s + t.services.length, 0);
+  const totalJobs = completedJobs.length;
+
+  return (
+    <div>
+      {sectionHeader('Service Mix', totalJobs > 0
+        ? `${totalJobs} completed job${totalJobs !== 1 ? 's' : ''} across ${byTrade.length} trade${byTrade.length !== 1 ? 's' : ''}`
+        : `${totalServices} services across ${byTrade.length} trade${byTrade.length !== 1 ? 's' : ''}`
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        {byTrade.map(({ trade, services, jobCount }) => {
+          const color = TRADE_COLORS[trade] || 'var(--primary)';
+          const pct = totalServices > 0 ? Math.round((services.length / totalServices) * 100) : 0;
+          return (
+            <Card key={trade} style={{ padding: 'var(--space-4)', borderLeft: `3px solid ${color}` }}>
+              {/* Trade header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <span style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{trade}</span>
+                  {totalJobs > 0 && (
+                    <span style={{ fontSize: '0.72rem', fontWeight: '700', color, background: `${color}18`, padding: '2px 7px', borderRadius: 'var(--radius-full)' }}>
+                      {jobCount} job{jobCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  {services.length} service{services.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {/* Breadth bar */}
+              <div style={{ height: '5px', background: 'var(--border)', borderRadius: '3px', marginBottom: 'var(--space-3)', overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '3px', transition: 'width 0.4s ease' }} />
+              </div>
+
+              {/* Sub-service chips */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {services.map(svc => {
+                  const svcJobs = completedJobs.filter(j =>
+                    j.title?.toLowerCase().includes(svc.toLowerCase()) ||
+                    j.subService?.toLowerCase() === svc.toLowerCase()
+                  ).length;
+                  return (
+                    <div key={svc} style={{
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                      background: 'var(--bg-base)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-full)', padding: '3px 10px',
+                      fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '500',
+                    }}>
+                      <span>{svc}</span>
+                      {totalJobs > 0 && (
+                        <span style={{ fontWeight: '700', color: svcJobs > 0 ? color : 'var(--text-tertiary)', fontSize: '0.7rem' }}>
+                          {svcJobs}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const sectionHeader = (title: string, sub?: string) => (
   <div style={{ marginBottom: 'var(--space-3)' }}>
     <h2 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>{title}</h2>
@@ -154,8 +278,10 @@ export default function TradespersonDashboard() {
   const userRole = userProfile?.role || 'licensed_tradesperson';
   const displayName = userProfile?.full_name || 'Tradesperson';
   const userId = userProfile?.id || '';
-  const rating = 4.8;
-  const reviewCount = 47;
+  const tpProfile = userProfile?.profile as any;
+  const rating = tpProfile?.rating ? parseFloat(tpProfile.rating) : null;
+  const reviewCount = tpProfile?.review_count ?? tpProfile?.jobs_completed ?? 0;
+  const jobsCompleted = tpProfile?.jobs_completed ?? 0;
 
   const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
@@ -242,19 +368,25 @@ export default function TradespersonDashboard() {
           </h1>
           {/* Rating */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-            {[1,2,3,4,5].map(s => (
-              <Star key={s} size={14} fill={s <= Math.floor(rating) ? '#F76B26' : 'none'} color={s <= Math.floor(rating) ? '#F76B26' : 'rgba(255,255,255,0.4)'} />
-            ))}
-            <span style={{ color: 'white', fontWeight: '700', fontSize: '0.85rem' }}>{rating}</span>
-            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem' }}>({reviewCount} reviews)</span>
+            {rating !== null ? (
+              <>
+                {[1,2,3,4,5].map(s => (
+                  <Star key={s} size={14} fill={s <= Math.floor(rating) ? '#F76B26' : 'none'} color={s <= Math.floor(rating) ? '#F76B26' : 'rgba(255,255,255,0.4)'} />
+                ))}
+                <span style={{ color: 'white', fontWeight: '700', fontSize: '0.85rem' }}>{rating.toFixed(1)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem' }}>({reviewCount} review{reviewCount !== 1 ? 's' : ''})</span>
+              </>
+            ) : (
+              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>No reviews yet</span>
+            )}
           </div>
 
-          {/* Earnings Cards — row 1 */}
+          {/* Stats Cards — row 1 */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
             {[
-              { label: 'This Month', value: '$3,840', icon: <TrendingUp size={14} />, sub: '+12% vs last' },
-              { label: 'Pending Payout', value: '$970', icon: <Clock size={14} />, sub: '2 jobs' },
-              { label: 'Lifetime', value: '$48,200', icon: <DollarSign size={14} />, sub: '214 jobs' },
+              { label: 'Jobs Done', value: String(jobsCompleted), icon: <CheckCircle size={14} />, sub: 'all time' },
+              { label: 'Active', value: String(activeJobs.filter(j => j.status !== 'completed').length), icon: <TrendingUp size={14} />, sub: 'in progress' },
+              { label: 'Pending', value: String(pendingQuotes.length), icon: <Clock size={14} />, sub: 'quotes out' },
             ].map(stat => (
               <div key={stat.label} style={{
                 background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)',
@@ -268,30 +400,23 @@ export default function TradespersonDashboard() {
             ))}
           </div>
 
-          {/* Earnings Cards — row 2 */}
+          {/* Stats Cards — row 2 */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
             <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', textAlign: 'center' }}>
               <div style={{ color: 'var(--primary)', marginBottom: '4px', display: 'flex', justifyContent: 'center' }}><DollarSign size={14} /></div>
-              <div style={{ color: 'white', fontWeight: '800', fontSize: '1rem', letterSpacing: '-0.02em' }}>$225</div>
-              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: '2px' }}>Avg Per Job</div>
-              <div style={{ color: 'var(--primary)', fontSize: '0.65rem' }}>all time</div>
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: '800', fontSize: '1rem', letterSpacing: '-0.02em' }}>—</div>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: '2px' }}>Earnings</div>
+              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.65rem' }}>coming soon</div>
             </div>
-            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>
-              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.5)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Service Mix</div>
-              {[
-                { label: 'Repair', pct: 35, color: '#F76B26' },
-                { label: 'Maintenance', pct: 30, color: '#4CAF50' },
-                { label: 'New Install', pct: 25, color: '#2196F3' },
-                { label: 'Replacement', pct: 10, color: '#9C27B0' },
-              ].map(row => (
-                <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '3px' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: row.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.12)', borderRadius: '2px', overflow: 'hidden' }}>
-                    <div style={{ width: `${row.pct}%`, height: '100%', background: row.color, borderRadius: '2px' }} />
-                  </div>
-                  <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', minWidth: '24px', textAlign: 'right' }}>{row.pct}%</span>
-                </div>
-              ))}
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.5)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Trades</div>
+              <div style={{ color: 'white', fontWeight: '800', fontSize: '1rem', letterSpacing: '-0.02em' }}>
+                {((userProfile?.profile as any)?.primary_trades as string[] | undefined)?.length || '—'}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: '2px' }}>Active trades</div>
+              <div style={{ color: 'var(--primary)', fontSize: '0.65rem' }}>
+                {((userProfile?.profile as any)?.offered_services as string[] | undefined)?.length || 0} services
+              </div>
             </div>
           </div>
         </div>
@@ -426,6 +551,13 @@ export default function TradespersonDashboard() {
               </div>
             )}
           </div>
+
+          {/* Service Mix */}
+          <ServiceMixSection
+            offeredServices={((userProfile?.profile as any)?.offered_services as string[]) || []}
+            primaryTrades={((userProfile?.profile as any)?.primary_trades as string[]) || []}
+            completedJobs={activeJobs.filter(j => j.status === 'completed')}
+          />
 
           {/* Verification Status */}
           <div>
