@@ -391,6 +391,7 @@ export default function TradespersonDashboard() {
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(true);
+  const [earnings, setEarnings] = useState({ this_month: 0, pending_payout: 0, lifetime: 0, avg_per_job: 0, jobs_completed: 0 });
 
   useEffect(() => {
     // Demo mode: show mock data only
@@ -418,6 +419,11 @@ export default function TradespersonDashboard() {
         if (!cancelled) setJobsError('Could not load active jobs');
       })
       .finally(() => { if (!cancelled) setJobsLoading(false); });
+
+    // Fetch earnings summary
+    api.getEarnings()
+      .then((res) => { if (!cancelled) setEarnings(res as any); })
+      .catch(() => {/* non-fatal */});
 
     // Fetch pending quotes submitted by this tradesperson
     setQuotesLoading(true);
@@ -499,7 +505,7 @@ export default function TradespersonDashboard() {
           {/* Stats Cards — row 1 */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
             {[
-              { label: 'Jobs Done', value: String(jobsCompleted), icon: <CheckCircle size={14} />, sub: 'all time' },
+              { label: 'Jobs Done', value: String(earnings.jobs_completed || jobsCompleted), icon: <CheckCircle size={14} />, sub: 'all time' },
               { label: 'Active', value: String(activeJobs.filter(j => j.status !== 'completed').length), icon: <TrendingUp size={14} />, sub: 'in progress' },
               { label: 'Pending', value: String(pendingQuotes.length), icon: <Clock size={14} />, sub: 'quotes out' },
             ].map(stat => (
@@ -518,10 +524,10 @@ export default function TradespersonDashboard() {
           {/* Earnings Cards — row 2 (real zeros until payment history is wired) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
             {[
-              { label: 'This Month', value: '$0', icon: <TrendingUp size={14} />, sub: 'earned' },
-              { label: 'Pending Payout', value: '$0', icon: <Clock size={14} />, sub: 'awaiting' },
-              { label: 'Lifetime', value: '$0', icon: <DollarSign size={14} />, sub: 'total' },
-              { label: 'Avg Per Job', value: '$0', icon: <DollarSign size={14} />, sub: 'all time' },
+              { label: 'This Month', value: `$${earnings.this_month.toFixed(2)}`, icon: <TrendingUp size={14} />, sub: 'earned' },
+              { label: 'Pending Payout', value: `$${earnings.pending_payout.toFixed(2)}`, icon: <Clock size={14} />, sub: 'awaiting' },
+              { label: 'Lifetime', value: `$${earnings.lifetime.toFixed(2)}`, icon: <DollarSign size={14} />, sub: 'total' },
+              { label: 'Avg Per Job', value: `$${earnings.avg_per_job.toFixed(2)}`, icon: <DollarSign size={14} />, sub: 'all time' },
             ].map(stat => (
               <div key={stat.label} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', textAlign: 'center' }}>
                 <div style={{ color: 'var(--primary)', marginBottom: '4px', display: 'flex', justifyContent: 'center' }}>{stat.icon}</div>
