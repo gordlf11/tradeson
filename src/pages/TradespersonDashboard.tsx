@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, DollarSign, Star, AlertTriangle, Calendar,
   Clock, ChevronRight, CheckCircle, TrendingUp, Shield,
-  MessageCircle,
+  MessageCircle, X,
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
@@ -145,6 +145,106 @@ const statusConfig: Record<ActiveJob['status'], { label: string; variant: 'succe
   completed:   { label: 'Completed',   variant: 'neutral', color: 'var(--text-secondary)' },
 };
 
+// ── Reviews Modal ────────────────────────────────────────────────────────────
+
+interface ReviewRow {
+  id: string;
+  reviewer_name: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+}
+
+function ReviewsModal({ userId, displayName, onClose }: {
+  userId: string;
+  displayName: string;
+  onClose: () => void;
+}) {
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.listReviews(userId)
+      .then((res) => setReviews(Array.isArray(res) ? res : []))
+      .catch(() => setReviews([]))
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}
+    >
+      <div style={{
+        background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+        width: '100%', maxWidth: '428px', maxHeight: '80vh',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: 'var(--space-4)', borderBottom: '1px solid var(--border)',
+        }}>
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>
+              Reviews
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              {displayName}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+            <X size={20} color="var(--text-secondary)" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          {loading && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', textAlign: 'center', padding: 'var(--space-6) 0' }}>
+              Loading reviews…
+            </p>
+          )}
+          {!loading && reviews.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 'var(--space-6) 0' }}>
+              <Star size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No reviews yet.</p>
+            </div>
+          )}
+          {reviews.map((r) => (
+            <div key={r.id} style={{
+              background: 'var(--bg-base)', borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)', padding: 'var(--space-4)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)' }}>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--text-primary)' }}>{r.reviewer_name}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {new Date(r.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '2px' }}>
+                  {[1,2,3,4,5].map(s => (
+                    <Star key={s} size={13} fill={s <= r.rating ? '#F76B26' : 'none'} color={s <= r.rating ? '#F76B26' : 'var(--border)'} />
+                  ))}
+                </div>
+              </div>
+              {r.comment && (
+                <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--text-primary)', lineHeight: '1.5' }}>{r.comment}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Canonical taxonomy — trade → sub-services (mirrors onboarding dropdowns)
 const TRADE_SERVICES: Record<string, string[]> = {
   'Plumbing':           ['Drain cleaning','Leak repair','Toilet repair','Faucet / sink','Water heater','New install'],
@@ -279,10 +379,12 @@ export default function TradespersonDashboard() {
   const displayName = userProfile?.full_name || 'Tradesperson';
   const userId = userProfile?.id || '';
   const tpProfile = userProfile?.profile as any;
-  const rating = tpProfile?.rating ? parseFloat(tpProfile.rating) : null;
+  // rating removed from header — kept for future use in reviews modal
+  // const rating = tpProfile?.rating ? parseFloat(tpProfile.rating) : null;
   const reviewCount = tpProfile?.review_count ?? tpProfile?.jobs_completed ?? 0;
   const jobsCompleted = tpProfile?.jobs_completed ?? 0;
 
+  const [showReviews, setShowReviews] = useState(false);
   const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
@@ -356,6 +458,15 @@ export default function TradespersonDashboard() {
   return (
     <>
       <TopNav title="Dashboard" />
+
+      {showReviews && userId && (
+        <ReviewsModal
+          userId={userId}
+          displayName={displayName}
+          onClose={() => setShowReviews(false)}
+        />
+      )}
+
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', paddingBottom: '90px' }}>
 
         {/* Hero Header — Navy */}
@@ -366,19 +477,23 @@ export default function TradespersonDashboard() {
           <h1 style={{ color: 'white', fontSize: '1.5rem', fontWeight: '800', margin: '0 0 var(--space-3)', letterSpacing: '-0.03em' }}>
             {displayName}
           </h1>
-          {/* Rating */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-            {rating !== null ? (
-              <>
-                {[1,2,3,4,5].map(s => (
-                  <Star key={s} size={14} fill={s <= Math.floor(rating) ? '#F76B26' : 'none'} color={s <= Math.floor(rating) ? '#F76B26' : 'rgba(255,255,255,0.4)'} />
-                ))}
-                <span style={{ color: 'white', fontWeight: '700', fontSize: '0.85rem' }}>{rating.toFixed(1)}</span>
-                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem' }}>({reviewCount} review{reviewCount !== 1 ? 's' : ''})</span>
-              </>
-            ) : (
-              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>No reviews yet</span>
-            )}
+          {/* Reviews chip */}
+          <div style={{ marginBottom: 'var(--space-4)' }}>
+            <button
+              onClick={() => setShowReviews(true)}
+              style={{
+                background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 'var(--radius-full)', padding: '5px 14px',
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <Star size={13} fill="#F76B26" color="#F76B26" />
+              <span style={{ color: 'white', fontWeight: '700', fontSize: '0.82rem' }}>
+                {reviewCount > 0 ? `${reviewCount} review${reviewCount !== 1 ? 's' : ''}` : 'No reviews yet'}
+              </span>
+              <ChevronRight size={13} color="rgba(255,255,255,0.5)" />
+            </button>
           </div>
 
           {/* Stats Cards — row 1 */}
@@ -400,24 +515,21 @@ export default function TradespersonDashboard() {
             ))}
           </div>
 
-          {/* Stats Cards — row 2 */}
+          {/* Earnings Cards — row 2 (real zeros until payment history is wired) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', textAlign: 'center' }}>
-              <div style={{ color: 'var(--primary)', marginBottom: '4px', display: 'flex', justifyContent: 'center' }}><DollarSign size={14} /></div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: '800', fontSize: '1rem', letterSpacing: '-0.02em' }}>—</div>
-              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: '2px' }}>Earnings</div>
-              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.65rem' }}>coming soon</div>
-            </div>
-            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.5)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Trades</div>
-              <div style={{ color: 'white', fontWeight: '800', fontSize: '1rem', letterSpacing: '-0.02em' }}>
-                {((userProfile?.profile as any)?.primary_trades as string[] | undefined)?.length || '—'}
+            {[
+              { label: 'This Month', value: '$0', icon: <TrendingUp size={14} />, sub: 'earned' },
+              { label: 'Pending Payout', value: '$0', icon: <Clock size={14} />, sub: 'awaiting' },
+              { label: 'Lifetime', value: '$0', icon: <DollarSign size={14} />, sub: 'total' },
+              { label: 'Avg Per Job', value: '$0', icon: <DollarSign size={14} />, sub: 'all time' },
+            ].map(stat => (
+              <div key={stat.label} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', textAlign: 'center' }}>
+                <div style={{ color: 'var(--primary)', marginBottom: '4px', display: 'flex', justifyContent: 'center' }}>{stat.icon}</div>
+                <div style={{ color: 'white', fontWeight: '800', fontSize: '1rem', letterSpacing: '-0.02em' }}>{stat.value}</div>
+                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: '2px' }}>{stat.label}</div>
+                <div style={{ color: 'var(--primary)', fontSize: '0.65rem' }}>{stat.sub}</div>
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: '2px' }}>Active trades</div>
-              <div style={{ color: 'var(--primary)', fontSize: '0.65rem' }}>
-                {((userProfile?.profile as any)?.offered_services as string[] | undefined)?.length || 0} services
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
