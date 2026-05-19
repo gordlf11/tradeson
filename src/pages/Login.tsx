@@ -14,7 +14,20 @@ export default function Login() {
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'user' | 'admin'>('user');
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, userProfile } = useAuth();
+
+  // Auto-redirect users who already have an active session and completed onboarding
+  // (e.g., they reopened the browser without logging out)
+  useEffect(() => {
+    if (!userProfile) return;
+    const alreadyOnboarded =
+      userProfile.onboarding_completed === true ||
+      localStorage.getItem('hasOnboarded') === 'true' ||
+      (userProfile.profile != null);
+    if (alreadyOnboarded) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [userProfile, navigate]);
 
   // Only purge demo state. Preserve userRole + hasOnboarded so real users
   // can resume after re-login when the API is briefly unavailable —

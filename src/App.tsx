@@ -162,6 +162,46 @@ const DashboardRedirect = () => {
   return <Navigate to={getDashboardPath(userRole)} replace />;
 };
 
+// ── Onboarding guard — blocks re-entry once user has completed setup ──────
+
+const RequireOnboarding = ({ children }: { children: React.ReactNode }) => {
+  const { userProfile, loading } = useAuth();
+  const isDemoMode = localStorage.getItem('demoMode') === 'true';
+
+  if (isDemoMode) return <>{children}</>;
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-base)',
+      }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+          <div className="spinner" style={{ margin: '0 auto 16px' }} />
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  // Already onboarded: role-specific profile exists in Postgres (most reliable),
+  // or the localStorage flag set at the end of every onboarding flow (fallback).
+  const alreadyOnboarded =
+    userProfile?.onboarding_completed === true ||
+    localStorage.getItem('hasOnboarded') === 'true' ||
+    (userProfile?.profile != null);
+
+  if (alreadyOnboarded) {
+    const role = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
+    return <Navigate to={getDashboardPath(role)} replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // ── Protected Route wrapper ────────────────────────────────────────────────
 
 const RequireAuth = ({ children }: { children: React.ReactNode }) => {
@@ -213,14 +253,14 @@ function AppRoutes() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Onboarding — requires auth */}
-        <Route path="/onboarding" element={<RequireAuth><RoleSelection /></RequireAuth>} />
-        <Route path="/role-selection" element={<RequireAuth><RoleSelection /></RequireAuth>} />
-        <Route path="/onboarding/homeowner" element={<RequireAuth><HomeownerOnboarding /></RequireAuth>} />
-        <Route path="/onboarding/property-manager" element={<RequireAuth><PropertyManagerOnboarding /></RequireAuth>} />
-        <Route path="/onboarding/realtor" element={<RequireAuth><RealtorOnboarding /></RequireAuth>} />
-        <Route path="/onboarding/licensed-trade" element={<RequireAuth><LicensedTradespersonOnboarding /></RequireAuth>} />
-        <Route path="/onboarding/non-licensed-trade" element={<RequireAuth><UnlicensedTradespersonOnboarding /></RequireAuth>} />
+        {/* Onboarding — requires auth; already-onboarded users are redirected to their dashboard */}
+        <Route path="/onboarding" element={<RequireAuth><RequireOnboarding><RoleSelection /></RequireOnboarding></RequireAuth>} />
+        <Route path="/role-selection" element={<RequireAuth><RequireOnboarding><RoleSelection /></RequireOnboarding></RequireAuth>} />
+        <Route path="/onboarding/homeowner" element={<RequireAuth><RequireOnboarding><HomeownerOnboarding /></RequireOnboarding></RequireAuth>} />
+        <Route path="/onboarding/property-manager" element={<RequireAuth><RequireOnboarding><PropertyManagerOnboarding /></RequireOnboarding></RequireAuth>} />
+        <Route path="/onboarding/realtor" element={<RequireAuth><RequireOnboarding><RealtorOnboarding /></RequireOnboarding></RequireAuth>} />
+        <Route path="/onboarding/licensed-trade" element={<RequireAuth><RequireOnboarding><LicensedTradespersonOnboarding /></RequireOnboarding></RequireAuth>} />
+        <Route path="/onboarding/non-licensed-trade" element={<RequireAuth><RequireOnboarding><UnlicensedTradespersonOnboarding /></RequireOnboarding></RequireAuth>} />
 
         {/* Dashboards — requires auth */}
         <Route path="/dashboard" element={<RequireAuth><DashboardRedirect /></RequireAuth>} />
