@@ -132,18 +132,21 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
       params = [customerId, parseInt(limit as string), parseInt(offset as string)];
       if (status) params.push(status);
     } else if (role === 'licensed_tradesperson' || role === 'unlicensed_tradesperson') {
-      // Tradespeople see open jobs (job board). The caller's user id isn't
-      // used in the filter — open jobs are visible to all eligible TPs.
+      // Tradespeople see all open jobs + any job they've already quoted on
+      // (so their own bids remain visible after the job moves from 'open' → 'quoted').
       query = `SELECT j.*, u.full_name as customer_name,
-                 (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count
+                 (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count,
+                 EXISTS (SELECT 1 FROM quotes q2 WHERE q2.job_id = j.id AND q2.tradesperson_user_id = $1) as i_quoted
                FROM jobs j
                JOIN users u ON j.homeowner_user_id = u.id
-               WHERE j.deleted_at IS NULL AND j.status = COALESCE($1, 'open')
+               WHERE j.deleted_at IS NULL
+                 AND (j.status = 'open'
+                      OR EXISTS (SELECT 1 FROM quotes q2 WHERE q2.job_id = j.id AND q2.tradesperson_user_id = $1))
                  ${category ? 'AND j.category = $4' : ''}
                  ${zip_code ? `AND j.zip_code = $${category ? 5 : 4}` : ''}
                ORDER BY j.created_at DESC
                LIMIT $2 OFFSET $3`;
-      params = [status || 'open', parseInt(limit as string), parseInt(offset as string)];
+      params = [id, parseInt(limit as string), parseInt(offset as string)];
       if (category) params.push(category);
       if (zip_code) params.push(zip_code);
     } else {

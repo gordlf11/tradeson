@@ -52,9 +52,10 @@ interface Job {
   clientAddress: string;
   status: 'open' | 'quoted' | 'accepted' | 'expired' | 'pending_confirmation';
   likelihoodScore: number; // 0-100
-  intake_answers?: Record<string, unknown>; // structured intake from JobCreation
+  intake_answers?: Record<string, unknown>;
   sub_service?: string;
-  auto_release_at?: string; // ISO — 3-hour countdown for pending_confirmation jobs
+  auto_release_at?: string;
+  i_quoted?: boolean;
 }
 
 // Jobs arrive with an empty quotes[] from listJobs(); quotes are lazy-loaded
@@ -135,6 +136,7 @@ function toBoardJob(row: any): Job {
     photos: 0, // TODO: not in list endpoint; populate from api.getJob(id) on expand
     quotes: [],
     quote_count: parseInt(String(row.quote_count ?? 0), 10),
+    i_quoted: row.i_quoted === true || row.i_quoted === 'true',
     verified: true, // TODO: derive from customer KYC once backend exposes it
     clientName: row.customer_name || 'Customer',
     clientAddress: row.address || '—',
@@ -1434,16 +1436,22 @@ export default function JobBoardEnhanced() {
 
                     {/* Action row */}
                     {isTradeUser ? (
-                      // Tradesperson: submit quote
+                      // Tradesperson: submit quote (disabled once they've quoted or job is accepted)
                       <Button
                         variant="primary"
                         fullWidth
                         onClick={() => setQuoteModalJob(job)}
                         icon={<DollarSign size={16} />}
-                        disabled={job.status === 'accepted'}
-                        style={job.status === 'accepted' ? { background: 'var(--success)', borderColor: 'var(--success)', opacity: 1, cursor: 'default' } : undefined}
+                        disabled={job.status === 'accepted' || !!job.i_quoted}
+                        style={
+                          job.status === 'accepted'
+                            ? { background: 'var(--success)', borderColor: 'var(--success)', opacity: 1, cursor: 'default' }
+                            : job.i_quoted
+                              ? { background: 'var(--text-secondary)', borderColor: 'var(--text-secondary)', opacity: 1, cursor: 'default' }
+                              : undefined
+                        }
                       >
-                        {job.status === 'accepted' ? 'Job Accepted' : 'Submit Quote'}
+                        {job.status === 'accepted' ? 'Job Accepted' : job.i_quoted ? 'Quote Submitted' : 'Submit Quote'}
                       </Button>
                     ) : (
                       // Customer view
