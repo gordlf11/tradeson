@@ -46,6 +46,7 @@ interface Job {
   jobNature: string;
   photos: number;
   quotes: Quote[];
+  quote_count?: number;
   verified: boolean;
   clientName: string;
   clientAddress: string;
@@ -132,13 +133,31 @@ function toBoardJob(row: any): Job {
     room: row.room || '—',
     jobNature: row.job_nature || '—',
     photos: 0, // TODO: not in list endpoint; populate from api.getJob(id) on expand
-    quotes: [], // TODO: load on demand via api.getJob(id) when a card is expanded
+    quotes: [],
+    quote_count: parseInt(String(row.quote_count ?? 0), 10),
     verified: true, // TODO: derive from customer KYC once backend exposes it
     clientName: row.customer_name || 'Customer',
     clientAddress: row.address || '—',
     status: mapJobStatus(row.status),
     likelihoodScore: 0, // TODO: AI match-score integration planned
     auto_release_at: row.auto_release_at || undefined,
+  };
+}
+
+function mapApiQuote(row: any): Quote {
+  return {
+    id: String(row.id),
+    tradespersonId: String(row.tradesperson_user_id),
+    tradespersonName: row.tradesperson_name || 'Tradesperson',
+    rating: parseFloat(row.rating || '0') || 0,
+    reviewCount: parseInt(row.review_count || '0', 10) || 0,
+    totalPrice: parseFloat(row.price || '0') || 0,
+    estimatedHours: parseFloat(row.estimated_hours || '0') || 0,
+    hourlyOverage: parseFloat(row.hourly_overage_rate || '0') || 0,
+    message: row.message || '',
+    submittedAt: relativeTime(row.created_at),
+    verified: false,
+    availability: row.availability || undefined,
   };
 }
 
@@ -985,6 +1004,7 @@ export default function JobBoardEnhanced() {
   const [quoteModalJob, setQuoteModalJob] = useState<Job | null>(null);
   const [compareModalJob, setCompareModalJob] = useState<Job | null>(null);
   const [confirmingJobId, setConfirmingJobId] = useState<string | null>(null);
+  const [comparingJobId, setComparingJobId] = useState<string | null>(null);
   const [refetchKey, setRefetchKey] = useState(0);
   const autoCompareHandled = useRef(false);
 
@@ -1040,10 +1060,10 @@ export default function JobBoardEnhanced() {
   useEffect(() => {
     const state = location.state as { autoCompare?: boolean } | null;
     if (state?.autoCompare && jobs.length > 0 && !autoCompareHandled.current) {
-      const jobWithQuotes = jobs.find(j => j.quotes.length > 0);
+      const jobWithQuotes = jobs.find(j => j.status === 'quoted' || j.status === 'accepted');
       if (jobWithQuotes) {
         autoCompareHandled.current = true;
-        setCompareModalJob(jobWithQuotes);
+        handleOpenCompareModal(jobWithQuotes);
       }
     }
   }, [jobs, location.state]);
@@ -1123,6 +1143,20 @@ export default function JobBoardEnhanced() {
       })),
     });
     setRefetchKey(k => k + 1);
+  };
+
+  const handleOpenCompareModal = async (job: Job) => {
+    if (comparingJobId) return;
+    setComparingJobId(job.id);
+    try {
+      const res = await api.getJobQuotes(job.id) as { quotes: any[] };
+      const loaded = (res.quotes || []).map(mapApiQuote);
+      setCompareModalJob({ ...job, quotes: loaded });
+    } catch {
+      setCompareModalJob(job);
+    } finally {
+      setComparingJobId(null);
+    }
   };
 
   return (
@@ -1335,9 +1369,9 @@ export default function JobBoardEnhanced() {
                           <Camera size={12} /> {job.photos} photo{job.photos > 1 ? 's' : ''}
                         </span>
                       )}
-                      {job.quotes.length > 0 && (
+                      {(job.quote_count ?? 0) > 0 && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <Users size={12} /> {job.quotes.length} quote{job.quotes.length > 1 ? 's' : ''}
+                          <Users size={12} /> {job.quote_count} quote{job.quote_count !== 1 ? 's' : ''}
                         </span>
                       )}
                     </div>
@@ -1440,29 +1474,29 @@ export default function JobBoardEnhanced() {
                             Confirm & Release Payment
                           </Button>
                         </div>
-                      ) : job.quotes.length > 0 ? (
+                      ) : (job.status === 'quoted' || job.status === 'accepted' || (job.quote_count ?? 0) > 0) ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                          <div style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            background: 'var(--primary-light)', borderRadius: 'var(--radius-md)',
-                            padding: 'var(--space-2) var(--space-3)', marginBottom: 'var(--space-1)',
-                          }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--primary)' }}>
-                              {job.quotes.length} quote{job.quotes.length > 1 ? 's' : ''} received
-                            </span>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                              From ${Math.min(...job.quotes.map(q => q.totalPrice))} – ${Math.max(...job.quotes.map(q => q.totalPrice))}
-                            </span>
-                          </div>
+                          {(job.quote_count ?? 0) > 0 && (
+                            <div style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              background: 'var(--primary-light)', borderRadius: 'var(--radius-md)',
+                              padding: 'var(--space-2) var(--space-3)', marginBottom: 'var(--space-1)',
+                            }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--primary)' }}>
+                                {job.quote_count} quote{job.quote_count !== 1 ? 's' : ''} received
+                              </span>
+                            </div>
+                          )}
                           <Button
                             variant="primary"
                             fullWidth
-                            onClick={() => setCompareModalJob(job)}
+                            onClick={() => handleOpenCompareModal(job)}
                             icon={<Users size={16} />}
-                            disabled={job.status === 'accepted'}
+                            disabled={job.status === 'accepted' || !!comparingJobId}
+                            loading={comparingJobId === job.id}
                             style={job.status === 'accepted' ? { background: 'var(--success)', borderColor: 'var(--success)', opacity: 1, cursor: 'default' } : undefined}
                           >
-                            {job.status === 'accepted' ? 'Job Accepted' : 'Compare & Accept Quotes'}
+                            {job.status === 'accepted' ? 'Job Accepted' : comparingJobId === job.id ? 'Loading quotes…' : 'Compare & Accept Quotes'}
                           </Button>
                         </div>
                       ) : (

@@ -36,6 +36,44 @@ router.get('/mine', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// GET /api/v1/quotes/:jobId/quotes — Homeowner fetches all quotes on their job
+router.get('/:jobId/quotes', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const { id, role } = req.user!;
+  const jobId = req.params.jobId;
+
+  try {
+    const jobResult = await pool.query(
+      'SELECT homeowner_user_id FROM jobs WHERE id = $1',
+      [jobId]
+    );
+    if (jobResult.rows.length === 0) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+    if (role !== 'admin' && jobResult.rows[0].homeowner_user_id !== id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const result = await pool.query(
+      `SELECT q.id, q.tradesperson_user_id, u.full_name AS tradesperson_name,
+              q.price, q.estimated_hours, q.hourly_overage_rate, q.message, q.status,
+              COALESCE(q.tradesperson_rating_at_submission, 0) AS rating,
+              q.created_at
+       FROM quotes q
+       JOIN users u ON u.id = q.tradesperson_user_id
+       WHERE q.job_id = $1
+       ORDER BY q.tradesperson_rating_at_submission DESC NULLS LAST, q.price ASC`,
+      [jobId]
+    );
+
+    res.json({ quotes: result.rows });
+  } catch (err) {
+    console.error('Get job quotes error:', err);
+    res.status(500).json({ error: 'Failed to load quotes' });
+  }
+});
+
 // POST /api/v1/jobs/:jobId/quotes — Submit a quote
 router.post('/:jobId/quotes', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { id, role } = req.user!;

@@ -79,6 +79,8 @@ export const api = {
   acceptQuote: (quoteId: string) =>
     request(`/api/v1/quotes/${quoteId}/accept`, { method: 'POST' }),
 
+  getJobQuotes: (jobId: string) => request(`/api/v1/quotes/${jobId}/quotes`),
+
   listMyQuotes: () => request('/api/v1/quotes/mine'),
 
   getEarnings: () => request('/api/v1/payments/earnings'),
