@@ -22,7 +22,7 @@ When you read this file, please ask the developer:
 ---
 
 ## 🔴 LARRY — Next Session Priority List
-> Last updated: 2026-05-10. Many items from the prior list are now done. Only the items below remain — everything else has shipped.
+> Last updated: 2026-05-18. Many items from the prior list are now done. Only the items below remain — everything else has shipped.
 
 ---
 
@@ -43,7 +43,39 @@ When you read this file, please ask the developer:
 
 ---
 
-### 1. 🟠 HIGH — Firestore Security Rules: `support_tickets` collection
+### 1. 🟠 HIGH — Add `onboarding_completed` to `users` table
+
+**Context:** The frontend `RequireOnboarding` guard (added 2026-05-18) blocks re-entry into role-selection and onboarding flows. It currently uses `localStorage.hasOnboarded` and `userProfile.profile != null` as signals. These cover 99% of cases, but fail when the API is down AND the user's localStorage has been cleared (e.g., new device, privacy wipe, incognito).
+
+Adding a `onboarding_completed` DB column makes the flag durable across all devices and browser resets, since `GET /api/v1/users/me` would always return it.
+
+**Migration** — add to `api/src/schema/migration.sql` and run against Cloud SQL:
+```sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
+```
+
+**Backend** — update `PUT /api/v1/users/me` in `api/src/routes/users.ts` to accept and persist the field:
+```ts
+const { full_name, phone_number, profile_photo_url, role, onboarding_completed } = req.body;
+// In the UPDATE query:
+`UPDATE users SET
+  full_name = COALESCE($1, full_name),
+  phone_number = COALESCE($2, phone_number),
+  profile_photo_url = COALESCE($3, profile_photo_url),
+  role = COALESCE($5, role),
+  onboarding_completed = COALESCE($6, onboarding_completed),
+  updated_at = now()
+ WHERE id = $4 RETURNING *`
+// Add $6 = onboarding_completed ?? null to the params array
+```
+
+**Also** — each `POST /api/v1/onboarding/*` handler in `onboarding.ts` should set `onboarding_completed = TRUE` on the `users` row at the end of its transaction (same DB call that creates the profile row).
+
+**Frontend is already wired** — `AuthContext.UserProfile` has `onboarding_completed?: boolean`, and `RequireOnboarding` + Login auto-redirect both check it first. No frontend changes needed once the column exists.
+
+---
+
+### 2. 🟠 HIGH — Firestore Security Rules: `support_tickets` collection  
 
 Kevin built a Contact Support page (`src/pages/ContactSupport.tsx`) that writes to a new Firestore `support_tickets` collection. The current rules have **default deny** on unknown paths, so this collection is blocked.
 
