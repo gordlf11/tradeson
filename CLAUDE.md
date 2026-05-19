@@ -75,7 +75,7 @@ const { full_name, phone_number, profile_photo_url, role, onboarding_completed }
 
 ---
 
-### 2. 🟠 HIGH — Firestore Security Rules: `support_tickets` collection  
+### 2. 🟠 HIGH — Firestore Security Rules: `support_tickets` collection (original create rule)
 
 Kevin built a Contact Support page (`src/pages/ContactSupport.tsx`) that writes to a new Firestore `support_tickets` collection. The current rules have **default deny** on unknown paths, so this collection is blocked.
 
@@ -98,7 +98,68 @@ match /support_tickets/{ticketId} {
 
 ---
 
-### 2. 🟡 MEDIUM — Nightly Flagged Account Auto-Population
+### 3. 🔴 CRITICAL — Account Deletion Endpoint Missing
+
+**Context:** `PrivacySettings.tsx` calls `api.deleteMe()` → `DELETE /api/v1/users/me`. This route does **not exist** in `api/src/routes/users.ts`. The call silently fails (500 or 404), the user stays logged in, and their account is never deactivated. This is a GDPR / legal exposure at any user count.
+
+**Add to `api/src/routes/users.ts`:**
+```ts
+router.delete('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.user!;
+  if (!id) { res.status(404).json({ error: 'User not found' }); return; }
+  try {
+    await pool.query(
+      `UPDATE users SET deleted_at = now(), is_active = FALSE, updated_at = now() WHERE id = $1`,
+      [id]
+    );
+    await logAuditEvent(id, 'user.deleted', 'users', id, {}, req.ip);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+```
+
+Also ensure `requireAuth` middleware checks `deleted_at IS NULL` so soft-deleted users can't re-authenticate.
+
+---
+
+### 4. 🔴 CRITICAL — Job Query Authorization Gap
+
+**Context:** `GET /api/v1/jobs` in `api/src/routes/jobs.ts` accepts `?customerId=UUID` and `?acceptedTradespersonId=UUID` query params with **no check** that the requester owns that ID. Any authenticated user (e.g., a tradesperson) can pass `?customerId=<any homeowner UUID>` and read all their job posts, property addresses, and quote history. This is a data privacy violation.
+
+**Fix in `api/src/routes/jobs.ts`**, in the `GET /api/v1/jobs` handler, before the query branches:
+```ts
+// Authorization: non-admin users can only query their own jobs
+if (customerId && customerId !== id && role !== 'admin') {
+  return res.status(403).json({ error: 'Forbidden' });
+}
+if (acceptedTradespersonId && acceptedTradespersonId !== id && role !== 'admin') {
+  return res.status(403).json({ error: 'Forbidden' });
+}
+```
+
+---
+
+### 5. 🟠 HIGH — Firestore `support_tickets` Rule: Switch to UID
+
+**Context:** `ContactSupport.tsx` now correctly passes `userId: firebaseUser.uid` (fixed 2026-05-18). The Firestore security rule still checks `request.resource.data.userId == request.auth.token.email`. Update the rule to match UID:
+
+```
+match /support_tickets/{ticketId} {
+  allow create: if request.auth != null
+    && request.resource.data.userId == request.auth.uid;
+  allow read, update: if request.auth.token.admin == true;
+  allow delete: if false;
+}
+```
+
+**Deploy**: `firebase deploy --only firestore:rules`
+
+---
+
+### 6. 🟡 MEDIUM — Nightly Flagged Account Auto-Population
 
 The `flagged_accounts` table won't self-populate. Set up a Cloud Scheduler cron (or Cloud Run scheduled job) to run nightly and insert rows for:
 - Tradespersons whose insurance certificate expired (check `compliance_documents.expiration_date < now()`)
@@ -107,7 +168,7 @@ The `flagged_accounts` table won't self-populate. Set up a Cloud Scheduler cron 
 
 ---
 
-### 3. 🟠 HIGH — Referral Link Signup Tracking — Backend Half
+### 7. 🟠 HIGH — Referral Link Signup Tracking — Backend Half
 
 **Context:** The frontend half is done: `/join?ref=CODE` saves to localStorage, and `AuthContext.signup()` passes `referred_by_code` to `api.createUser()`. The backend `POST /api/v1/users` needs to resolve that code and write `users.referred_by_realtor_id`.
 
@@ -135,7 +196,7 @@ No migration needed — `referred_by_realtor_id` column already exists on `users
 
 ---
 
-### 4. 🟠 HIGH — Auto-Release Cloud Scheduler Job
+### 8. 🟠 HIGH — Auto-Release Cloud Scheduler Job
 
 **Context:** The endpoint `POST /api/v1/internal/release-expired-holds` is live. It needs a Cloud Scheduler job to call it every 30 minutes, or tradespeople on jobs that expire won't get paid automatically.
 

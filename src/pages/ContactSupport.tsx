@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { submitSupportTicket } from '../services/messagingService';
+import { useAuth } from '../contexts/AuthContext';
 
 const CATEGORIES = [
   {
@@ -44,9 +45,10 @@ const CATEGORIES = [
 
 export default function ContactSupport() {
   const navigate = useNavigate();
-  const userEmail = localStorage.getItem('userEmail') || '';
-  const userName  = localStorage.getItem('userName')  || '';
-  const userRole  = localStorage.getItem('userRole')  || '';
+  const { firebaseUser, userProfile } = useAuth();
+  const userEmail = firebaseUser?.email || '';
+  const userName  = userProfile?.full_name || localStorage.getItem('userName') || userEmail;
+  const userRole  = userProfile?.role || localStorage.getItem('userRole') || '';
 
   const [category, setCategory]         = useState('');
   const [subject, setSubject]           = useState('');
@@ -64,7 +66,7 @@ export default function ContactSupport() {
     setError('');
     try {
       await submitSupportTicket({
-        userId:    userEmail,
+        userId:    firebaseUser?.uid || userEmail,
         userEmail,
         userName:  userName || userEmail,
         userRole,
