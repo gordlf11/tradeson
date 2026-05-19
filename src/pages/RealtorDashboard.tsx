@@ -402,6 +402,8 @@ export default function RealtorDashboard() {
 
   const isDemoMode = localStorage.getItem('demoMode') === 'true';
 
+  const [apiError, setApiError] = useState(false);
+
   const load = useCallback(async () => {
     if (isDemoMode) {
       setData(MOCK_DATA);
@@ -411,8 +413,9 @@ export default function RealtorDashboard() {
     try {
       const res = await api.getRealtorDashboard() as DashboardData;
       setData(res);
+      setApiError(false);
     } catch {
-      setData(MOCK_DATA);
+      setApiError(true);
     } finally {
       setLoading(false);
     }
@@ -470,6 +473,31 @@ export default function RealtorDashboard() {
           <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
             <div className="spinner" style={{ margin: '0 auto 16px' }} />
             Loading your portfolio…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (apiError) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)', paddingBottom: 90 }}>
+        <TopNav title="Broker Dashboard" />
+        <div style={{ padding: 'var(--space-4)' }}>
+          <div style={{
+            background: 'rgba(255,59,48,0.08)', border: '1.5px solid var(--danger)',
+            borderRadius: 'var(--radius-md)', padding: 'var(--space-4)',
+          }}>
+            <p style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--danger)', margin: '0 0 4px' }}>Could not load dashboard</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0 0 var(--space-3)' }}>
+              There was a problem connecting to the server. Please try again.
+            </p>
+            <button
+              onClick={() => { setLoading(true); setApiError(false); load(); }}
+              style={{ background: 'var(--danger)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.82rem' }}
+            >
+              Retry
+            </button>
           </div>
         </div>
       </div>

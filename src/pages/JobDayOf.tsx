@@ -564,5 +564,26 @@ function TradespersonView() {
 export default function JobDayOf() {
   const { userProfile } = useAuth();
   const role = userProfile?.role ?? localStorage.getItem('userRole') ?? 'homeowner';
+  const isDemo = localStorage.getItem('demoMode') === 'true';
+
+  if (!isDemo) {
+    return (
+      <>
+        <TopNav title="Job Day Of" />
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-6)' }}>
+          <div style={{ textAlign: 'center', maxWidth: '320px' }}>
+            <Calendar size={48} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-4)' }} />
+            <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 var(--space-2)' }}>
+              Live Job Tracking Coming Soon
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+              Real-time job day coordination will appear here once your job is confirmed and in progress.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return isTradeRole(role) ? <TradespersonView /> : <JobPosterView />;
 }

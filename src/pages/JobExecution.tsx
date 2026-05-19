@@ -1,65 +1,43 @@
-import { Navigation, AlertTriangle } from 'lucide-react';
+import { Briefcase } from 'lucide-react';
+import TopNav from '../components/TopNav';
+import { Card } from '../components/ui/Card';
 
 export default function JobExecution() {
+  const isDemo = localStorage.getItem('demoMode') === 'true';
+
+  if (!isDemo) {
+    return (
+      <>
+        <TopNav title="Job Execution" />
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-6)' }}>
+          <Card style={{ padding: 'var(--space-6)', textAlign: 'center', maxWidth: '320px' }}>
+            <Briefcase size={48} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-4)' }} />
+            <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 var(--space-2)' }}>
+              Live Job Tracking Coming Soon
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+              Real-time job execution tracking will be available here once your job is in progress.
+            </p>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
+  // Demo content preserved below
   return (
-    <div className="page-container">
-      <h2>Schedule & Execution</h2>
-
-      <div className="card" style={{ borderLeft: '4px solid var(--primary)' }}>
-        <div className="flex justify-between items-center mb-4">
-          <div className="badge badge-blue">UPCOMING JOB</div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Tomorrow, 10:00 AM</span>
-        </div>
-        
-        <h3>Leaky Pipe under Kitchen Sink</h3>
-        <p style={{ fontSize: '0.9rem', marginBottom: '1.5rem' }}>123 Fake St, Springfield</p>
-
-        {/* Customer View of Schedule */}
-        <div className="flex gap-2">
-          <button className="btn btn-primary" style={{ flex: 1 }}>
-            <Navigation size={18} /> Track Pro
-          </button>
-          <button className="btn btn-secondary" style={{ flex: 1 }}>
-            Contact
-          </button>
-        </div>
+    <>
+      <TopNav title="Job Execution" />
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingBottom: '90px' }}>
+        <Card style={{ padding: 'var(--space-4)', borderLeft: '4px solid var(--primary)', marginBottom: 'var(--space-3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+            <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: '700', fontSize: '0.72rem', padding: '3px 10px', borderRadius: 'var(--radius-full)', textTransform: 'uppercase' }}>Upcoming Job</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Tomorrow, 10:00 AM</span>
+          </div>
+          <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)' }}>Leaky Pipe under Kitchen Sink</h3>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>123 Demo St, Springfield</p>
+        </Card>
       </div>
-
-      <h3 className="mt-8 mb-4">Onsite Adjustments</h3>
-      
-      {/* Scope Adjustment UI (Customer View Example) */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-2" style={{ color: 'var(--warning)' }}>
-          <AlertTriangle size={20} />
-          <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>New Scope Update</h4>
-        </div>
-        
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          Bob Builder discovered the trap needs full replacement due to structural cracking.
-        </p>
-
-        <div style={{ background: 'var(--bg-base)', padding: '1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem' }}>
-          <div className="flex justify-between mb-2">
-            <span>Original Quote</span>
-            <span>$150.00</span>
-          </div>
-          <div className="flex justify-between" style={{ color: 'var(--warning)' }}>
-            <span>Additional Parts</span>
-            <span>+$45.00</span>
-          </div>
-          <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '10px 0' }} />
-          <div className="flex justify-between" style={{ fontWeight: 600 }}>
-            <span>New Total</span>
-            <span>$195.00</span>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <button className="btn btn-primary" style={{ flex: 2 }}>Approve Change</button>
-          <button className="btn btn-secondary" style={{ flex: 1 }}>Decline</button>
-        </div>
-      </div>
-
-    </div>
+    </>
   );
 }

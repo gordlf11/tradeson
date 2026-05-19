@@ -133,10 +133,7 @@ const FALLBACK_PENDING_QUOTES: PendingQuote[] = [
   { id: 'q2', jobTitle: 'Basement Flood Cleanup', client: 'Linda Ross', quotedPrice: 1200, submittedAt: '8 hrs ago', expiresIn: '40h 02m', bidsTotal: 2 },
 ];
 
-const mockAlerts: ComplianceAlert[] = [
-  { id: 'a1', type: 'insurance', label: 'Liability Insurance', expiresOn: 'Jun 15, 2025', daysLeft: 71 },
-  { id: 'a2', type: 'license', label: 'General Contractor License', expiresOn: 'Sep 30, 2025', daysLeft: 178 },
-];
+const mockAlerts: ComplianceAlert[] = [];
 
 const statusConfig: Record<ActiveJob['status'], { label: string; variant: 'success' | 'warning' | 'primary' | 'neutral'; color: string }> = {
   confirmed:   { label: 'Confirmed',   variant: 'primary',   color: 'var(--primary)' },
@@ -681,22 +678,14 @@ export default function TradespersonDashboard() {
           <div>
             {sectionHeader('Verification Status')}
             <Card style={{ padding: 'var(--space-4)' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {[
-                  { label: 'Identity Verified', done: true, icon: <Shield size={16} /> },
-                  { label: 'License Uploaded', done: true, icon: <CheckCircle size={16} /> },
-                  { label: 'Insurance Verified', done: true, icon: <CheckCircle size={16} /> },
-                  { label: 'Stripe Payout Connected', done: false, icon: <DollarSign size={16} /> },
-                ].map(item => (
-                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                    <div style={{ color: item.done ? 'var(--success)' : 'var(--text-tertiary)' }}>{item.icon}</div>
-                    <span style={{ flex: 1, fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: '500' }}>{item.label}</span>
-                    {item.done
-                      ? <Badge variant="success" size="sm">Done</Badge>
-                      : <Badge variant="neutral" size="sm">Pending</Badge>
-                    }
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                <Shield size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--text-primary)', marginBottom: '2px' }}>Compliance status</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    View your license, insurance, and identity verification status in Settings.
                   </div>
-                ))}
+                </div>
               </div>
             </Card>
           </div>

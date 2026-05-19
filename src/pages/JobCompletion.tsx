@@ -1,54 +1,74 @@
-import { FileText, CheckCircle2, Download } from 'lucide-react';
+import { CheckCircle2, FileText, Download } from 'lucide-react';
+import TopNav from '../components/TopNav';
+import { Card } from '../components/ui/Card';
 
 export default function JobCompletion() {
+  const isDemo = localStorage.getItem('demoMode') === 'true';
+
+  if (!isDemo) {
+    return (
+      <>
+        <TopNav title="Job Completion" />
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-6)' }}>
+          <Card style={{ padding: 'var(--space-6)', textAlign: 'center', maxWidth: '320px' }}>
+            <CheckCircle2 size={48} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-4)' }} />
+            <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 var(--space-2)' }}>
+              Invoice & Completion
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+              Your final invoice and job completion summary will appear here once a job is marked complete.
+            </p>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
+  // Demo content preserved below
   return (
-    <div className="page-container">
-      <div className="text-center mb-6">
-        <CheckCircle2 size={48} color="var(--success)" style={{ margin: '0 auto 1rem' }} />
-        <h2>Job Completed</h2>
-        <p>Review the final invoice from Bob Builder.</p>
+    <>
+      <TopNav title="Job Completion" />
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingBottom: '90px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
+          <CheckCircle2 size={48} color="var(--success)" style={{ margin: '0 auto var(--space-4)' }} />
+          <h2 style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 var(--space-2)' }}>Job Completed</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Review the final invoice from your tradesperson.</p>
+        </div>
+
+        <Card style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--border)', marginBottom: 'var(--space-4)' }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px', fontWeight: '700', color: 'var(--text-primary)' }}>Invoice #INV-2049</h3>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Demo Tradesperson · May 2026</p>
+            </div>
+            <FileText size={20} color="var(--primary)" />
+          </div>
+          {[
+            { label: 'Service Labor', amount: 150.00 },
+            { label: 'Parts (PVC Trap)', amount: 45.00 },
+            { label: 'Platform Fee', amount: 8.50 },
+          ].map(line => (
+            <div key={line.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontSize: '0.875rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>{line.label}</span>
+              <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>${line.amount.toFixed(2)}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 'var(--space-3)', borderTop: '2px solid var(--border)', marginTop: 'var(--space-2)', fontSize: '1rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+            <span>Total Due</span>
+            <span>$203.50</span>
+          </div>
+        </Card>
+
+        <button style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+          background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+          padding: '10px', color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: '600',
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>
+          <Download size={16} />
+          Download Invoice PDF
+        </button>
       </div>
-
-      <div className="card" style={{ animation: 'fadeIn 0.4s' }}>
-        <div className="flex justify-between items-center mb-6" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
-          <div>
-            <h3 style={{ margin: 0 }}>Invoice #INV-2049</h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Generated Today</span>
-          </div>
-          <FileText size={24} color="var(--primary)" />
-        </div>
-
-        <div className="flex flex-col gap-3 mb-6" style={{ fontSize: '0.9rem' }}>
-          <div className="flex justify-between">
-            <span style={{ color: 'var(--text-secondary)' }}>Service Labor (1 hr)</span>
-            <span>$150.00</span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: 'var(--text-secondary)' }}>Parts (PVC Trap)</span>
-            <span>$45.00</span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: 'var(--text-secondary)' }}>Platform Fee</span>
-            <span>$8.50</span>
-          </div>
-        </div>
-
-        <div style={{ background: 'var(--bg-surface-elevated)', padding: '1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem' }}>
-          <div className="flex justify-between items-center">
-            <span style={{ fontWeight: 600 }}>Total Due</span>
-            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>$203.50</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <button className="btn btn-primary" style={{ display: 'flex', gap: '8px' }}>
-            Pay $203.50 Now
-          </button>
-          <button className="btn btn-secondary" style={{ display: 'flex', gap: '8px', color: 'var(--text-secondary)' }}>
-            <Download size={18} /> Download PDF
-          </button>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }

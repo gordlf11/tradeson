@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Clock, CheckCircle, Star,
+  Plus, CheckCircle,
   Home, Building2, Users, Bell, Briefcase, AlertCircle,
   MessageCircle, Calendar
 } from 'lucide-react';
@@ -10,7 +10,6 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import MessagingModal from '../components/MessagingModal';
-import ReviewModal from '../components/ReviewModal';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
@@ -32,24 +31,14 @@ interface ActiveJob {
   confirmedSlot?: string;
 }
 
-interface QuoteNotification {
-  id: string;
-  jobTitle: string;
-  providerName: string;
-  rating: number;
-  price: number;
-  timeAgo: string;
-}
 
-interface HistoryItem {
+interface PaymentRow {
   id: string;
-  title: string;
-  provider: string;
-  providerId: string;
-  completedOn: string;
-  paid: number;
-  rating: number;
-  reviewed: boolean;
+  amount: number;
+  status: string;
+  date: string;
+  job_title: string;
+  tx_type: string;
 }
 
 // ── API row → view model ───────────────────────────────────────────────────
@@ -136,19 +125,7 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
   };
 }
 
-// ── Fallback jobs (shown when API is unavailable) ─────────────────────────
-
-function localJobToActive(j: any): ActiveJob {
-  return {
-    id: j.id,
-    title: j.title,
-    property: localStorage.getItem('locationStreet') || 'Your Property',
-    status: 'open',
-    tradeType: j.category || 'General',
-    postedAt: 'just now',
-    quotesCount: 0,
-  };
-}
+// ── Fallback jobs (demo mode only) ────────────────────────────────────────
 
 const FALLBACK_JOBS: ActiveJob[] = [
   {
@@ -170,19 +147,6 @@ const FALLBACK_JOBS: ActiveJob[] = [
   },
 ];
 
-// ── Mock data (not yet wired to api) ───────────────────────────────────────
-
-// TODO: wire to api — quotes endpoint does not exist yet on Cloud Run API.
-const mockNotifications: QuoteNotification[] = [
-  { id: 'n1', jobTitle: 'Kitchen Sink Leak', providerName: 'Maria Plumbing LLC', rating: 4.9, price: 195, timeAgo: '22 min ago' },
-  { id: 'n2', jobTitle: 'Kitchen Sink Leak', providerName: 'Pipe Masters Inc.', rating: 4.6, price: 175, timeAgo: '1 hr ago' },
-];
-
-// TODO: wire to api — payment history endpoint does not exist yet.
-const mockHistory: HistoryItem[] = [
-  { id: 'h1', title: 'Deck Power Washing', provider: 'CleanPro Services', providerId: 'tp_clean', completedOn: 'Mar 28', paid: 225, rating: 5, reviewed: true },
-  { id: 'h2', title: 'Dryer Vent Cleaning', provider: 'SafeAir Solutions', providerId: 'tp_safe', completedOn: 'Mar 12', paid: 95, rating: 0, reviewed: false },
-];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -232,17 +196,15 @@ export default function CustomerDashboard() {
   const [jobsError, setJobsError] = useState<string | null>(null);
 
   const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
-  const [reviewItem, setReviewItem] = useState<HistoryItem | null>(null);
-  const [historyReviewed, setHistoryReviewed] = useState<Record<string, boolean>>(
-    Object.fromEntries(mockHistory.map(h => [h.id, h.reviewed]))
-  );
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
 
   useEffect(() => {
-    // Demo mode: skip API call, show mock data immediately — don't wait for userProfile
+    // Demo mode: show mock data immediately — don't wait for userProfile
     if (localStorage.getItem('demoMode') === 'true') {
-      const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToActive);
-      setJobs([...localJobs, ...FALLBACK_JOBS]);
+      setJobs(FALLBACK_JOBS);
       setJobsLoading(false);
+      setPaymentsLoading(false);
       return;
     }
 
@@ -253,23 +215,28 @@ export default function CustomerDashboard() {
     setJobsLoading(true);
     setJobsError(null);
 
-    // API route filters by the signed-in customer's id automatically — no params needed.
     api.listJobs()
       .then((res) => {
         if (cancelled) return;
-        const payload = (res as { jobs?: ApiJobRow[] }) || {};
-        const rows = payload.jobs || [];
-        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToActive);
-        setJobs(rows.length > 0 ? [...localJobs, ...rows.map(toActiveJob)] : [...localJobs, ...FALLBACK_JOBS]);
+        const rows = ((res as { jobs?: ApiJobRow[] }).jobs) || [];
+        setJobs(rows.map(toActiveJob));
       })
       .catch(() => {
-        if (cancelled) return;
-        const localJobs = JSON.parse(localStorage.getItem('localJobs') || '[]').map(localJobToActive);
-        setJobs([...localJobs, ...FALLBACK_JOBS]);
+        if (!cancelled) setJobsError('Could not load jobs. Pull to refresh.');
       })
       .finally(() => {
         if (!cancelled) setJobsLoading(false);
       });
+
+    setPaymentsLoading(true);
+    api.listMyPayments()
+      .then((res) => {
+        if (cancelled) return;
+        const rows = Array.isArray(res) ? (res as PaymentRow[]) : [];
+        setPayments(rows.filter(r => r.tx_type === 'payment' && r.status === 'completed'));
+      })
+      .catch(() => {/* non-fatal — history shows empty state */})
+      .finally(() => { if (!cancelled) setPaymentsLoading(false); });
 
     return () => { cancelled = true; };
   }, [userProfile]);
@@ -290,7 +257,6 @@ export default function CustomerDashboard() {
   const pendingJobs = enrichedJobs.filter(j => j.status === 'open');
   const quotesInJobs = enrichedJobs.filter(j => j.status === 'quotes-in');
 
-  const isJobPoster = userRole === 'homeowner' || userRole === 'property-manager' || userRole === 'realtor';
 
   if (!userProfile && localStorage.getItem('demoMode') !== 'true') {
     return (
@@ -324,8 +290,8 @@ export default function CustomerDashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
             {[
               { label: 'Active Jobs', value: activeJobs.length, icon: <Briefcase size={14} />, sub: 'in progress' },
-              { label: 'New Quotes', value: mockNotifications.length, icon: <Bell size={14} />, sub: 'awaiting review' },
-              { label: 'Jobs Done', value: mockHistory.length, icon: <CheckCircle size={14} />, sub: 'this year' },
+              { label: 'New Quotes', value: quotesInJobs.length, icon: <Bell size={14} />, sub: 'awaiting review' },
+              { label: 'Jobs Done', value: payments.length, icon: <CheckCircle size={14} />, sub: 'completed' },
             ].map(stat => (
               <div key={stat.label} style={{
                 background: 'rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)',
@@ -453,41 +419,15 @@ export default function CustomerDashboard() {
           )}
 
           {/* 3. New Quotes */}
-          {!jobsLoading && !jobsError && (quotesInJobs.length > 0 || mockNotifications.length > 0) && (
+          {!jobsLoading && !jobsError && quotesInJobs.length > 0 && (
             <div>
               {sectionHeader(
                 'New Quotes',
-                `${mockNotifications.length} quote${mockNotifications.length !== 1 ? 's' : ''} awaiting your decision`,
+                `${quotesInJobs.length} quote${quotesInJobs.length !== 1 ? 's' : ''} awaiting your decision`,
                 { label: 'View All', onClick: () => navigate('/job-board') }
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {mockNotifications.map(notif => (
-                  <Card key={notif.id} style={{
-                    padding: 'var(--space-4)',
-                    border: '2px solid var(--primary)',
-                    background: 'var(--primary-light)',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
-                      <div>
-                        <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{notif.providerName}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>re: {notif.jobTitle} · {notif.timeAgo}</div>
-                      </div>
-                      <div style={{ fontWeight: '800', fontSize: '1.2rem', color: 'var(--primary)' }}>${notif.price}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
-                        {[1,2,3,4,5].map(s => (
-                          <Star key={s} size={12} fill={s <= Math.floor(notif.rating) ? '#F76B26' : 'none'} color={s <= Math.floor(notif.rating) ? '#F76B26' : 'var(--border)'} />
-                        ))}
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>{notif.rating}</span>
-                      </div>
-                      <Button variant="primary" size="sm" onClick={() => navigate('/job-board', { state: { autoCompare: true } })}>
-                        Compare Quotes
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-                {quotesInJobs.filter(job => !mockNotifications.some(n => n.jobTitle === job.title)).map(job => {
+                {quotesInJobs.map(job => {
                   const sc = statusConfig[job.status];
                   return (
                     <Card key={job.id} style={{ padding: 'var(--space-4)', cursor: 'pointer' }} onClick={() => navigate('/job-board')}>
@@ -508,10 +448,9 @@ export default function CustomerDashboard() {
                         <span style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--primary)' }}>
                           {job.quotesCount} quote{job.quotesCount !== 1 ? 's' : ''} received
                         </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                          <Clock size={11} />
-                          {job.expiresIn} left
-                        </div>
+                        <Button variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); navigate('/job-board', { state: { autoCompare: true } }); }}>
+                          Compare Quotes
+                        </Button>
                       </div>
                     </Card>
                   );
@@ -520,99 +459,51 @@ export default function CustomerDashboard() {
             </div>
           )}
 
-          {/* Property Manager — Properties Overview */}
+          {/* Property Manager — Properties Overview placeholder */}
           {userRole === 'property-manager' && (
             <div>
               {sectionHeader('Properties Overview')}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-                {[
-                  { address: '842 Maple Ave', jobs: 2, status: 'Active' },
-                  { address: '310 Elm St', jobs: 1, status: 'Quoted' },
-                  { address: '92 Pine Blvd', jobs: 0, status: 'Clear' },
-                  { address: '1410 Oak Lane', jobs: 0, status: 'Clear' },
-                ].map(prop => (
-                  <Card key={prop.address} style={{ padding: 'var(--space-4)' }}>
-                    <Building2 size={16} color="var(--primary)" style={{ marginBottom: 'var(--space-2)' }} />
-                    <div style={{ fontWeight: '700', fontSize: '0.8rem', color: 'var(--text-primary)', marginBottom: '4px' }}>{prop.address}</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                      {prop.jobs > 0 ? `${prop.jobs} active job${prop.jobs > 1 ? 's' : ''}` : 'No active jobs'}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Realtor — Client Jobs */}
-          {userRole === 'realtor' && (
-            <div>
-              {sectionHeader('Client Jobs')}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                {[
-                  { client: 'The Johnsons', job: 'HVAC Service', status: 'Open' },
-                  { client: 'Maria Chen', job: 'Deck Repair', status: 'Scheduled' },
-                ].map(item => (
-                  <Card key={item.client} style={{ padding: 'var(--space-3) var(--space-4)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{item.client}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.job}</div>
-                      </div>
-                      <Badge variant={item.status === 'Open' ? 'neutral' : 'primary'} size="sm">{item.status}</Badge>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                <Building2 size={28} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+                  Property management dashboard coming soon. Your jobs are tracked in the sections above.
+                </p>
+              </Card>
             </div>
           )}
 
           {/* 4. Payment History */}
           <div>
-            {sectionHeader('Payment History', `${mockHistory.length} completed jobs`)}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {mockHistory.map(item => (
-                <Card key={item.id} style={{ padding: 'var(--space-4)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: historyReviewed[item.id] ? 0 : 'var(--space-3)' }}>
-                    <div>
-                      <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{item.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.provider} · {item.completedOn}</div>
-                      {item.rating > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginTop: '4px' }}>
-                          {[1,2,3,4,5].map(s => (
-                            <Star key={s} size={10} fill={s <= item.rating ? '#F76B26' : 'none'} color={s <= item.rating ? '#F76B26' : 'var(--border)'} />
-                          ))}
+            {sectionHeader('Payment History', payments.length > 0 ? `${payments.length} completed job${payments.length !== 1 ? 's' : ''}` : undefined)}
+            {paymentsLoading ? (
+              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading history…</p>
+              </Card>
+            ) : payments.length === 0 ? (
+              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                <CheckCircle size={28} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No completed jobs yet. Payment history will appear here.</p>
+              </Card>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {payments.map(item => (
+                  <Card key={item.id} style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{item.job_title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </div>
-                      )}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-primary)' }}>${Number(item.amount).toFixed(2)}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: '600' }}>Paid</div>
+                      </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-primary)' }}>${item.paid}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: '600' }}>Paid</div>
-                    </div>
-                  </div>
-                  {isJobPoster && !historyReviewed[item.id] && (
-                    <button
-                      onClick={() => setReviewItem(item)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '6px', width: '100%',
-                        justifyContent: 'center', padding: '8px',
-                        background: 'var(--bg-base)', border: '1px dashed var(--border)',
-                        borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
-                        fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      <Star size={13} />
-                      Leave a Review for {item.provider}
-                    </button>
-                  )}
-                  {historyReviewed[item.id] && item.rating === 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--success)', fontWeight: '600' }}>
-                      <CheckCircle size={12} />
-                      Review submitted
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quick Actions */}
@@ -639,22 +530,6 @@ export default function CustomerDashboard() {
         />
       )}
 
-      {/* Review Modal */}
-      {reviewItem && (
-        <ReviewModal
-          jobId={reviewItem.id}
-          jobTitle={reviewItem.title}
-          tradespersonId={reviewItem.providerId}
-          tradespersonName={reviewItem.provider}
-          reviewerId={userId}
-          reviewerName={displayName}
-          reviewerRole={userRole}
-          onClose={() => {
-            setHistoryReviewed(prev => ({ ...prev, [reviewItem.id]: true }));
-            setReviewItem(null);
-          }}
-        />
-      )}
     </>
   );
 }

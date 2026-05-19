@@ -58,80 +58,19 @@ interface AuditEntry {
   timestamp: string;
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────
+// ── Zero-state metrics (populated from API) ────────────────────────────────
 
-const mockSubmissions: ComplianceSubmission[] = [
-  {
-    id: 'cs1', tradespersonName: 'Carlos Rivera', email: 'carlos@plumb.co',
-    tradeType: 'Plumbing', submittedAt: '2 hrs ago', licenseNumber: 'PL-99123',
-    licenseState: 'CA', licenseExpiry: '2026-08-01', insuranceCoverage: '$1,000,000',
-    insuranceExpiry: '2025-12-31', hasGovId: true, hasLicenseDoc: true, hasInsuranceDoc: true,
-    status: 'pending', adminNote: '',
-  },
-  {
-    id: 'cs2', tradespersonName: 'Amy Watts', email: 'amy@watts-electric.com',
-    tradeType: 'Electrical', submittedAt: '5 hrs ago', licenseNumber: 'EL-44021',
-    licenseState: 'CA', licenseExpiry: '2025-09-15', insuranceCoverage: '$500,000',
-    insuranceExpiry: '2025-07-01', hasGovId: true, hasLicenseDoc: false, hasInsuranceDoc: true,
-    status: 'more_docs', adminNote: 'Missing professional license document.',
-  },
-  {
-    id: 'cs3', tradespersonName: 'Dave Nguyen', email: 'dave@nguyenfix.com',
-    tradeType: 'HVAC', submittedAt: 'Yesterday', licenseNumber: 'HV-20847',
-    licenseState: 'CA', licenseExpiry: '2027-03-01', insuranceCoverage: '$2,000,000',
-    insuranceExpiry: '2026-06-30', hasGovId: true, hasLicenseDoc: true, hasInsuranceDoc: true,
-    status: 'approved', adminNote: '',
-  },
-];
-
-const mockFlaggedAccounts: FlaggedAccount[] = [
-  {
-    id: 'fa1', name: 'Mike Johnson', email: 'mike.j@handyman.co', role: 'Tradesperson',
-    flagReason: 'Open payment dispute filed by client', flagType: 'dispute',
-    flaggedAt: '1 day ago', severity: 'high',
-  },
-  {
-    id: 'fa2', name: 'Lisa Torres', email: 'lisa.t@fixes.com', role: 'Tradesperson',
-    flagReason: 'Average rating below 2.5 over last 30 days', flagType: 'poor_reviews',
-    flaggedAt: '3 days ago', severity: 'medium', reviewCount: 8, avgRating: 2.3,
-  },
-  {
-    id: 'fa3', name: 'Bob Clark', email: 'bob@clarkhvac.com', role: 'Tradesperson',
-    flagReason: 'Insurance certificate expired 14 days ago', flagType: 'expired_insurance',
-    flaggedAt: '14 days ago', severity: 'high',
-  },
-  {
-    id: 'fa4', name: 'James Patel', email: 'j.patel@gmail.com', role: 'Homeowner',
-    flagReason: '14 failed login attempts in 2 hours — possible unauthorized access',
-    flagType: 'suspicious_activity', flaggedAt: '6 hrs ago', severity: 'high',
-  },
-];
-
-const mockAuditLog: AuditEntry[] = [
-  { id: 'al1', adminEmail: 'admin@tradeson.com', actionType: 'Account Approved', targetUser: 'Dave Nguyen', targetEmail: 'dave@nguyenfix.com', reason: 'All documents verified and valid.', timestamp: 'Apr 9, 2026 · 10:14 AM' },
-  { id: 'al2', adminEmail: 'admin@tradeson.com', actionType: 'More Docs Requested', targetUser: 'Amy Watts', targetEmail: 'amy@watts-electric.com', reason: 'Missing professional license document.', timestamp: 'Apr 9, 2026 · 9:02 AM' },
-  { id: 'al3', adminEmail: 'admin@tradeson.com', actionType: 'Temporary Suspension', targetUser: 'Mike Johnson', targetEmail: 'mike.j@handyman.co', reason: 'Payment dispute unresolved for 7 days. Account suspended pending resolution.', timestamp: 'Apr 8, 2026 · 3:45 PM' },
-  { id: 'al4', adminEmail: 'admin@tradeson.com', actionType: 'Warning Issued', targetUser: 'Lisa Torres', targetEmail: 'lisa.t@fixes.com', reason: 'Service quality below platform threshold. Customer complaints reviewed.', timestamp: 'Apr 7, 2026 · 11:30 AM' },
-  { id: 'al5', adminEmail: 'admin@tradeson.com', actionType: 'Account Rejected', targetUser: 'Unknown Applicant', targetEmail: 'reject@test.com', reason: 'Fraudulent license number detected during cross-reference check.', timestamp: 'Apr 6, 2026 · 2:00 PM' },
-];
-
-// ── Metric helpers ─────────────────────────────────────────────────────────
-
-const platformMetrics = {
-  users: { homeowners: 1842, propertyManagers: 394, realtors: 218, tradespersons: 631, total: 3085 },
-  mau: { total: 1240, homeowners: 720, tradespersons: 390, others: 130 },
-  jobs: { open: 87, inProgress: 143, completed: 2104 },
-  revenue: { gross: 184320, net: 156672, platformFee: 27648, opex: 24000 },
+const emptyMetrics = {
+  users: { homeowners: 0, propertyManagers: 0, realtors: 0, tradespersons: 0, total: 0 },
+  mau: { total: 0, homeowners: 0, tradespersons: 0, others: 0 },
+  jobs: { open: 0, inProgress: 0, completed: 0 },
+  revenue: { gross: 0, net: 0, platformFee: 0, opex: 0 },
   funnel: {
-    customer: { visits: 12400, signups: 2054, onboarded: 1842, firstJob: 1104 },
-    tradesperson: { signups: 850, verified: 631, firstBid: 512, firstJobWon: 389 },
+    customer: { visits: 0, signups: 0, onboarded: 0, firstJob: 0 },
+    tradesperson: { signups: 0, verified: 0, firstBid: 0, firstJobWon: 0 },
   },
-  supplyDemand: [
-    { zip: '90210', trade: 'Plumbing', supply: 12, demand: 18, ratio: 0.67 },
-    { zip: '90211', trade: 'Electrical', supply: 8, demand: 6, ratio: 1.33 },
-    { zip: '90212', trade: 'HVAC', supply: 3, demand: 14, ratio: 0.21 },
-  ],
-  activationRate: 0.78,
+  supplyDemand: [] as { zip: string; trade: string; supply: number; demand: number; ratio: number }[],
+  activationRate: 0,
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -156,17 +95,20 @@ function SeverityBadge({ severity }: { severity: FlaggedAccount['severity'] }) {
 // ── Section: Compliance Review ─────────────────────────────────────────────
 
 function ComplianceSection({ adminEmail }: { adminEmail: string }) {
-  const [submissions, setSubmissions] = useState<ComplianceSubmission[]>(mockSubmissions);
-  const [expanded, setExpanded] = useState<string | null>('cs1');
+  const [submissions, setSubmissions] = useState<ComplianceSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     api.listComplianceSubmissions()
       .then((data: any) => {
         const items: ComplianceSubmission[] = Array.isArray(data) ? data : (data?.submissions ?? []);
-        if (items.length) { setSubmissions(items); setExpanded(items[0].id); }
+        setSubmissions(items);
+        if (items.length) setExpanded(items[0].id);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const handleDecision = async (id: string, decision: ComplianceSubmission['status']) => {
@@ -192,6 +134,19 @@ function ComplianceSection({ adminEmail }: { adminEmail: string }) {
 
   const pending = submissions.filter(s => s.status === 'pending' || s.status === 'more_docs');
   const resolved = submissions.filter(s => s.status === 'approved' || s.status === 'rejected');
+
+  if (loading) {
+    return <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}><p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading submissions…</p></Card>;
+  }
+
+  if (submissions.length === 0) {
+    return (
+      <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+        <CheckCircle size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No compliance submissions to review.</p>
+      </Card>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -303,7 +258,8 @@ function ComplianceSection({ adminEmail }: { adminEmail: string }) {
 // ── Section: Account Monitoring ────────────────────────────────────────────
 
 function AccountMonitoringSection({ onFlagAccount }: { onFlagAccount: (account: FlaggedAccount) => void }) {
-  const [accounts, setAccounts] = useState<FlaggedAccount[]>(mockFlaggedAccounts);
+  const [accounts, setAccounts] = useState<FlaggedAccount[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [notified, setNotified] = useState<Record<string, boolean>>({});
 
@@ -311,15 +267,20 @@ function AccountMonitoringSection({ onFlagAccount }: { onFlagAccount: (account: 
     api.listFlaggedAccounts()
       .then((data: any) => {
         const items: FlaggedAccount[] = Array.isArray(data) ? data : (data?.accounts ?? []);
-        if (items.length) setAccounts(items);
+        setAccounts(items);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = accounts.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (loading) {
+    return <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}><p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading flagged accounts…</p></Card>;
+  }
 
   const flagIcon = (type: FlaggedAccount['flagType']) => {
     if (type === 'dispute') return <DollarSign size={16} color="var(--danger)" />;
@@ -349,6 +310,12 @@ function AccountMonitoringSection({ onFlagAccount }: { onFlagAccount: (account: 
           }}
         />
       </div>
+      {filtered.length === 0 && (
+        <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+          <CheckCircle size={28} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No flagged accounts{search ? ' matching your search' : ''}.</p>
+        </Card>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         {filtered.map(account => (
           <Card key={account.id} style={{ padding: 'var(--space-4)' }}>
@@ -419,7 +386,7 @@ function AccountMonitoringSection({ onFlagAccount }: { onFlagAccount: (account: 
 // ── Section: Admin Resolutions ─────────────────────────────────────────────
 
 function ResolutionsSection({ preselectedAccount, adminEmail }: { preselectedAccount?: FlaggedAccount; adminEmail: string }) {
-  const [accounts, setAccounts] = useState<FlaggedAccount[]>(mockFlaggedAccounts);
+  const [accounts, setAccounts] = useState<FlaggedAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState(preselectedAccount?.id ?? '');
   const [action, setAction] = useState('');
   const [reason, setReason] = useState('');
@@ -597,7 +564,7 @@ function ResolutionsSection({ preselectedAccount, adminEmail }: { preselectedAcc
 // ── Section: Audit Log ─────────────────────────────────────────────────────
 
 function AuditLogSection() {
-  const [entries, setEntries] = useState<AuditEntry[]>(mockAuditLog);
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
 
   const load = () => {
     getAuditLog()
@@ -671,6 +638,13 @@ function AuditLogSection() {
               </tr>
             </thead>
             <tbody>
+              {entries.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: 'var(--space-6)', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                    No audit log entries yet.
+                  </td>
+                </tr>
+              )}
               {entries.map((entry, i) => (
                 <tr
                   key={entry.id}
@@ -717,7 +691,7 @@ function AuditLogSection() {
 // ── Section: Platform Metrics ──────────────────────────────────────────────
 
 function MetricsSection() {
-  const [m, setM] = useState(platformMetrics);
+  const [m, setM] = useState(emptyMetrics);
 
   useEffect(() => {
     api.getPlatformMetrics()
@@ -1089,13 +1063,34 @@ export default function AdminDashboard() {
   const [flaggingAccount, setFlaggingAccount] = useState<FlaggedAccount | null>(null);
   const adminEmail = localStorage.getItem('userEmail') || 'admin@tradeson.com';
 
+  const [pendingCompliance, setPendingCompliance] = useState(0);
+  const [highSeverityFlags, setHighSeverityFlags] = useState(0);
+  const [overviewMetrics, setOverviewMetrics] = useState(emptyMetrics);
+
+  useEffect(() => {
+    api.listComplianceSubmissions()
+      .then((data: any) => {
+        const items = Array.isArray(data) ? data : (data?.submissions ?? []);
+        setPendingCompliance(items.filter((s: any) => s.status === 'pending' || s.status === 'more_docs').length);
+      })
+      .catch(() => {});
+
+    api.listFlaggedAccounts()
+      .then((data: any) => {
+        const items = Array.isArray(data) ? data : (data?.accounts ?? []);
+        setHighSeverityFlags(items.filter((a: any) => a.severity === 'high').length);
+      })
+      .catch(() => {});
+
+    api.getPlatformMetrics()
+      .then((data: any) => { if (data) setOverviewMetrics(data); })
+      .catch(() => {});
+  }, []);
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/login');
   };
-
-  const pendingCompliance = mockSubmissions.filter(s => s.status === 'pending').length;
-  const highSeverityFlags = mockFlaggedAccounts.filter(a => a.severity === 'high').length;
 
   const sections: { key: AdminSection; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <BarChart2 size={15} /> },
@@ -1186,9 +1181,9 @@ export default function AdminDashboard() {
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
               {[
-                { label: 'Total Users', value: platformMetrics.users.total.toLocaleString(), icon: <Users size={18} />, color: 'var(--primary)' },
-                { label: 'Active Jobs', value: (platformMetrics.jobs.open + platformMetrics.jobs.inProgress).toLocaleString(), icon: <Briefcase size={18} />, color: 'var(--navy)' },
-                { label: 'YTD Revenue', value: `$${(platformMetrics.revenue.gross / 1000).toFixed(0)}K`, icon: <DollarSign size={18} />, color: 'var(--success)' },
+                { label: 'Total Users', value: overviewMetrics.users.total.toLocaleString(), icon: <Users size={18} />, color: 'var(--primary)' },
+                { label: 'Active Jobs', value: (overviewMetrics.jobs.open + overviewMetrics.jobs.inProgress).toLocaleString(), icon: <Briefcase size={18} />, color: 'var(--navy)' },
+                { label: 'YTD Revenue', value: overviewMetrics.revenue.gross > 0 ? `$${(overviewMetrics.revenue.gross / 1000).toFixed(0)}K` : '$0', icon: <DollarSign size={18} />, color: 'var(--success)' },
                 { label: 'Pending Reviews', value: pendingCompliance, icon: <Shield size={18} />, color: pendingCompliance > 0 ? 'var(--warning)' : 'var(--success)' },
               ].map(stat => (
                 <Card key={stat.label} style={{ padding: 'var(--space-4)', textAlign: 'center' }}>

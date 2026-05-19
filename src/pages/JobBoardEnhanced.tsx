@@ -270,12 +270,6 @@ interface QuoteModalProps {
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TIME_SLOTS = ['7 AM – 10 AM', '10 AM – 1 PM', '1 PM – 4 PM', '4 PM – 7 PM'];
 
-const MOCK_REVIEWS = [
-  { reviewer: 'Sarah M.', rating: 5, text: 'Fantastic work, arrived on time and left the place spotless.', date: 'Oct 2024' },
-  { reviewer: 'Tom Chen', rating: 5, text: 'Fixed a tricky leak quickly and the price was fair.', date: 'Sep 2024' },
-  { reviewer: 'Linda Ross', rating: 4, text: 'Good communication and solid workmanship overall.', date: 'Aug 2024' },
-  { reviewer: 'James O.', rating: 5, text: 'Would absolutely hire again — professional and efficient.', date: 'Jul 2024' },
-];
 
 interface ToolItem {
   id: string;
@@ -296,11 +290,22 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
   const [tools, setTools] = useState<ToolItem[]>([]);
   const [newToolName, setNewToolName] = useState('');
 
+  const { userProfile: tpProfile } = useAuth();
   const tradespersonData = JSON.parse(localStorage.getItem('tradespersonData') || '{}');
   const serviceArea = [tradespersonData.serviceCity, tradespersonData.serviceState].filter(Boolean).join(', ')
     || (tradespersonData.primaryTrades?.length ? `${tradespersonData.serviceRadius || 25} mi radius` : '');
-  const rating = 4.8;
-  const reviewCount = 47;
+  const tpMeta = tpProfile?.profile as any;
+  const rating: number | null = tpMeta?.rating ? parseFloat(tpMeta.rating) : null;
+  const reviewCount: number = tpMeta?.review_count ?? 0;
+  const [reviews, setReviews] = useState<{ reviewer_name: string; rating: number; comment?: string; created_at: string }[]>([]);
+
+  useEffect(() => {
+    if (tpProfile?.id) {
+      api.listReviews(tpProfile.id)
+        .then((res: any) => setReviews(Array.isArray(res) ? res : []))
+        .catch(() => {});
+    }
+  }, [tpProfile?.id]);
 
   const addTool = () => {
     const name = newToolName.trim();
@@ -406,13 +411,16 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
                     {tradespersonData.businessName || tradespersonData.fullName || 'Your Business'}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <StarRow rating={rating} />
-                    <button
-                      onClick={() => setReviewsExpanded(e => !e)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: '700', fontFamily: 'inherit' }}
-                    >
-                      {reviewCount} reviews {reviewsExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    </button>
+                    {rating !== null && <StarRow rating={rating} />}
+                    {reviewCount > 0 && (
+                      <button
+                        onClick={() => setReviewsExpanded(e => !e)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: '700', fontFamily: 'inherit' }}
+                      >
+                        {reviewCount} review{reviewCount !== 1 ? 's' : ''} {reviewsExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      </button>
+                    )}
+                    {reviewCount === 0 && <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>No reviews yet</span>}
                   </div>
                   {serviceArea ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
@@ -424,16 +432,18 @@ function QuoteSubmissionModal({ job, onClose, onSubmit }: QuoteModalProps) {
                 <Badge variant="success" size="sm">Verified</Badge>
               </div>
 
-              {reviewsExpanded && (
+              {reviewsExpanded && reviews.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--primary)', paddingTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                  {MOCK_REVIEWS.map((r, i) => (
-                    <div key={i} style={{ paddingBottom: i < MOCK_REVIEWS.length - 1 ? 'var(--space-3)' : 0, borderBottom: i < MOCK_REVIEWS.length - 1 ? '1px solid rgba(var(--primary-rgb,247,107,38),0.2)' : 'none' }}>
+                  {reviews.slice(0, 4).map((r, i) => (
+                    <div key={i} style={{ paddingBottom: i < Math.min(reviews.length, 4) - 1 ? 'var(--space-3)' : 0, borderBottom: i < Math.min(reviews.length, 4) - 1 ? '1px solid rgba(var(--primary-rgb,247,107,38),0.2)' : 'none' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                        <span style={{ fontWeight: '700', fontSize: '0.78rem', color: 'var(--text-primary)' }}>{r.reviewer}</span>
-                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>{r.date}</span>
+                        <span style={{ fontWeight: '700', fontSize: '0.78rem', color: 'var(--text-primary)' }}>{r.reviewer_name}</span>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                          {new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                        </span>
                       </div>
                       <StarRow rating={r.rating} />
-                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>{r.text}</p>
+                      {r.comment && <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>{r.comment}</p>}
                     </div>
                   ))}
                 </div>

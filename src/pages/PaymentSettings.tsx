@@ -62,9 +62,9 @@ export default function PaymentSettings() {
     api.listMyPayments()
       .then((data: any) => {
         const rows = Array.isArray(data) ? data : (data?.payments ?? []);
-        setPayments(rows.length ? rows : (isTrader ? MOCK_TRADE_EARNINGS : MOCK_CUSTOMER_PAYMENTS));
+        setPayments(rows);
       })
-      .catch(() => setPayments(isTrader ? MOCK_TRADE_EARNINGS : MOCK_CUSTOMER_PAYMENTS))
+      .catch(() => setPayments([]))
       .finally(() => setPaymentsLoading(false));
   }, [isTrader, isDemo]);
 

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Clock, MapPin, CheckCircle2,
-  ChevronLeft, ChevronRight, Navigation
+  Clock, CheckCircle2,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -13,7 +13,12 @@ interface TimeSlot {
   time: string;
 }
 
-const DATES = ['Mon, Mar 18', 'Tue, Mar 19', 'Wed, Mar 20', 'Thu, Mar 21', 'Fri, Mar 22', 'Sat, Mar 23', 'Sun, Mar 24'];
+// Build a real 7-day window starting today
+const DATES = Array.from({ length: 7 }, (_, i) => {
+  const d = new Date();
+  d.setDate(d.getDate() + i);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+});
 const TIMES: TimeSlot[] = [
   { time: '8:00 AM' }, { time: '8:30 AM' },
   { time: '9:00 AM' }, { time: '9:30 AM' },
@@ -72,19 +77,12 @@ export default function Scheduling() {
               <Card style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700' }}>Kitchen Sink Leak Repair</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700' }}>Your Upcoming Service</h3>
                     <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                      Bob's Plumbing Services · 2.4 miles away
+                      Select your available time windows below
                     </p>
                   </div>
-                  <Badge variant="warning">Moderate</Badge>
-                </div>
-                <div style={{
-                  marginTop: 'var(--space-3)', padding: 'var(--space-2) var(--space-3)',
-                  background: 'var(--primary-light)', borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '700',
-                }}>
-                  Accepted Quote: $195
+                  <Badge variant="primary">Scheduled</Badge>
                 </div>
               </Card>
 
@@ -241,9 +239,9 @@ export default function Scheduling() {
           {step === 'confirm' && (
             <Card style={{ padding: '3rem 2rem', textAlign: 'center' }}>
               <div className="loader" style={{ width: '60px', height: '60px', margin: '0 auto var(--space-4)' }} />
-              <h2>Confirming with Tradesperson</h2>
+              <h2>Sending Availability</h2>
               <p style={{ color: 'var(--text-secondary)' }}>
-                Bob's Plumbing is reviewing your time preferences...
+                Sharing your time preferences with your tradesperson…
               </p>
             </Card>
           )}
@@ -260,51 +258,13 @@ export default function Scheduling() {
                     <CheckCircle2 size={28} color="white" />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0 }}>Service Confirmed!</h3>
+                    <h3 style={{ margin: 0 }}>Availability Sent!</h3>
                     <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                      Tuesday, March 19 at 2:00 PM
+                      Your tradesperson will confirm your appointment shortly.
                     </p>
                   </div>
                 </div>
-                <div style={{ padding: 'var(--space-3)', background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Service Provider</span>
-                    <Badge variant="success">Verified</Badge>
-                  </div>
-                  <div style={{ fontWeight: 600 }}>Bob's Plumbing Services</div>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    License #PL-2024-1234 · 4.8★ (127 reviews)
-                  </div>
-                </div>
-              </Card>
-
-              <Card style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
-                <h3 style={{ margin: '0 0 var(--space-3) 0' }}>Service Route</h3>
-                <div style={{
-                  height: '240px', background: 'var(--bg-base)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center', position: 'relative',
-                }}>
-                  <MapPin size={48} color="var(--primary)" style={{ marginBottom: 'var(--space-2)' }} />
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>123 Main St, Springfield</p>
-                  <p style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', marginTop: '4px' }}>
-                    Estimated arrival: 1:45 PM – 2:15 PM
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
-                  <Button variant="outline" size="md" fullWidth icon={<Navigation size={18} />}>Get Directions</Button>
-                  <Button variant="primary" size="md" fullWidth onClick={() => navigate('/job-day-of')}>View Day Of</Button>
-                </div>
-              </Card>
-
-              <Card style={{ padding: 'var(--space-4)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Questions about your service?</p>
-                    <p style={{ margin: '4px 0 0', fontWeight: 600 }}>Contact Bob: (555) 123-4567</p>
-                  </div>
-                  <Button variant="ghost" size="sm">Call Now</Button>
-                </div>
+                <Button variant="primary" fullWidth onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
               </Card>
             </>
           )}
