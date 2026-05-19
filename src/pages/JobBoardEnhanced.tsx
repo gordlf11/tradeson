@@ -1205,13 +1205,23 @@ export default function JobBoardEnhanced() {
             {isTradeUser && (
               <div style={{ display: 'flex', gap: 'var(--space-2)', position: 'relative' }}>
                 {/* Refresh */}
-                <button onClick={() => setRefetchKey(k => k + 1)} style={{
-                  padding: '5px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
-                  background: 'var(--bg-surface)', color: 'var(--text-secondary)',
-                  border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', gap: '4px',
-                }}>
-                  <RefreshCw size={12} /> Refresh
+                <button
+                  onClick={() => { if (!jobsLoading) setRefetchKey(k => k + 1); }}
+                  style={{
+                    padding: '8px 14px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: '600',
+                    background: jobsLoading ? 'var(--primary-light)' : 'var(--bg-surface)',
+                    color: jobsLoading ? 'var(--primary)' : 'var(--text-secondary)',
+                    border: jobsLoading ? '1px solid var(--primary)' : '1px solid var(--border)',
+                    cursor: jobsLoading ? 'default' : 'pointer', fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    minHeight: '36px', minWidth: '90px', justifyContent: 'center',
+                  }}
+                >
+                  <RefreshCw
+                    size={13}
+                    style={jobsLoading ? { animation: 'spin 0.8s linear infinite' } : undefined}
+                  />
+                  {jobsLoading ? 'Refreshing…' : 'Refresh'}
                 </button>
                 {/* Sort */}
                 <button onClick={() => setShowSortMenu(v => !v)} style={{
