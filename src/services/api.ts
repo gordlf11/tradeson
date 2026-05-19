@@ -81,6 +81,8 @@ export const api = {
 
   listMyQuotes: () => request('/api/v1/quotes/mine'),
 
+  getEarnings: () => request('/api/v1/payments/earnings'),
+
   // Stripe — save card for future job payments (SetupIntent)
   createSetupIntent: () =>
     request('/api/v1/stripe/create-setup-intent', { method: 'POST' }),

@@ -43,4 +43,53 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// GET /api/v1/payments/earnings
+// Tradesperson earnings summary — aggregated from completed payments.
+router.get('/earnings', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.user!;
+  if (!id) { res.status(401).json({ error: 'User not found' }); return; }
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        COALESCE(SUM(
+          CASE WHEN p.status = 'completed'
+                AND DATE_TRUNC('month', p.created_at) = DATE_TRUNC('month', NOW())
+               THEN COALESCE(p.net_payout, p.amount) END
+        ), 0)::NUMERIC(12,2)  AS this_month,
+
+        COALESCE(SUM(
+          CASE WHEN p.status IN ('authorized','processing')
+               THEN COALESCE(p.net_payout, p.amount) END
+        ), 0)::NUMERIC(12,2)  AS pending_payout,
+
+        COALESCE(SUM(
+          CASE WHEN p.status = 'completed'
+               THEN COALESCE(p.net_payout, p.amount) END
+        ), 0)::NUMERIC(12,2)  AS lifetime,
+
+        (SELECT COALESCE(jobs_completed, 0)
+         FROM tradesperson_profiles WHERE user_id = $1) AS jobs_completed
+
+      FROM payments p
+      WHERE p.payee_user_id = $1
+    `, [id]);
+
+    const row = result.rows[0];
+    const lifetime      = parseFloat(row.lifetime);
+    const jobsCompleted = parseInt(row.jobs_completed) || 0;
+
+    res.json({
+      this_month:    parseFloat(row.this_month),
+      pending_payout: parseFloat(row.pending_payout),
+      lifetime,
+      jobs_completed: jobsCompleted,
+      avg_per_job:   jobsCompleted > 0 ? Math.round((lifetime / jobsCompleted) * 100) / 100 : 0,
+    });
+  } catch (err) {
+    console.error('payments/earnings error:', err);
+    res.status(500).json({ error: 'Failed to fetch earnings' });
+  }
+});
+
 export default router;
