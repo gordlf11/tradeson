@@ -88,6 +88,17 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
 
   const { status, category, zip_code, limit = '20', offset = '0', acceptedTradespersonId, customerId } = req.query;
 
+  // Non-admins can only query their own jobs — prevent one user from reading
+  // another user's job list by passing a foreign UUID in these params.
+  if (customerId && customerId !== id && role !== 'admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  if (acceptedTradespersonId && acceptedTradespersonId !== id && role !== 'admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
   try {
     let query: string;
     let params: any[];
@@ -317,13 +328,46 @@ router.post('/:id/confirm-complete', requireAuth, async (req: AuthenticatedReque
     const piId = job.payment_pi_id || job.stripe_payment_intent_id;
 
     if (!piId) {
-      // No pre-auth — mark complete without a capture (will need manual payout)
+      // No Stripe pre-auth — mark complete and record earnings from the accepted quote
+      // so dashboard financial stats stay accurate even without a payment hold.
       await pool.query(
         `UPDATE jobs SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1`,
         [jobId]
       );
-      await logAuditEvent(userId!, 'job.confirmed_complete', 'jobs', jobId, { captured: false }, req.ip);
-      return res.json({ success: true, captured: false, message: 'Job marked complete — no payment hold to capture' });
+
+      // Find accepted quote to record the agreed amount
+      const quoteResult = await pool.query(
+        `SELECT q.price, q.tradesperson_user_id
+         FROM quotes q
+         WHERE q.job_id = $1 AND q.status = 'accepted'
+         LIMIT 1`,
+        [jobId]
+      );
+      const quote = quoteResult.rows[0];
+      if (quote) {
+        const gross = parseFloat(quote.price);
+        const fee   = Math.round(gross * PLATFORM_FEE_PERCENT * 100) / 100;
+        const net   = Math.round((gross - fee) * 100) / 100;
+
+        await pool.query(
+          `INSERT INTO payments
+             (job_id, payer_user_id, payee_user_id, amount, platform_fee, net_payout, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'completed')
+           ON CONFLICT DO NOTHING`,
+          [jobId, job.homeowner_user_id, quote.tradesperson_user_id, gross, fee, net]
+        );
+
+        await pool.query(
+          `UPDATE tradesperson_profiles
+             SET jobs_completed = jobs_completed + 1, updated_at = now()
+           WHERE user_id = $1`,
+          [quote.tradesperson_user_id]
+        );
+      }
+
+      await logAuditEvent(userId!, 'job.confirmed_complete', 'jobs', jobId,
+        { captured: false, quote_price: quote?.price ?? null }, req.ip);
+      return res.json({ success: true, captured: false, quote_price: quote?.price ?? null });
     }
 
     // Capture the hold — this charges the job poster and routes to tradesperson via transfer_data

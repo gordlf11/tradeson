@@ -160,7 +160,7 @@ service cloud.firestore {
 
     match /support_tickets/{ticketId} {
       allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.token.email;
+        && request.resource.data.userId == request.auth.uid;
 
       allow read, update: if isAdmin();
 

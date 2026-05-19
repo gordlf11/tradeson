@@ -160,4 +160,24 @@ router.put('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// DELETE /api/v1/users/me — Soft-delete the authenticated user's account
+// requireAuth already enforces deleted_at IS NULL, so the user is locked
+// out automatically on their next request after this call.
+router.delete('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.user!;
+  if (!id) { res.status(404).json({ error: 'User not found' }); return; }
+
+  try {
+    await pool.query(
+      `UPDATE users SET deleted_at = now(), is_active = FALSE, updated_at = now() WHERE id = $1`,
+      [id]
+    );
+    await logAuditEvent(id, 'user.deleted', 'users', id, {}, req.ip);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
 export default router;
