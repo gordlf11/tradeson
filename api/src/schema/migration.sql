@@ -666,3 +666,29 @@ CREATE TABLE IF NOT EXISTS realtor_favorites (
   UNIQUE(realtor_profile_id, tradesperson_user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_realtor_favorites_profile ON realtor_favorites(realtor_profile_id);
+
+-- ═══════════════════════════════════════════
+-- DELETED ACCOUNTS — immutable master record
+-- Append-only archive. One row per deletion event. The original users row
+-- is soft-deleted (deleted_at set) and stays in the users table, but this
+-- table acts as the permanent, GDPR-safe audit copy that survives any
+-- future cleanup of the live users table. original_user_id is kept so
+-- all associated records (jobs, payments, reviews) can still be traced.
+-- ═══════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS deleted_accounts (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  original_user_id    UUID NOT NULL,
+  firebase_uid        VARCHAR(128) NOT NULL,
+  email               TEXT NOT NULL,
+  full_name           TEXT NOT NULL,
+  role                TEXT NOT NULL,
+  phone_number        VARCHAR(20),
+  account_created_at  TIMESTAMPTZ NOT NULL,
+  deleted_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deletion_source     TEXT NOT NULL DEFAULT 'user_requested'
+                        CHECK (deletion_source IN ('user_requested','admin_action','compliance'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email       ON deleted_accounts(email);
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_firebase    ON deleted_accounts(firebase_uid);
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at  ON deleted_accounts(deleted_at DESC);

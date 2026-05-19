@@ -161,6 +161,7 @@ router.put('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
 });
 
 // DELETE /api/v1/users/me — Soft-delete the authenticated user's account
+// and snapshot key fields into deleted_accounts for permanent audit trail.
 // requireAuth already enforces deleted_at IS NULL, so the user is locked
 // out automatically on their next request after this call.
 router.delete('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
@@ -168,11 +169,30 @@ router.delete('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
   if (!id) { res.status(404).json({ error: 'User not found' }); return; }
 
   try {
+    const userResult = await pool.query(
+      `SELECT firebase_uid, email, full_name, role, phone_number, created_at
+       FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+    if (userResult.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const u = userResult.rows[0];
+
+    // Write immutable archive record before altering the live row
+    await pool.query(
+      `INSERT INTO deleted_accounts
+         (original_user_id, firebase_uid, email, full_name, role, phone_number, account_created_at, deletion_source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'user_requested')`,
+      [id, u.firebase_uid, u.email, u.full_name, u.role, u.phone_number, u.created_at]
+    );
+
     await pool.query(
       `UPDATE users SET deleted_at = now(), is_active = FALSE, updated_at = now() WHERE id = $1`,
       [id]
     );
-    await logAuditEvent(id, 'user.deleted', 'users', id, {}, req.ip);
+    await logAuditEvent(id, 'user.deleted', 'users', id, { role: u.role }, req.ip);
     res.json({ success: true });
   } catch (err) {
     console.error('Delete user error:', err);
