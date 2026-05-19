@@ -18,6 +18,7 @@ interface ActiveJob {
   title: string;
   client: string;
   clientId: string;
+  clientFirebaseId?: string;
   address: string;
   status: 'confirmed' | 'en-route' | 'in-progress' | 'completed';
   scheduledDate: string;
@@ -49,6 +50,7 @@ interface ApiJobRow {
   budget_max?: number | string | null;
   quote_count?: number | string;
   customer_name?: string | null;
+  customer_firebase_uid?: string | null;
   tradesperson_name?: string | null;
 }
 
@@ -84,6 +86,7 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
     title: row.title,
     client: row.customer_name || 'Customer',
     clientId: row.homeowner_user_id,
+    clientFirebaseId: row.customer_firebase_uid || '',
     address: addressLine,
     status: mapStatus(row.status),
     scheduledDate: row.expires_at
@@ -370,7 +373,7 @@ const sectionHeader = (title: string, sub?: string) => (
 
 export default function TradespersonDashboard() {
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser } = useAuth();
 
   const userRole = userProfile?.role || 'licensed_tradesperson';
   const displayName = userProfile?.full_name || 'Tradesperson';
@@ -706,10 +709,10 @@ export default function TradespersonDashboard() {
         <MessagingModal
           jobId={messagingJob.id}
           jobTitle={messagingJob.title}
-          currentUserId={userId}
+          currentUserId={firebaseUser?.uid || ''}
           currentUserName={displayName}
           currentUserRole={userRole}
-          otherUserId={messagingJob.clientId}
+          otherUserId={messagingJob.clientFirebaseId ?? ''}
           otherUserName={messagingJob.client}
           onClose={() => setMessagingJob(null)}
         />

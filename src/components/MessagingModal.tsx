@@ -43,7 +43,8 @@ export default function MessagingModal({
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Determine customer vs tradesperson
-  const isTradeRole = currentUserRole === 'licensed-trade' || currentUserRole === 'non-licensed-trade';
+  const isTradeRole = currentUserRole === 'licensed-trade' || currentUserRole === 'non-licensed-trade'
+    || currentUserRole === 'licensed_tradesperson' || currentUserRole === 'unlicensed_tradesperson';
   const customerId = isTradeRole ? otherUserId : currentUserId;
   const customerName = isTradeRole ? otherUserName : currentUserName;
   const tradespersonId = isTradeRole ? currentUserId : otherUserId;

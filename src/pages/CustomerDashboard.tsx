@@ -26,6 +26,7 @@ interface ActiveJob {
   expiresIn?: string;
   acceptedProvider?: string;
   acceptedProviderId?: string;
+  acceptedProviderFirebaseId?: string;
   acceptedPrice?: number;
   confirmedDay?: string;
   confirmedSlot?: string;
@@ -65,6 +66,7 @@ interface ApiJobRow {
   budget_max?: number | string | null;
   quote_count?: number | string;
   tradesperson_name?: string | null;
+  tradesperson_firebase_uid?: string | null;
 }
 
 // Map Postgres job status → the dashboard's ActiveJob status variants.
@@ -121,6 +123,7 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
     expiresIn: expiresInLabel(row.expires_at),
     acceptedProvider: row.tradesperson_name || undefined,
     acceptedProviderId: row.assigned_tradesperson_id || undefined,
+    acceptedProviderFirebaseId: row.tradesperson_firebase_uid || undefined,
     acceptedPrice,
   };
 }
@@ -184,10 +187,9 @@ function getRoleDetails(role: string) {
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser } = useAuth();
 
   const userRole = userProfile?.role || 'homeowner';
-  const userId = userProfile?.id || '';
   const displayName = userProfile?.full_name || 'there';
   const roleDetails = getRoleDetails(userRole);
 
@@ -521,10 +523,10 @@ export default function CustomerDashboard() {
         <MessagingModal
           jobId={messagingJob.id}
           jobTitle={messagingJob.title}
-          currentUserId={userId}
+          currentUserId={firebaseUser?.uid || ''}
           currentUserName={displayName}
           currentUserRole={userRole}
-          otherUserId={messagingJob.acceptedProviderId ?? 'tp_unknown'}
+          otherUserId={messagingJob.acceptedProviderFirebaseId ?? ''}
           otherUserName={messagingJob.acceptedProvider}
           onClose={() => setMessagingJob(null)}
         />
