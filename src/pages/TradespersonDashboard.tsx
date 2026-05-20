@@ -18,6 +18,10 @@ interface ActiveJob {
   title: string;
   client: string;
   clientId: string;
+  // Homeowner's Firebase UID — needed so the MessagingModal's Firestore thread
+  // participants match what security rules check (request.auth.uid). Without it,
+  // ensureThread() throws and the modal silently falls back to local React state.
+  clientFirebaseUid?: string;
   address: string;
   status: 'confirmed' | 'en-route' | 'in-progress' | 'completed';
   scheduledDate: string;
@@ -50,6 +54,7 @@ interface ApiJobRow {
   quote_count?: number | string;
   customer_name?: string | null;
   tradesperson_name?: string | null;
+  homeowner_firebase_uid?: string | null;
 }
 
 // Map Postgres job status → the dashboard's ActiveJob status variants.
@@ -84,6 +89,7 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
     title: row.title,
     client: row.customer_name || 'Customer',
     clientId: row.homeowner_user_id,
+    clientFirebaseUid: row.homeowner_firebase_uid || undefined,
     address: addressLine,
     status: mapStatus(row.status),
     scheduledDate: row.expires_at
@@ -370,7 +376,7 @@ const sectionHeader = (title: string, sub?: string) => (
 
 export default function TradespersonDashboard() {
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser } = useAuth();
 
   const userRole = userProfile?.role || 'licensed_tradesperson';
   const displayName = userProfile?.full_name || 'Tradesperson';
@@ -701,15 +707,16 @@ export default function TradespersonDashboard() {
         </div>
       </div>
 
-      {/* Messaging Modal */}
-      {messagingJob && (
+      {/* Messaging Modal — pass Firebase UIDs (not PG UUIDs) so Firestore
+          thread participants match what security rules check (request.auth.uid). */}
+      {messagingJob && firebaseUser?.uid && messagingJob.clientFirebaseUid && (
         <MessagingModal
           jobId={messagingJob.id}
           jobTitle={messagingJob.title}
-          currentUserId={userId}
+          currentUserId={firebaseUser.uid}
           currentUserName={displayName}
           currentUserRole={userRole}
-          otherUserId={messagingJob.clientId}
+          otherUserId={messagingJob.clientFirebaseUid}
           otherUserName={messagingJob.client}
           onClose={() => setMessagingJob(null)}
         />
