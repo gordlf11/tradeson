@@ -64,3 +64,20 @@ build/
 # Temporary files
 *.tmp
 *.temp
+
+# Sensitive one-off scripts not for upstream
+# (contain DB password literals or filled insurance application answers)
+scripts/run_prod_sql.mjs
+scripts/run_migration.mjs
+scripts/gen_techguard_fdf.py
+scripts/fill_techguard.py
+scripts/techguard_data.fdf
+
+# Cyber liability insurance application — contains business + security
+# details that should not live in a public repo
+TechGuard Application_TEONBA-22021.pdf
+TechGuard Application_TEONBA-22021_DRAFT.pdf
+TechGuard_Application_DRAFT.pdf
+
+# Local Claude Code worktrees (transient working copies)
+.claude/worktrees/
