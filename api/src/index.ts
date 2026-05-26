@@ -24,6 +24,9 @@ app.use(cors({
     'http://localhost:5173',
     'https://tradeson-app-63629008205.us-central1.run.app',
     'https://tradeson-491518.web.app',
+    'https://app.tradeson.io',
+    'https://www.tradeson.io',
+    'https://tradeson.io',
   ],
   credentials: true,
 }));
