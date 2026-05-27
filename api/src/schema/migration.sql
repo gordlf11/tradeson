@@ -167,6 +167,11 @@ CREATE TABLE tradesperson_profiles (
   payout_enabled        BOOLEAN DEFAULT FALSE,
   rating                DECIMAL(3,2),
   jobs_completed        INTEGER DEFAULT 0,
+  -- Trusted Badge: timestamp set when the tradesperson completes the
+  -- Customer Ready mini-course (4 swipe cards). NULL = not yet earned.
+  -- Powers the boost-only ranking on quote lists and the badge pill on
+  -- profile/quote surfaces. Spec: docs/TradesOn Trusted Badge.docx.
+  trusted_badge_earned_at TIMESTAMPTZ,
   created_at            TIMESTAMPTZ DEFAULT now(),
   updated_at            TIMESTAMPTZ DEFAULT now()
 );
@@ -174,6 +179,10 @@ CREATE TABLE tradesperson_profiles (
 CREATE INDEX idx_tradesperson_user_id ON tradesperson_profiles(user_id);
 CREATE INDEX idx_tradesperson_service_zip ON tradesperson_profiles(service_zip);
 CREATE INDEX idx_tradesperson_primary_trades ON tradesperson_profiles USING GIN(primary_trades);
+
+-- Idempotent ALTER for existing prod tables (CREATE TABLE only runs on fresh DBs)
+ALTER TABLE tradesperson_profiles
+  ADD COLUMN IF NOT EXISTS trusted_badge_earned_at TIMESTAMPTZ;
 
 -- Service Areas (zip codes beyond radius)
 CREATE TABLE service_areas (

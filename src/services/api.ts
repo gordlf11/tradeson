@@ -55,6 +55,9 @@ export const api = {
   onboardUnlicensedTrade: (data: Record<string, unknown>) =>
     request('/api/v1/onboarding/non-licensed-trade', { method: 'POST', body: JSON.stringify(data) }),
 
+  completeTrustedBadge: () =>
+    request('/api/v1/onboarding/trusted-badge/complete', { method: 'POST' }),
+
   // Jobs
   createJob: (data: Record<string, unknown>) =>
     request('/api/v1/jobs', { method: 'POST', body: JSON.stringify(data) }),

@@ -10,6 +10,7 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import MessagingModal from '../components/MessagingModal';
+import TrustedBadgePill from '../components/TrustedBadgePill';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
@@ -483,11 +484,14 @@ export default function TradespersonDashboard() {
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: '0 0 4px', fontWeight: '500' }}>
             {(userRole === 'licensed-trade' || userRole === 'licensed_tradesperson') ? 'Licensed Tradesperson' : 'Service Provider'}
           </p>
-          <h1 style={{ color: 'white', fontSize: '1.5rem', fontWeight: '800', margin: '0 0 var(--space-3)', letterSpacing: '-0.03em' }}>
-            {displayName}
-          </h1>
-          {/* Reviews chip */}
-          <div style={{ marginBottom: 'var(--space-4)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '0 0 var(--space-3)' }}>
+            <h1 style={{ color: 'white', fontSize: '1.5rem', fontWeight: '800', margin: 0, letterSpacing: '-0.03em' }}>
+              {displayName}
+            </h1>
+            {tpProfile?.trusted_badge_earned_at && <TrustedBadgePill variant="dark" />}
+          </div>
+          {/* Reviews chip + (if not earned) Trusted Badge CTA */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
             <button
               onClick={() => setShowReviews(true)}
               style={{
@@ -503,6 +507,23 @@ export default function TradespersonDashboard() {
               </span>
               <ChevronRight size={13} color="rgba(255,255,255,0.5)" />
             </button>
+            {!tpProfile?.trusted_badge_earned_at && (
+              <button
+                onClick={() => navigate('/onboarding/trusted-badge')}
+                style={{
+                  background: 'var(--primary)', border: '1px solid var(--primary)',
+                  borderRadius: 'var(--radius-full)', padding: '5px 14px',
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                <Shield size={13} color="white" />
+                <span style={{ color: 'white', fontWeight: '700', fontSize: '0.82rem' }}>
+                  Earn Trusted Badge · 2 min
+                </span>
+                <ChevronRight size={13} color="rgba(255,255,255,0.85)" />
+              </button>
+            )}
           </div>
 
           {/* Stats Cards — row 1 */}
