@@ -322,7 +322,7 @@ function AppRoutes() {
         <Route path="/payment-settings" element={<RequireAuth><PaymentSettings /></RequireAuth>} />
         <Route path="/privacy-settings" element={<RequireAuth><PrivacySettings /></RequireAuth>} />
         <Route path="/insurance-upload" element={<RequireAuth><InsuranceUpload /></RequireAuth>} />
-        <Route path="/job-day-of" element={<RequireAuth><JobDayOf /></RequireAuth>} />
+        <Route path="/job-day-of/:jobId?" element={<RequireAuth><JobDayOf /></RequireAuth>} />
         <Route path="/contact-support" element={<RequireAuth><ContactSupport /></RequireAuth>} />
       </Routes>
       <BottomNav />

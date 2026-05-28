@@ -41,7 +41,7 @@ const HOUSE_ICON = makeIcon('#001C3C', '🏠');
 const VAN_ICON   = makeIcon('#F76B26', '🚐');
 
 /** Haversine straight-line distance in miles. */
-function haversinemiles(
+export function haversinemiles(
   lat1: number, lng1: number,
   lat2: number, lng2: number,
 ): number {

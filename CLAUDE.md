@@ -450,7 +450,7 @@ Two developers working async with separate Claude sessions will lose context wit
 ---
 
 ## 🔴 LARRY — Next Session Priority List
-> Last updated: 2026-05-18. Many items from the prior list are now done. Only the items below remain — everything else has shipped.
+> Last updated: 2026-05-27. Items 1–8 are from Larry's prior list. Item 9 is new from Kevin's WS3 live tracking work (2026-05-27) and is required before the tracking feature is production-safe.
 
 ---
 
@@ -651,6 +651,64 @@ No migration needed — `referred_by_realtor_id` column already exists on `users
 
 **`POST /api/v1/internal/release-expired-holds` is live in `api/src/routes/internal.ts`.**
 Larry only needs to create the Cloud Scheduler job (GCP Console) and add `INTERNAL_SECRET` to Cloud Run env vars.
+
+---
+
+### 9. 🔴 CRITICAL — Server-side `tracking/{jobId}` creation on quote acceptance (WS3 blocker)
+
+**Context (Kevin, 2026-05-27):** Live GPS tracking is now fully built on the frontend. The tradesperson-side `OnMyWayControls` component and the poster-side `JobTrackingMap` component are both wired and deployed. There are two production blockers that require a backend change before the feature is safe to enable for real jobs:
+
+**Problem 1 — Poster gets a Firestore permission-denied on read before the doc exists.**
+`JobTrackingMap` subscribes to `tracking/{jobId}` via `onSnapshot` the moment the poster opens the job view. The Firestore rule `allow get: if isParticipant(resource.data.participants)` fails when the document doesn't exist yet — `resource.data` is null and the rule errors. This means every poster will see a Firestore permission error in the console (harmless today, but a red flag in production).
+
+**Problem 2 — `participants` array contains real Firebase UIDs, but the tradesperson's client doesn't know the poster's Firebase UID.**
+Currently `OnMyWayControls` writes `participants: [job.homeownerFirebaseUid, firebaseUID]`. The frontend now reads `homeownerFirebaseUid` from `api.getJob()` which returns it via the existing `homeowner_firebase_uid` JOIN alias. This actually works already — but it means the tradesperson's first `setDoc` is a client-controlled write that sets the `participants` array. If a malicious client sends the wrong UID in that array, the poster can't read the tracking doc. Server-side creation eliminates this attack surface.
+
+**Fix — Write the initial `tracking/{jobId}` doc from the API on quote acceptance:**
+
+In `api/src/routes/quotes.ts` (or wherever `PATCH /api/v1/quotes/:id/accept` is handled), after the Postgres update, add:
+
+```ts
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+const adminDb = getFirestore();  // Admin SDK bypasses Firestore rules
+
+// Fetch Firebase UIDs for both parties from the accepted quote / job JOIN
+// (they're already in the query result as homeowner_firebase_uid and assigned_tradesperson_firebase_uid)
+
+await adminDb.collection('tracking').doc(jobId).set({
+  jobId,
+  tradespersonUID: tradesperson_firebase_uid,
+  posterUID:       homeowner_firebase_uid,
+  participants:    [homeowner_firebase_uid, tradesperson_firebase_uid],
+  lat:             null,
+  lng:             null,
+  status:          'accepted',
+  enRouteAt:       null,
+  arrivedAt:       null,
+  updatedAt:       FieldValue.serverTimestamp(),
+}, { merge: true });
+```
+
+**After this ships:** Change `OnMyWayControls.handleOnMyWay()` in `src/pages/JobDayOf.tsx` from `setDoc(..., { merge: true })` to `updateDoc(...)`. The doc will always exist by the time the tradesperson clicks "I'm On My Way". Also tighten the Firestore `tracking` create rule to `allow create: if false` — the Admin SDK bypasses rules so server creation still works; this just blocks any rogue client writes.
+
+**Current Firestore rule to tighten (in `firebase/firestore.rules`):**
+```
+// BEFORE (allows client create — replace once server-side creation ships):
+allow create: if isSignedIn()
+  && request.resource.data.tradespersonUID == request.auth.uid;
+
+// AFTER:
+allow create: if false;  // server creates via Admin SDK on quote acceptance
+```
+
+Kevin will make the `setDoc → updateDoc` swap and rule update in the same PR once Larry ships the API change. Just give Kevin a heads-up when it's deployed.
+
+**WS3E test backlog (Kevin will write once emulator is available):**
+- Firestore emulator integration: tradesperson can write lat/lng/status; cannot write tradespersonUID or participants
+- Firestore emulator integration: poster (participant) can read tracking doc, cannot write any field
+- Security rule test: changedKeys check blocks `{ tradespersonUID: 'attacker-uid' }` update
+- Security rule test: non-participant gets permission-denied on read
 
 ---
 

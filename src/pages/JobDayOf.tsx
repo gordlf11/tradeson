@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Clock, MapPin, CheckCircle2, AlertTriangle,
   PlayCircle, DollarSign, Package, Calendar,
@@ -13,19 +13,12 @@ import JobTrackingMap, { type JobTrackingMapProps } from '../components/JobTrack
 import { Badge } from '../components/ui/Badge';
 import TopNav from '../components/TopNav';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function isTradeRole(role: string) {
   return ['licensed-trade', 'non-licensed-trade', 'licensed_tradesperson', 'unlicensed_tradesperson'].includes(role);
-}
-
-// Mock appointment: tomorrow at 2:00 PM
-function getMockAppointment(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(14, 0, 0, 0);
-  return d;
 }
 
 function useCountdown(target: Date) {
@@ -91,16 +84,43 @@ function CountdownDisplay({ hours, minutes, seconds, label }: { hours: number; m
   );
 }
 
+// ── Job data shape ────────────────────────────────────────────────────────────
+
+interface JobData {
+  id: string;
+  title: string;
+  address: string;
+  category: string;
+  scheduledAt: Date;
+  homeownerFirebaseUid: string;
+  tradespersonFirebaseUid: string;
+  tradespersonName: string;
+  tradespersonPhone?: string;
+  customerName: string;
+}
+
+const MOCK_JOB: JobData = {
+  id: 'mock-job-001',
+  title: 'Kitchen Sink Leak Repair',
+  address: '123 Main St, Springfield',
+  category: 'Plumbing',
+  scheduledAt: new Date(),
+  homeownerFirebaseUid: 'mock-customer-uid',
+  tradespersonFirebaseUid: 'mock-tradesperson-uid',
+  tradespersonName: "Bob's Plumbing Services",
+  tradespersonPhone: '(555) 867-5309',
+  customerName: 'Sarah Johnson',
+};
+
 // ── Job Poster view ───────────────────────────────────────────────────────────
 
 type PosterState = 'waiting' | 'job_started' | 'adjustment_pending' | 'adjustment_accepted' | 'adjustment_denied' | 'cancelled';
 
 const MOCK_ADJUSTMENT = { originalPrice: 195, newPrice: 240, delta: 45, reason: 'Found additional pipe corrosion behind the wall — replacement coupling and extra sealant required.' };
 
-function JobPosterView() {
+function JobPosterView({ job }: { job: JobData }) {
   const navigate = useNavigate();
-  const appointment = getMockAppointment();
-  const countdown = useCountdown(appointment);
+  const countdown = useCountdown(job.scheduledAt);
   const [checklist, setChecklist] = useState<boolean[]>(new Array(POSTER_CHECKLIST.length).fill(false));
   const [state, setState] = useState<PosterState>('waiting');
   const [showCancel, setShowCancel] = useState(false);
@@ -209,18 +229,18 @@ function JobPosterView() {
           <Card style={{ padding: 'var(--space-4)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
               <div>
-                <h3 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>Kitchen Sink Leak Repair</h3>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Bob's Plumbing Services</p>
+                <h3 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>{job.title}</h3>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{job.tradespersonName}</p>
               </div>
               <Badge variant="success">Confirmed</Badge>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               <Calendar size={14} />
-              {appointment.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at 2:00 PM
+              {job.scheduledAt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {job.scheduledAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               <MapPin size={14} />
-              123 Main St, Springfield
+              {job.address}
             </div>
           </Card>
 
@@ -231,11 +251,11 @@ function JobPosterView() {
 
           {/* Live tracking map */}
           <JobTrackingMap
-            jobId="mock-job-001"
-            jobAddress="123 Main St, Springfield"
-            tradespersonName="Bob's Plumbing Services"
-            tradespersonPhone="(555) 867-5309"
-            tradespersonCategory="Plumbing"
+            jobId={job.id}
+            jobAddress={job.address}
+            tradespersonName={job.tradespersonName}
+            tradespersonPhone={job.tradespersonPhone}
+            tradespersonCategory={job.category}
             jobStatus={trackingStatus}
             onMessageClick={() => navigate('/completion')}
           />
@@ -313,7 +333,7 @@ function JobPosterView() {
             <Card style={{ width: '100%', maxWidth: '428px', padding: 'var(--space-6)' }}>
               <h3 style={{ margin: '0 0 var(--space-2)' }}>Cancel Appointment?</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: '0 0 var(--space-4)' }}>
-                This will notify Bob's Plumbing Services. Cancellations within 2 hours may be subject to a fee.
+                This will notify {job.tradespersonName}. Cancellations within 2 hours may be subject to a fee.
               </p>
               <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                 <Button variant="outline" fullWidth onClick={() => setShowCancel(false)}>Keep Appointment</Button>
@@ -336,7 +356,7 @@ function JobPosterView() {
 
 // ── Geolocation permission indicator ──────────────────────────────────────────
 
-type GeoPermission = 'prompt' | 'granted' | 'denied' | 'unavailable';
+export type GeoPermission = 'prompt' | 'granted' | 'denied' | 'unavailable';
 
 function detectBrowser(): string {
   const ua = navigator.userAgent;
@@ -354,7 +374,7 @@ const BROWSER_GEO_INSTRUCTIONS: Record<string, string> = {
   Safari:  'Preferences → Websites → Location → Allow',
 };
 
-function GeoPermissionBanner({ permission }: { permission: GeoPermission }) {
+export function GeoPermissionBanner({ permission }: { permission: GeoPermission }) {
   const browser = detectBrowser();
   const instructions = BROWSER_GEO_INSTRUCTIONS[browser] ?? 'check your browser privacy settings';
 
@@ -561,12 +581,11 @@ function OnMyWayControls({ jobId, tradespersonUID, participants, isScheduledToda
 
 type TradeState = 'waiting' | 'started' | 'adjusting' | 'adjustment_submitted' | 'adjustment_accepted' | 'adjustment_denied';
 
-function TradespersonView() {
+function TradespersonView({ job, firebaseUID }: { job: JobData; firebaseUID: string }) {
   const navigate = useNavigate();
-  const { firebaseUser } = useAuth();
-  const appointment = getMockAppointment();
-  const countdown = useCountdown(appointment);
-  const tradeCategory = 'Plumbing'; // will come from job data once data layer is wired
+  const countdown = useCountdown(job.scheduledAt);
+  const isScheduledToday = job.scheduledAt.toDateString() === new Date().toDateString();
+  const tradeCategory = job.category;
   const materials = MATERIALS_BY_TRADE[tradeCategory] ?? MATERIALS_BY_TRADE['General Repairs'];
   const [checklist, setChecklist] = useState<boolean[]>(new Array(materials.length).fill(false));
   const [state, setState] = useState<TradeState>('waiting');
@@ -604,18 +623,18 @@ function TradespersonView() {
           <Card style={{ padding: 'var(--space-4)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
               <div>
-                <h3 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>Kitchen Sink Leak Repair</h3>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Sarah Johnson</p>
+                <h3 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>{job.title}</h3>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{job.customerName}</p>
               </div>
               <Badge variant={state === 'waiting' ? 'warning' : 'success'}>{state === 'waiting' ? 'Upcoming' : 'In Progress'}</Badge>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               <Calendar size={14} />
-              {appointment.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at 2:00 PM
+              {job.scheduledAt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {job.scheduledAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               <MapPin size={14} />
-              123 Main St, Springfield
+              {job.address}
             </div>
             <div style={{ padding: 'var(--space-2) var(--space-3)', background: 'var(--primary-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '700' }}>
               <Clock size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
@@ -631,10 +650,10 @@ function TradespersonView() {
           {/* On My Way tracking controls — only shown before job is flagged started */}
           {state === 'waiting' && (
             <OnMyWayControls
-              jobId="mock-job-001"
-              tradespersonUID={firebaseUser?.uid ?? 'mock-tradesperson-uid'}
-              participants={['mock-customer-uid', firebaseUser?.uid ?? 'mock-tradesperson-uid']}
-              isScheduledToday={true}
+              jobId={job.id}
+              tradespersonUID={firebaseUID}
+              participants={[job.homeownerFirebaseUid, firebaseUID]}
+              isScheduledToday={isScheduledToday}
             />
           )}
 
@@ -815,28 +834,59 @@ function TradespersonView() {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default function JobDayOf() {
-  const { userProfile } = useAuth();
+  const { jobId } = useParams<{ jobId: string }>();
+  const { userProfile, firebaseUser } = useAuth();
   const role = userProfile?.role ?? localStorage.getItem('userRole') ?? 'homeowner';
   const isDemo = localStorage.getItem('demoMode') === 'true';
+  const [job, setJob] = useState<JobData | null>(isDemo ? MOCK_JOB : null);
+  const [loadError, setLoadError] = useState(false);
 
-  if (!isDemo) {
+  useEffect(() => {
+    if (isDemo || !jobId) return;
+    (api.getJob(jobId) as Promise<Record<string, unknown>>).then(raw => {
+      setJob({
+        id: String(raw.id ?? jobId),
+        title: String(raw.title ?? 'Job'),
+        address: [raw.address, raw.city, raw.state].filter(Boolean).join(', '),
+        category: String(raw.category ?? 'General Repairs'),
+        scheduledAt: raw.scheduled_at ? new Date(raw.scheduled_at as string) : new Date(),
+        homeownerFirebaseUid: String(raw.homeowner_firebase_uid ?? ''),
+        tradespersonFirebaseUid: String(raw.assigned_tradesperson_firebase_uid ?? ''),
+        tradespersonName: String(raw.tradesperson_name ?? 'Your Tradesperson'),
+        tradespersonPhone: raw.tradesperson_phone ? String(raw.tradesperson_phone) : undefined,
+        customerName: String(raw.customer_name ?? 'Your Customer'),
+      });
+    }).catch(() => setLoadError(true));
+  }, [jobId, isDemo]);
+
+  if (!isDemo && loadError) {
     return (
       <>
-        <TopNav title="Job Day Of" />
+        <TopNav title="Day of Service" />
         <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-6)' }}>
           <div style={{ textAlign: 'center', maxWidth: '320px' }}>
-            <Calendar size={48} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-4)' }} />
-            <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 var(--space-2)' }}>
-              Live Job Tracking Coming Soon
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
-              Real-time job day coordination will appear here once your job is confirmed and in progress.
-            </p>
+            <AlertTriangle size={48} color="var(--danger)" style={{ margin: '0 auto var(--space-4)' }} />
+            <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 var(--space-2)' }}>Could not load job</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Check your connection and try again.</p>
           </div>
         </div>
       </>
     );
   }
 
-  return isTradeRole(role) ? <TradespersonView /> : <JobPosterView />;
+  if (!job) {
+    return (
+      <>
+        <TopNav title="Day of Service" />
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="loader" style={{ width: 44, height: 44 }} />
+        </div>
+      </>
+    );
+  }
+
+  const firebaseUID = firebaseUser?.uid ?? '';
+  return isTradeRole(role)
+    ? <TradespersonView job={job} firebaseUID={firebaseUID} />
+    : <JobPosterView job={job} />;
 }
