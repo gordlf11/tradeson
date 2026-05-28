@@ -181,9 +181,27 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
 });
 
 // GET /api/v1/jobs/:id — Get single job with quotes
+//
+// JoinS pull both parties' Firebase UIDs and display names so the JobDayOf
+// page can populate the Firestore tracking doc participants and open the
+// correct messaging thread without a follow-up round trip. Same shape as
+// the LIST query already returns (see homeowner_firebase_uid +
+// tradesperson_name pattern in the messaging UID fix from 2026-05-19).
 router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    const jobResult = await pool.query(
+      `SELECT j.*,
+              cu.firebase_uid AS homeowner_firebase_uid,
+              cu.full_name    AS customer_name,
+              tu.firebase_uid AS assigned_tradesperson_firebase_uid,
+              tu.full_name    AS tradesperson_name,
+              tu.phone_number AS tradesperson_phone
+         FROM jobs j
+         LEFT JOIN users cu ON cu.id = j.homeowner_user_id
+         LEFT JOIN users tu ON tu.id = j.assigned_tradesperson_id
+        WHERE j.id = $1 AND j.deleted_at IS NULL`,
+      [req.params.id]
+    );
     if (jobResult.rows.length === 0) { res.status(404).json({ error: 'Job not found' }); return; }
 
     const job = jobResult.rows[0];
