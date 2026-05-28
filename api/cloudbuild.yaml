@@ -27,9 +27,10 @@ steps:
       # Secrets sourced from Secret Manager, never committed to the repo.
       #   DB_PASS            -> tradeson-db-pass
       #   STRIPE_SECRET_KEY  -> tradeson-stripe-secret-key
+      #   INTERNAL_SECRET    -> tradeson-internal-secret (Cloud Scheduler auth header)
       # Comma-separated; --set-secrets replaces the full mapping on each
       # deploy, so any new secret binding must be added to this line.
-      - '--set-secrets=DB_PASS=tradeson-db-pass:latest,STRIPE_SECRET_KEY=tradeson-stripe-secret-key:latest'
+      - '--set-secrets=DB_PASS=tradeson-db-pass:latest,STRIPE_SECRET_KEY=tradeson-stripe-secret-key:latest,INTERNAL_SECRET=tradeson-internal-secret:latest'
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/tradeson/tradeson-api:$COMMIT_SHA'
