@@ -3,7 +3,8 @@ import pool from '../config/db';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { logAuditEvent } from '../middleware/audit';
 import { publish } from '../services/pubsub';
-import { messaging } from '../services/firebase';
+import { messaging, firestore } from '../services/firebase';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -205,6 +206,45 @@ router.post('/:id/accept', requireAuth, async (req: AuthenticatedRequest, res) =
     );
 
     const customerName = req.user!.full_name;
+
+    // Create the tracking/{jobId} Firestore doc server-side (Admin SDK
+    // bypasses security rules) so the poster's onSnapshot has a doc to
+    // subscribe to immediately, and so the participants array can't be
+    // forged by a malicious client. Kevin will tighten the client rule
+    // to `allow create: if false` once this is live.
+    try {
+      const uidResult = await pool.query(
+        `SELECT
+           homeowner.firebase_uid AS homeowner_firebase_uid,
+           trade.firebase_uid     AS tradesperson_firebase_uid
+         FROM jobs j
+         JOIN users homeowner ON homeowner.id = j.homeowner_user_id
+         JOIN users trade     ON trade.id     = $1
+         WHERE j.id = $2`,
+        [quote.tradesperson_user_id, quote.job_id]
+      );
+      if (uidResult.rows.length > 0) {
+        const { homeowner_firebase_uid, tradesperson_firebase_uid } = uidResult.rows[0];
+        await firestore.collection('tracking').doc(String(quote.job_id)).set({
+          jobId: String(quote.job_id),
+          tradespersonUID: tradesperson_firebase_uid,
+          posterUID:       homeowner_firebase_uid,
+          participants:    [homeowner_firebase_uid, tradesperson_firebase_uid],
+          lat:             null,
+          lng:             null,
+          status:          'accepted',
+          enRouteAt:       null,
+          arrivedAt:       null,
+          updatedAt:       FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else {
+        console.warn(`tracking doc skipped: could not resolve Firebase UIDs for job ${quote.job_id}`);
+      }
+    } catch (err) {
+      // Non-fatal: quote acceptance still succeeds; tradesperson can
+      // re-create the doc client-side via OnMyWayControls if needed.
+      console.error('Failed to seed tracking doc:', err);
+    }
 
     // Pub/Sub fan-out: Cloud Function `fcm-fanout` consumes this and sends the push.
     void publish({
