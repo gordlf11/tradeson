@@ -171,9 +171,17 @@ service cloud.firestore {
     // The tradesperson may only write/update their own tracking doc.
     // Posters and admins can read. Neither can write posterUID, jobTitle,
     // or other immutable fields (those live in Postgres).
+    //
+    // `resource == null` covers the window between job acceptance and the
+    // tradesperson's first "I'm On My Way" write. The doc doesn't exist yet
+    // so resource.data.participants would throw; we allow the read (returns
+    // exists:false) so the poster's onSnapshot listener doesn't error out.
     match /tracking/{jobId} {
-      allow get, list: if isAdmin()
+      allow get: if isAdmin()
+        || resource == null
         || isParticipant(resource.data.participants);
+
+      allow list: if isAdmin();
 
       allow create: if isSignedIn()
         && request.resource.data.tradespersonUID == request.auth.uid;
