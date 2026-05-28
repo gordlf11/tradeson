@@ -24,6 +24,16 @@ CREATE TABLE users (
   is_verified       BOOLEAN DEFAULT FALSE,
   is_active         BOOLEAN DEFAULT TRUE,
   marketing_opt_in  BOOLEAN DEFAULT FALSE,
+  -- TRUE once the user has finished their role-specific onboarding flow.
+  -- Frontend RequireOnboarding guard checks this first (durable across
+  -- devices and localStorage wipes), then falls back to localStorage
+  -- breadcrumbs and presence of a role profile row.
+  onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Realtor referral attribution: set at signup time from ?ref=CODE
+  -- (matched against realtor_profiles.referral_code). FK added later
+  -- in the file via ALTER (realtor_profiles is defined below). Powers
+  -- the realtor's "Referral Signups" dashboard KPI.
+  referred_by_realtor_id UUID,
   created_at        TIMESTAMPTZ DEFAULT now(),
   updated_at        TIMESTAMPTZ DEFAULT now(),
   deleted_at        TIMESTAMPTZ
@@ -33,6 +43,17 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_firebase_uid ON users(firebase_uid);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_active ON users(deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_users_referred_by_realtor ON users(referred_by_realtor_id)
+  WHERE referred_by_realtor_id IS NOT NULL;
+
+-- Idempotent ALTERs for existing prod tables (FK constraint added below
+-- after realtor_profiles is defined).
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS referred_by_realtor_id UUID;
+CREATE INDEX IF NOT EXISTS idx_users_referred_by_realtor
+  ON users(referred_by_realtor_id) WHERE referred_by_realtor_id IS NOT NULL;
 
 -- ═══════════════════════════════════════════
 -- 2. USER ADDRESSES
@@ -130,6 +151,20 @@ CREATE TABLE realtor_profiles (
   created_at            TIMESTAMPTZ DEFAULT now(),
   updated_at            TIMESTAMPTZ DEFAULT now()
 );
+
+-- Wire up the users.referred_by_realtor_id FK now that realtor_profiles
+-- exists. NOT VALID skips validation of existing rows (none have non-null
+-- values until referral signup ships).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'users_referred_by_realtor_id_fkey'
+  ) THEN
+    ALTER TABLE users
+      ADD CONSTRAINT users_referred_by_realtor_id_fkey
+      FOREIGN KEY (referred_by_realtor_id) REFERENCES realtor_profiles(id);
+  END IF;
+END $$;
 
 -- Realtor Client Invitations
 CREATE TABLE realtor_clients (

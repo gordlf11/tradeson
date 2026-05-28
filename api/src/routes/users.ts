@@ -8,7 +8,7 @@ const router = Router();
 // POST /api/v1/users — Create user on first Firebase login
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { firebase_uid, email } = req.user!;
-  const { full_name, phone_number, role } = req.body;
+  const { full_name, phone_number, role, referred_by_code } = req.body;
 
   if (!full_name || !role) {
     res.status(400).json({ error: 'full_name and role are required' });
@@ -59,6 +59,31 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
        ON CONFLICT (user_id) DO NOTHING`,
       [user.id]
     );
+
+    // Realtor referral attribution: ?ref=CODE captured by /join in the
+    // frontend → AuthContext.signup() passes referred_by_code. Resolve
+    // to a realtor_profiles.id and stamp users.referred_by_realtor_id.
+    // Soft failure: if the code is unknown we log and continue (don't
+    // block account creation).
+    if (referred_by_code) {
+      try {
+        const rp = await pool.query(
+          'SELECT id FROM realtor_profiles WHERE referral_code = $1',
+          [referred_by_code]
+        );
+        if (rp.rows.length > 0) {
+          await pool.query(
+            'UPDATE users SET referred_by_realtor_id = $1 WHERE id = $2',
+            [rp.rows[0].id, user.id]
+          );
+        } else {
+          console.warn(`Referral code not found: ${referred_by_code}`);
+        }
+      } catch (err) {
+        // realtor_profiles.referral_code may not yet exist in all envs
+        console.warn('Referral lookup failed (non-fatal):', err);
+      }
+    }
 
     await logAuditEvent(user.id, 'user.created', 'users', user.id, { role }, req.ip);
 
@@ -129,7 +154,7 @@ router.put('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
   const { id } = req.user!;
   if (!id) { res.status(404).json({ error: 'User not found' }); return; }
 
-  const { full_name, phone_number, profile_photo_url, role } = req.body;
+  const { full_name, phone_number, profile_photo_url, role, onboarding_completed } = req.body;
 
   // Validate role if provided
   if (role) {
@@ -147,10 +172,11 @@ router.put('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
         phone_number = COALESCE($2, phone_number),
         profile_photo_url = COALESCE($3, profile_photo_url),
         role = COALESCE($5, role),
+        onboarding_completed = COALESCE($6, onboarding_completed),
         updated_at = now()
        WHERE id = $4
        RETURNING *`,
-      [full_name, phone_number, profile_photo_url, id, role || null]
+      [full_name, phone_number, profile_photo_url, id, role || null, onboarding_completed ?? null]
     );
 
     res.json(result.rows[0]);

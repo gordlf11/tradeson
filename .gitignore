@@ -70,6 +70,7 @@ build/
 scripts/run_prod_sql.mjs
 scripts/run_migration.mjs
 scripts/run_trusted_badge_migration.mjs
+scripts/run_onboarding_completed_migration.mjs
 scripts/gen_techguard_fdf.py
 scripts/fill_techguard.py
 scripts/techguard_data.fdf
