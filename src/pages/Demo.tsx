@@ -1,12 +1,29 @@
 import { useEffect } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../services/firebase';
 
 // Activates demo mode and hard-redirects to the first screen.
-// The full-page reload forces AuthContext to re-mount and pick up the demoMode flag.
+// Signs out any real Firebase session first — otherwise AuthContext
+// keeps using the real identity and the demo's seeded fallback data
+// is shadowed by whatever the real user has in Postgres.
 export default function Demo() {
   useEffect(() => {
-    localStorage.setItem('demoMode', 'true');
-    localStorage.setItem('userRole', 'homeowner');
-    window.location.replace('/login');
+    (async () => {
+      try {
+        if (auth.currentUser) await signOut(auth);
+      } catch {
+        // Non-fatal — proceed into demo mode regardless
+      }
+      // Clear any stale identity breadcrumbs so AuthContext doesn't
+      // try to rehydrate the real user from localStorage.
+      ['userEmail', 'userName', 'userPhone', 'hasOnboarded'].forEach((k) =>
+        localStorage.removeItem(k)
+      );
+      localStorage.setItem('demoMode', 'true');
+      localStorage.setItem('userRole', 'homeowner');
+      // Full reload so AuthContext re-mounts and picks up the flag.
+      window.location.replace('/login');
+    })();
   }, []);
 
   return (
