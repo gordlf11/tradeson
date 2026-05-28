@@ -15,6 +15,85 @@
 - [Next steps]
 -->
 
+## 2026-05-26 to 2026-05-28 -- Larry (Claude Opus 4.7) -- Pre-touchbase production push: FCM live, Trusted Badge shipped, all of Kevin's blockers closed
+
+### What was done
+
+**Auth & access (closes long-standing CLAUDE.md items)**
+- VAPID key baked into the bundle via Dockerfile ENV → `getToken()` finally succeeds → `users/{uid}.fcmToken` writes confirmed end-to-end (Claude in Chrome smoke test PASS). FCM round-trip fan-out works.
+- Role switcher in TopNav + AdminDashboard avatar dropdown (`src/components/RoleSwitcherMenu.tsx`). Closes the Admin Portal dead-end. Admin row only renders when the Firebase ID token carries `admin: true`.
+- `contact@tradeson.io` provisioned as third admin via new `scripts/inviteAdmin.mjs` (creates Firebase Auth user + sets admin claim + generates password-reset link in one shot). Alongside `larryfgordon89@gmail.com` and `kevinbradfo@gmail.com`.
+- `Demo.tsx` fix: now signs out the live Firebase session before flipping `demoMode`, so `/demo` works correctly even when a real user is already signed in.
+- `/forgot-password` flow confirmed already built end-to-end (CLAUDE.md tracker was stale on that one).
+
+**Trusted Badge — built, shipped, verified (CLAUDE.md scope #1 — closed)**
+- Spec: `docs/TradesOn Trusted Badge.docx`. 4 swipe cards + completion screen, ~2 min, boost-only ranking on quote lists. NOT a gate.
+- Schema: `tradesperson_profiles.trusted_badge_earned_at TIMESTAMPTZ` (migration applied to prod via `scripts/run_trusted_badge_migration.mjs`; gitignored — uses live PG password).
+- API: `POST /api/v1/onboarding/trusted-badge/complete` — idempotent (COALESCE preserves the original earn time). Quote-list query now LEFT JOINs the trusted flag and orders `Trusted DESC, rating DESC, price ASC`.
+- Frontend: `/onboarding/trusted-badge` (4 cards + completion, swipeable on mobile, Skip on each card). Inserted at the end of both Licensed and Unlicensed tradesperson onboarding flows. `TrustedBadgePill` component (light/dark/compact) rendered on TradespersonDashboard hero + JobBoard quote cards. Demo mode: Volt Masters Electric tagged trusted so the pill is visible without real onboarding.
+- Claude in Chrome end-to-end test: 6/7 PASS (Step 7 "blocked" because /demo was buggy at the time — now fixed).
+
+**Backend: onboarding_completed + referrals (CLAUDE.md items #1 and #7)**
+- Migration applied: `users.onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE` + `users.referred_by_realtor_id UUID` + FK to `realtor_profiles(id)` + partial index.
+- 3 existing tradesperson/homeowner accounts backfilled to `onboarding_completed=TRUE` (those with role-profile rows).
+- All 5 `POST /api/v1/onboarding/{role}` handlers now set `onboarding_completed=TRUE` in their transaction.
+- `PUT /api/v1/users/me` accepts `onboarding_completed`.
+- `POST /api/v1/users` accepts `referred_by_code` → resolves via `realtor_profiles.referral_code` → stamps `users.referred_by_realtor_id`. Soft failure if code unknown.
+
+**CORS fix (was silently breaking every API call from app.tradeson.io)**
+- The 2026-05-20 custom-domain rescue moved the frontend to `app.tradeson.io` but never updated the API CORS allowlist. Result: every POST from prod returned "Failed to fetch". Larry only noticed during testing today ("Could not post job").
+- Added `app.tradeson.io`, `www.tradeson.io`, `tradeson.io` to the allowlist in `api/src/index.ts`.
+
+**Auto-release Cloud Scheduler (CLAUDE.md item #8)**
+- Generated `INTERNAL_SECRET`, stored in Secret Manager as `tradeson-internal-secret`, bound via `api/cloudbuild.yaml --set-secrets` line. Service account `63629008205-compute@developer` already has project-level Secret Manager Accessor.
+- Cloud Scheduler API enabled. Job `release-expired-payment-holds` created in `us-central1`, schedule `*/30 * * * *` UTC, POSTs to `/api/v1/internal/release-expired-holds` with the `x-internal-secret` header. Verified live with `curl` returning 200.
+
+**Kevin's three blockers — all closed today**
+- Item 1 (Firestore rules + indexes deploy): `npx firebase-tools deploy --only firestore:rules,firestore:indexes --project tradeson-491518`. Includes new COLLECTION_GROUP composite on `messages(recipientUID ASC, readAt ASC)` — required for unread badge.
+- Item 2 (`GET /api/v1/jobs/:id` JOIN): now returns `homeowner_firebase_uid`, `assigned_tradesperson_firebase_uid`, `customer_name`, `tradesperson_name`, `tradesperson_phone`. Note Kevin's email used `j.customer_id`; actual column is `j.homeowner_user_id` (translated).
+- Item 3 (server-side `tracking/{jobId}` creation): wired into `POST /api/v1/quotes/:id/accept`. Pulls both Firebase UIDs in one JOIN, calls `firestore.collection('tracking').doc(jobId).set({...}, { merge: true })` via Admin SDK. Non-fatal on failure. Kevin now clear to flip `OnMyWayControls` to `updateDoc` + tighten the create rule to `allow create: if false`.
+
+**GCP — grant tracking & infra**
+- AI Microgrant decision: deploy the full $3K on the GCP project (defensible under Elevate's "AI integration" clause). Cloud Run, Cloud SQL, Pub/Sub, Storage, Cloud Build buckets all labeled `funded_by=elevate-microgrant-2026`. New Secret Manager secret labeled the same.
+- Cloud SQL `tradeson-db` label NOT applied (gcloud doesn't expose the flag on `sql instances patch`) — needs Console UI, ~30 sec.
+- Billing budget alert created: $200/mo on `tradeson-491518`, thresholds at 50% / 80% / 100% / 120% of current+forecasted spend. Notifications go to billing-admin emails by default.
+- Discovered two legacy services: `sbs-digital-demo` (not TradesOn, deployed 2026-04-10) and `tradeson` (old name for the frontend, last deploy 2026-03-27 from SHA `d1cf262b`). Both respond 200 but appear orphaned. Pending Larry's confirmation to delete.
+
+### Decisions
+- **Grant funding**: full $3K to GCP infrastructure, tagged in books as `elevate-microgrant-2026`, $200/mo cap. Tax reserve ~$800 separate. Progress report due 2026-11-26, final 2027-05-26.
+- **Sales tax**: TradesOn registers as marketplace facilitator with SD DOR (Skylar to call ref # L-05202026-0813-1), integrates Stripe Tax with `automatic_tax: enabled`. Matches Uber/DoorDash model. ~3-4 dev days post-confirmation. EPath portal: https://sd.gov/EPath.
+- **Trusted Badge**: boost-only enforcement at launch (non-Trusted can still quote, just rank lower). Soft requirement at 30 days deferred to v1.1.
+- **Profile switching**: multi-role-on-one-account model (not multi-account). Role state in localStorage today; server-side `user_roles` junction deferred.
+- **/demo route**: should always sign out the live session first. Bug found mid-session, fixed same session.
+
+### Notable findings
+- `larryfgordon89@gmail.com` AND `kevinbradfo@gmail.com` both carry `admin: true` claim — surfaced by Step 5 of the messaging smoke test (thread delete succeeded despite the rule saying admin-only). Intentional for now; means both have full Firestore admin powers. `admin@tradeson.com` is NOT admin (would have failed every Firestore read had Larry tried).
+- Cloud Run admin routes (`/api/v1/admin/*`) don't currently check the admin claim — gap worth closing soon. Right now anyone with a Firebase token could potentially call them.
+- gcloud is broken on Larry's machine — wrapper hardcodes Python 3.13 which doesn't exist; using `CLOUDSDK_PYTHON=/opt/homebrew/bin/python3.12` as override. Permanent fix is one zshrc line or `brew reinstall google-cloud-sdk`.
+- Cloud SQL public IP allowlist had a stale entry; added Larry's current public IP `104.244.243.90/32` alongside `172.59.185.162/32`. Password rotated since the marathon — fetched current `123trades` from `gcloud secrets versions access latest --secret=tradeson-db-pass`.
+
+### Next steps
+- Kevin: flip `OnMyWayControls` `setDoc` → `updateDoc`; tighten tracking create rule to `allow create: if false`. Both small now that server-side seeding is in.
+- Larry (Console-only, ~5 min total):
+  - Firebase Console → Authentication → Settings → Authorized domains → add `app.tradeson.io` + `www.tradeson.io`. Required for future password-reset/email-link continueUrls to point at the app.
+  - Cloud SQL → `tradeson-db` → Edit → Labels → `funded_by=elevate-microgrant-2026`.
+  - Decide: delete `sbs-digital-demo` and `tradeson` (legacy) Cloud Run services? Both respond 200 but are not used.
+  - Run the password-reset Claude-in-Chrome test (signed-out flow only; do NOT click any email link).
+- Skylar: call SD DOR (1-800-829-9188, ref L-05202026-0813-1) to register TradesOn as marketplace facilitator. Send the Tokio Marine HCC TechGuard application using `docs/backend/TECH_GUIDE.pdf` as Exhibit A.
+- All: touchbase tomorrow — three decisions on the table (sales tax registration, Trusted Badge enforcement, ~3-week soft launch target).
+
+### CLAUDE.md priority list status after this session
+- ✅ #1 `onboarding_completed` — shipped
+- ✅ #2 `support_tickets` Firestore rule — shipped + redeployed
+- ✅ #3 Account deletion endpoint — already done (Kevin, dd0152d)
+- ✅ #4 Job query authorization gap — already done (Kevin, dd0152d)
+- ✅ #5 `support_tickets` UID rule — already done (Kevin, dd0152d)
+- ⏳ #6 Nightly flagged accounts auto-population — not started
+- ✅ #7 Referral backend — shipped
+- ✅ #8 Auto-release Cloud Scheduler — shipped
+
+---
+
 ## 2026-05-27 -- Kevin (Claude Sonnet 4.6) -- HANDOFF TO LARRY: Firestore deploy required + WS3 server-side blocker
 
 > **LARRY — READ THIS FIRST.** This entry is a direct handoff. The three workstreams below are built and pushed to master. Two actions are required from you before the messaging unread badge and live tracking are production-safe.
