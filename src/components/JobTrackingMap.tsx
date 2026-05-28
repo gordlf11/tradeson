@@ -82,6 +82,8 @@ export interface JobTrackingMapProps {
   tradespersonCategory?: string;
   jobStatus: 'accepted' | 'en_route' | 'arrived' | 'in_progress' | 'completed';
   onMessageClick?: () => void;
+  /** Bypass Firestore and seed the van position directly — used for demo mode. */
+  mockLocation?: TrackingLocation;
 }
 
 const STATUS_BANNER: Record<
@@ -118,6 +120,7 @@ export default function JobTrackingMap({
   tradespersonCategory,
   jobStatus,
   onMessageClick,
+  mockLocation,
 }: JobTrackingMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef          = useRef<L.Map | null>(null);
@@ -139,8 +142,14 @@ export default function JobTrackingMap({
     });
   }, [jobAddress]);
 
+  // Seed van position from mockLocation (demo mode) — skips Firestore entirely.
+  useEffect(() => {
+    if (mockLocation) setTrackingLoc(mockLocation);
+  }, [mockLocation]);
+
   // Subscribe to tracking/{jobId} in Firestore for live location updates
   useEffect(() => {
+    if (mockLocation) return; // demo mode — Firestore not used
     const ref = doc(db, 'tracking', jobId);
     const unsub = onSnapshot(ref, snap => {
       if (!snap.exists()) return;
@@ -153,7 +162,7 @@ export default function JobTrackingMap({
       });
     });
     return unsub;
-  }, [jobId]);
+  }, [jobId, mockLocation]);
 
   // Stale-location warning: >3 min old while en_route
   useEffect(() => {

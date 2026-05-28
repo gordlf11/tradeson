@@ -100,6 +100,8 @@ interface JobData {
   customerName: string;
 }
 
+const DEMO_VAN_LOCATION = { lat: 39.7617, lng: -89.6801, updatedAt: new Date() };
+
 const MOCK_JOB: JobData = {
   id: 'mock-job-001',
   title: 'Kitchen Sink Leak Repair',
@@ -122,11 +124,12 @@ const MOCK_ADJUSTMENT = { originalPrice: 195, newPrice: 240, delta: 45, reason: 
 function JobPosterView({ job }: { job: JobData }) {
   const navigate = useNavigate();
   const { firebaseUser, userProfile } = useAuth();
+  const isDemo = localStorage.getItem('demoMode') === 'true';
   const countdown = useCountdown(job.scheduledAt);
   const [checklist, setChecklist] = useState<boolean[]>(new Array(POSTER_CHECKLIST.length).fill(false));
   const [state, setState] = useState<PosterState>('waiting');
   const [showCancel, setShowCancel] = useState(false);
-  const [trackingStatus, setTrackingStatus] = useState<JobTrackingMapProps['jobStatus']>('accepted');
+  const [trackingStatus, setTrackingStatus] = useState<JobTrackingMapProps['jobStatus']>(isDemo ? 'en_route' : 'accepted');
   const [messagingOpen, setMessagingOpen] = useState(false);
 
   if (state === 'cancelled') {
@@ -261,6 +264,7 @@ function JobPosterView({ job }: { job: JobData }) {
             tradespersonCategory={job.category}
             jobStatus={trackingStatus}
             onMessageClick={() => setMessagingOpen(true)}
+            mockLocation={isDemo ? DEMO_VAN_LOCATION : undefined}
           />
 
           {/* Pre-service checklist */}

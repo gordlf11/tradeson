@@ -1,6 +1,9 @@
 import { Briefcase } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
+import JobTrackingMap from '../components/JobTrackingMap';
+
+const DEMO_VAN_LOCATION = { lat: 39.7617, lng: -89.6801, updatedAt: new Date() };
 
 export default function JobExecution() {
   const isDemo = localStorage.getItem('demoMode') === 'true';
@@ -24,19 +27,20 @@ export default function JobExecution() {
     );
   }
 
-  // Demo content preserved below
   return (
     <>
       <TopNav title="Job Execution" />
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', paddingBottom: '90px' }}>
-        <Card style={{ padding: 'var(--space-4)', borderLeft: '4px solid var(--primary)', marginBottom: 'var(--space-3)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
-            <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: '700', fontSize: '0.72rem', padding: '3px 10px', borderRadius: 'var(--radius-full)', textTransform: 'uppercase' }}>Upcoming Job</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Tomorrow, 10:00 AM</span>
-          </div>
-          <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)' }}>Leaky Pipe under Kitchen Sink</h3>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>123 Demo St, Springfield</p>
-        </Card>
+        <JobTrackingMap
+          jobId="mock-job-001"
+          jobAddress="123 Demo St, Springfield, IL"
+          tradespersonName="Bob's Plumbing Services"
+          tradespersonPhone="(555) 867-5309"
+          tradespersonCategory="Plumbing"
+          jobStatus="en_route"
+          mockLocation={DEMO_VAN_LOCATION}
+          onMessageClick={() => {}}
+        />
       </div>
     </>
   );
