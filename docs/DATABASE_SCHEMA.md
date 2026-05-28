@@ -1,464 +1,1055 @@
-# TradesOn Database Schema
+# TradesOn Database Schema Documentation
 
-> PostgreSQL schema aligned to all onboarding screens (S-03 through S-08) and the full PRD.
-> All tables use snake_case, UUIDs as primary keys, soft deletes, and audit timestamps.
+**Version**: 1.0
+**Last Updated**: 2026-03-29
+**Status**: Draft for Engineering Review
+**Stack**: Firebase Auth + Cloud SQL (PostgreSQL 15) + BigQuery (Phase 1D)
 
 ---
 
-## Entity Relationship Overview
+## Table of Contents
+
+1. [Architecture Overview](#1-architecture-overview)
+2. [Entity Relationship Diagram](#2-entity-relationship-diagram)
+3. [Schema Definitions](#3-schema-definitions)
+   - [Identity & Auth](#31-identity--auth)
+   - [Role-Specific Profiles](#32-role-specific-profiles)
+   - [Brokerage Management](#33-brokerage-management)
+   - [Properties](#34-properties)
+   - [Job Lifecycle](#35-job-lifecycle)
+   - [Scheduling](#36-scheduling)
+   - [Payments & Billing](#37-payments--billing)
+   - [Compliance & Verification](#38-compliance--verification)
+   - [Support](#39-support)
+   - [Audit & Analytics](#310-audit--analytics)
+4. [Indexes](#4-indexes)
+5. [Data Retention Policy](#5-data-retention-policy)
+6. [BigQuery Analytics Mirror (Phase 1D)](#6-bigquery-analytics-mirror)
+7. [Screen-to-Table Mapping](#7-screen-to-table-mapping)
+
+---
+
+## 1. Architecture Overview
 
 ```
-users ──┬── homeowner_profiles
-        ├── property_manager_profiles ── managed_properties
-        ├── realtor_profiles ──────────── realtor_clients
-        ├── tradesperson_profiles ──────── trade_categories
-        │                          └───── service_areas
-        └── user_notification_preferences
+┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
+│  Firebase Auth   │────▶│  Cloud SQL (Postgres) │────▶│    BigQuery      │
+│                 │     │  Transactional Store   │     │  Analytics Mirror │
+│  - Email/Pass   │     │  - Users & Roles       │     │  (Phase 1D)      │
+│  - OAuth        │     │  - Jobs & Quotes       │     │  - Dashboards    │
+│  - JWT + Claims │     │  - Payments            │     │  - Funnel Metrics│
+│  - Biometric*   │     │  - Compliance          │     │  - Audit Archive │
+└─────────────────┘     │  - Audit Log           │     └─────────────────┘
+                        └──────────────────────┘
+                                  │
+                        ┌─────────┴──────────┐
+                        │  Cloud Storage      │
+                        │  - Document uploads │
+                        │  - Job photos       │
+                        │  - Invoices (PDF)   │
+                        └─────────────────────┘
+```
 
-users ── user_addresses (primary address)
+### Key Principles
+- **Firebase Auth** owns authentication; `firebase_uid` is the bridge to PostgreSQL
+- **Cloud SQL (PostgreSQL)** is the single source of truth for all transactional data
+- **BigQuery** is Phase 1D — analytics only, populated via Pub/Sub or Datastream
+- **Normalized schema**: base `users` table + role-detail tables (no nullable role columns)
+- **Multi-role**: one user can hold multiple roles; each role has its own subscription
+- **Active role**: session-scoped via JWT custom claims, NOT persisted in DB
+- **Soft deletes**: `deleted_at` on entities that support deactivation (NOT compliance/audit)
+- **snake_case** for all table and column names
+- **UUIDs** for all primary keys
 
-tradesperson_profiles ── compliance_documents
-                     └── payout_accounts
+---
 
-jobs ── quotes ── payments ── invoices
-     └── job_photos
+## 2. Entity Relationship Diagram
 
-audit_log (immutable, all system actions)
+```mermaid
+erDiagram
+    %% ===== IDENTITY & AUTH =====
+    users {
+        uuid id PK
+        text firebase_uid UK
+        text email UK
+        text display_name
+        text phone
+        text avatar_url
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
+    }
+
+    user_roles {
+        uuid id PK
+        uuid user_id FK
+        text role
+        text status
+        text stripe_sub_id
+        timestamptz subscribed_at
+        timestamptz expires_at
+        timestamptz created_at
+    }
+
+    %% ===== ROLE PROFILES =====
+    homeowner_profiles {
+        uuid user_id PK_FK
+        text preferred_contact_method
+        jsonb saved_addresses
+    }
+
+    tradesperson_profiles {
+        uuid user_id PK_FK
+        text business_name
+        boolean is_licensed
+        integer service_radius_miles
+        text_arr categories
+        text stripe_account_id
+        jsonb availability
+        numeric average_rating
+        integer completed_jobs_count
+    }
+
+    realtor_profiles {
+        uuid user_id PK_FK
+        uuid brokerage_id FK
+        text license_number
+        text license_state
+        text service_state
+        text service_city
+        integer service_radius_miles
+    }
+
+    property_manager_profiles {
+        uuid user_id PK_FK
+        text company_name
+        text company_address
+        text company_email
+        text company_phone
+        text poc_name
+        text poc_email
+        text poc_phone
+        text property_count_tier
+        text_arr service_preferences
+        text plan_type
+    }
+
+    %% ===== BROKERAGE =====
+    brokerages {
+        uuid id PK
+        text name
+        text license_number
+        text license_state
+        text address
+        uuid admin_user_id FK
+        text stripe_customer_id
+        integer seats_purchased
+        integer seats_used
+        text plan_type
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
+    }
+
+    %% ===== PROPERTIES =====
+    properties {
+        uuid id PK
+        uuid owner_id FK
+        text owner_type
+        text address_line1
+        text address_line2
+        text city
+        text state
+        text zip_code
+        point location
+        jsonb metadata
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
+    }
+
+    %% ===== JOBS =====
+    jobs {
+        uuid id PK
+        uuid customer_id FK
+        uuid property_id FK
+        text title
+        text description
+        text category
+        text room
+        text severity
+        text status
+        text ai_summary
+        numrange budget_range
+        jsonb ai_analysis
+        timestamptz expires_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    job_photos {
+        uuid id PK
+        uuid job_id FK
+        text photo_url
+        text photo_type
+        text caption
+        integer sort_order
+        timestamptz created_at
+    }
+
+    job_status_history {
+        uuid id PK
+        uuid job_id FK
+        text from_status
+        text to_status
+        uuid changed_by FK
+        text reason
+        timestamptz created_at
+    }
+
+    %% ===== QUOTES =====
+    quotes {
+        uuid id PK
+        uuid job_id FK
+        uuid tradesperson_id FK
+        numeric amount
+        text message
+        integer estimated_hours
+        text status
+        text service_guarantee
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    scope_changes {
+        uuid id PK
+        uuid job_id FK
+        uuid tradesperson_id FK
+        text description
+        numeric additional_amount
+        text status
+        jsonb photos
+        timestamptz created_at
+        timestamptz resolved_at
+    }
+
+    %% ===== SCHEDULING =====
+    appointments {
+        uuid id PK
+        uuid job_id FK
+        uuid tradesperson_id FK
+        uuid customer_id FK
+        timestamptz scheduled_start
+        timestamptz scheduled_end
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    time_slot_proposals {
+        uuid id PK
+        uuid appointment_id FK
+        uuid proposed_by FK
+        timestamptz slot_start
+        timestamptz slot_end
+        boolean selected
+        timestamptz created_at
+    }
+
+    availability_templates {
+        uuid id PK
+        uuid tradesperson_id FK
+        integer day_of_week
+        time start_time
+        time end_time
+        boolean is_active
+    }
+
+    availability_exceptions {
+        uuid id PK
+        uuid tradesperson_id FK
+        date exception_date
+        boolean is_unavailable
+        time start_time
+        time end_time
+        text reason
+    }
+
+    %% ===== PAYMENTS =====
+    payment_methods {
+        uuid id PK
+        uuid user_id FK
+        text stripe_payment_method_id
+        text type
+        text last_four
+        text brand
+        boolean is_default
+        timestamptz created_at
+    }
+
+    transactions {
+        uuid id PK
+        uuid job_id FK
+        uuid payer_id FK
+        uuid payee_id FK
+        numeric amount
+        numeric platform_fee
+        numeric net_amount
+        text stripe_payment_intent_id
+        text status
+        text type
+        timestamptz captured_at
+        timestamptz created_at
+    }
+
+    invoices {
+        uuid id PK
+        uuid job_id FK
+        uuid customer_id FK
+        uuid tradesperson_id FK
+        text invoice_number
+        numeric subtotal
+        numeric platform_fee
+        numeric total
+        jsonb line_items
+        text pdf_url
+        text status
+        timestamptz sent_at
+        timestamptz paid_at
+        timestamptz created_at
+    }
+
+    %% ===== COMPLIANCE =====
+    compliance_records {
+        uuid id PK
+        uuid user_id FK
+        text type
+        text status
+        text document_url
+        uuid verified_by FK
+        timestamptz verified_at
+        timestamptz expires_at
+        text rejection_reason
+        jsonb metadata
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    %% ===== SUPPORT =====
+    support_tickets {
+        uuid id PK
+        uuid user_id FK
+        text category
+        text subject
+        text description
+        text status
+        text priority
+        uuid assigned_admin_id FK
+        timestamptz resolved_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    support_messages {
+        uuid id PK
+        uuid ticket_id FK
+        uuid sender_id FK
+        text body
+        text_arr attachment_urls
+        timestamptz created_at
+    }
+
+    %% ===== REVIEWS =====
+    reviews {
+        uuid id PK
+        uuid job_id FK
+        uuid reviewer_id FK
+        uuid reviewee_id FK
+        integer rating
+        text comment
+        timestamptz created_at
+    }
+
+    %% ===== NOTIFICATIONS =====
+    notifications {
+        uuid id PK
+        uuid user_id FK
+        text type
+        text title
+        text body
+        jsonb data
+        boolean is_read
+        timestamptz read_at
+        timestamptz created_at
+    }
+
+    %% ===== AUDIT =====
+    audit_log {
+        uuid id PK
+        uuid actor_id FK
+        text entity_type
+        uuid entity_id
+        text action
+        jsonb old_state
+        jsonb new_state
+        inet ip_address
+        text user_agent
+        timestamptz created_at
+    }
+
+    %% ===== RELATIONSHIPS =====
+    users ||--o{ user_roles : "has roles"
+    users ||--o| homeowner_profiles : "homeowner detail"
+    users ||--o| tradesperson_profiles : "tradesperson detail"
+    users ||--o| realtor_profiles : "realtor detail"
+    users ||--o| property_manager_profiles : "pm detail"
+    users ||--o{ properties : "owns"
+    users ||--o{ payment_methods : "has"
+    users ||--o{ compliance_records : "submits"
+    users ||--o{ support_tickets : "creates"
+    users ||--o{ notifications : "receives"
+    users ||--o{ reviews : "writes"
+
+    brokerages ||--o{ realtor_profiles : "manages"
+    brokerages ||--o| users : "admin"
+
+    properties ||--o{ jobs : "location"
+    users ||--o{ jobs : "creates"
+    jobs ||--o{ job_photos : "has"
+    jobs ||--o{ job_status_history : "tracks"
+    jobs ||--o{ quotes : "receives"
+    jobs ||--o{ scope_changes : "may have"
+    jobs ||--o| appointments : "scheduled"
+    jobs ||--o{ transactions : "payments"
+    jobs ||--o| invoices : "billed"
+    jobs ||--o{ reviews : "reviewed"
+
+    users ||--o{ quotes : "submits"
+    appointments ||--o{ time_slot_proposals : "has slots"
+    users ||--o{ availability_templates : "sets"
+    users ||--o{ availability_exceptions : "sets"
+
+    support_tickets ||--o{ support_messages : "has"
+
+    users ||--o{ audit_log : "performs"
 ```
 
 ---
 
-## Core Tables
+## 3. Schema Definitions
 
-### `users`
+### 3.1 Identity & Auth
 
-Central identity table for all roles.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK, DEFAULT gen_random_uuid() | Primary key |
-| email | TEXT | UNIQUE, NOT NULL | Login email (from auth) |
-| phone_number | VARCHAR(20) | NOT NULL | Primary contact number |
-| full_name | TEXT | NOT NULL | Legal full name |
-| password_hash | TEXT | NOT NULL | Bcrypt / Argon2 hash |
-| role | TEXT | NOT NULL, CHECK (role IN ('homeowner','property_manager','realtor','licensed_tradesperson','unlicensed_tradesperson')) | User role selected at signup |
-| profile_photo_url | TEXT | NULLABLE | GCS URL; required for tradespeople |
-| is_verified | BOOLEAN | DEFAULT FALSE | Email / identity verified |
-| is_active | BOOLEAN | DEFAULT TRUE | Soft-active flag |
-| marketing_opt_in | BOOLEAN | DEFAULT FALSE | Marketing communications consent |
-| created_at | TIMESTAMPTZ | DEFAULT now() | Record creation |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | Last update |
-| deleted_at | TIMESTAMPTZ | NULLABLE | Soft delete timestamp |
-
-**Indexes:** `idx_users_email`, `idx_users_role`, `idx_users_deleted_at`
-
----
-
-### `user_addresses`
-
-Primary account address (shared across all roles).
+#### `users`
+Base identity table. One record per person, shared across all roles.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK → users.id, NOT NULL | Owner |
-| address_line_1 | TEXT | NOT NULL | Street address |
-| city | TEXT | NOT NULL | City |
-| state | VARCHAR(2) | NOT NULL | State abbreviation |
-| zip_code | VARCHAR(10) | NOT NULL | Zip / Postcode |
-| latitude | DECIMAL(9,6) | NULLABLE | GPS lat (populated via geocoding) |
-| longitude | DECIMAL(9,6) | NULLABLE | GPS lng |
-| service_radius_miles | INTEGER | NULLABLE | User's stated service / travel radius |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK, DEFAULT gen_random_uuid() | Internal user ID |
+| `firebase_uid` | TEXT | UNIQUE, NOT NULL | Firebase Auth UID — bridge to auth layer |
+| `email` | TEXT | UNIQUE, NOT NULL | Canonical email |
+| `display_name` | TEXT | | Full name |
+| `phone` | TEXT | | Phone number (E.164 format) |
+| `avatar_url` | TEXT | | Profile photo URL (Cloud Storage) |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `deleted_at` | TIMESTAMPTZ | | Soft delete |
 
-**Indexes:** `idx_user_addresses_user_id`
-
----
-
-### `user_notification_preferences`
-
-Stored per user; maps to the Preferences step in all onboarding forms.
+#### `user_roles`
+Junction table for multi-role support. Each role has its own subscription status.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK → users.id, UNIQUE | One row per user |
-| notify_sms | BOOLEAN | DEFAULT TRUE | SMS job/quote alerts |
-| notify_email | BOOLEAN | DEFAULT TRUE | Email job/quote alerts |
-| notify_push | BOOLEAN | DEFAULT FALSE | Push notification alerts |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `user_id` | UUID | FK → users(id), NOT NULL | |
+| `role` | TEXT | NOT NULL, CHECK IN ('homeowner', 'realtor', 'property_manager', 'tradesperson') | |
+| `status` | TEXT | DEFAULT 'active', CHECK IN ('active', 'suspended', 'cancelled') | |
+| `stripe_sub_id` | TEXT | | Stripe subscription ID for this role |
+| `subscribed_at` | TIMESTAMPTZ | | When subscription started |
+| `expires_at` | TIMESTAMPTZ | | When subscription expires |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| | | UNIQUE (user_id, role) | One record per role per user |
+
+**Role switching flow:**
+```
+Login → Firebase Auth → API checks user_roles →
+  if 1 role: auto-set active_role in JWT claim →
+  if N roles: role selector UI → user picks → set active_role in JWT claim →
+  Frontend renders role-specific shell
+```
 
 ---
 
-## Role Profile Tables
+### 3.2 Role-Specific Profiles
 
-### `homeowner_profiles`
+#### `homeowner_profiles`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `user_id` | UUID | PK, FK → users(id) | |
+| `preferred_contact_method` | TEXT | CHECK IN ('email', 'phone', 'sms') | |
+| `saved_addresses` | JSONB | DEFAULT '[]' | Array of saved home addresses |
 
-Extended fields collected during Homeowner onboarding (S-06).
+#### `tradesperson_profiles`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `user_id` | UUID | PK, FK → users(id) | |
+| `business_name` | TEXT | | Optional business name |
+| `is_licensed` | BOOLEAN | DEFAULT FALSE | Licensed vs non-licensed trade |
+| `service_radius_miles` | INTEGER | DEFAULT 25 | Max distance willing to travel |
+| `categories` | TEXT[] | | Trade categories: plumbing, electrical, hvac, carpentry, etc. |
+| `stripe_account_id` | TEXT | | Stripe Connect Express account for payouts |
+| `availability` | JSONB | | Weekly schedule template (legacy — prefer availability_templates) |
+| `average_rating` | NUMERIC(3,2) | | Cached average from reviews |
+| `completed_jobs_count` | INTEGER | DEFAULT 0 | Cached count |
+| `bio` | TEXT | | Profile description |
+| `years_experience` | INTEGER | | |
+
+**Categories enum values:**
+`electric`, `plumbing`, `general_contracting`, `renovation`, `hvac`, `roofing`, `landscaping`, `cleaning`, `painting`, `flooring`, `carpentry`, `masonry`, `general_handyman`, `furniture_assembly`, `moving`, `pressure_washing`, `window_cleaning`, `gutter_cleaning`
+
+#### `realtor_profiles`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `user_id` | UUID | PK, FK → users(id) | |
+| `brokerage_id` | UUID | FK → brokerages(id) | NULL if independent |
+| `license_number` | TEXT | | NAR/MLS license |
+| `license_state` | TEXT | | State of licensure |
+| `service_state` | TEXT | | Primary service state |
+| `service_city` | TEXT | | Primary service city |
+| `service_radius_miles` | INTEGER | DEFAULT 25 | |
+
+#### `property_manager_profiles`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `user_id` | UUID | PK, FK → users(id) | |
+| `company_name` | TEXT | | |
+| `company_address` | TEXT | | |
+| `company_email` | TEXT | | |
+| `company_phone` | TEXT | | |
+| `poc_name` | TEXT | | Point of contact |
+| `poc_email` | TEXT | | |
+| `poc_phone` | TEXT | | |
+| `property_count_tier` | TEXT | CHECK IN ('1-5', '6-20', '20+') | |
+| `service_preferences` | TEXT[] | | Preferred trade categories |
+| `plan_type` | TEXT | CHECK IN ('per_job', 'pro') | Pricing model |
+
+---
+
+### 3.3 Brokerage Management
+
+#### `brokerages`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `name` | TEXT | NOT NULL | Brokerage company name |
+| `license_number` | TEXT | | Brokerage license |
+| `license_state` | TEXT | | |
+| `address` | TEXT | | Physical address |
+| `admin_user_id` | UUID | FK → users(id) | Brokerage owner/admin |
+| `stripe_customer_id` | TEXT | | Billing account |
+| `seats_purchased` | INTEGER | DEFAULT 0 | Licensed seat count |
+| `seats_used` | INTEGER | DEFAULT 0 | Active realtors count |
+| `plan_type` | TEXT | CHECK IN ('seat_based', 'usage_based') | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `deleted_at` | TIMESTAMPTZ | | Soft delete |
+
+**Screens served:** S-09 through S-16
+
+---
+
+### 3.4 Properties
+
+#### `properties`
+Addresses/locations for homeowners and property managers.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| user_id | UUID | FK → users.id, UNIQUE | One profile per user |
-| property_address | TEXT | NULLABLE | Property address (may differ from account) |
-| property_city | TEXT | NULLABLE | |
-| property_state | VARCHAR(2) | NULLABLE | |
-| property_zip | VARCHAR(10) | NULLABLE | |
-| property_type | TEXT | NULLABLE, CHECK (property_type IN ('house','apartment','condo','townhouse')) | Type of property |
-| service_interests | TEXT[] | DEFAULT '{}' | e.g. ['Plumbing','HVAC','Cleaning'] |
-| payment_method_deferred | BOOLEAN | DEFAULT TRUE | True until Stripe card added |
-| stripe_customer_id | TEXT | NULLABLE | Stripe customer ID |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `owner_id` | UUID | FK → users(id), NOT NULL | |
+| `owner_type` | TEXT | CHECK IN ('homeowner', 'property_manager') | Polymorphic owner |
+| `address_line1` | TEXT | NOT NULL | |
+| `address_line2` | TEXT | | |
+| `city` | TEXT | NOT NULL | |
+| `state` | TEXT | NOT NULL | |
+| `zip_code` | TEXT | NOT NULL | |
+| `location` | POINT | | PostGIS lat/lng for distance queries |
+| `metadata` | JSONB | | Unit count, property type, etc. |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `deleted_at` | TIMESTAMPTZ | | |
 
 ---
 
-### `property_manager_profiles`
+### 3.5 Job Lifecycle
 
-Extended fields for Property Manager onboarding (S-04).
+#### `jobs`
+Core job entity — tracks full lifecycle from creation to close.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| user_id | UUID | FK → users.id, UNIQUE | |
-| company_name | TEXT | NOT NULL | Management company name |
-| job_title | TEXT | NOT NULL | e.g. Operations Manager |
-| business_email | TEXT | NOT NULL | Business contact email |
-| property_count_range | TEXT | NULLABLE | '1-5', '6-20', '21-50', '50+' |
-| property_types | TEXT[] | DEFAULT '{}' | e.g. ['Residential','Commercial'] |
-| preferred_service_types | TEXT[] | DEFAULT '{}' | Preferred trade categories |
-| urgency_types | TEXT[] | DEFAULT '{}' | e.g. ['Emergency','Routine','Turnover'] |
-| plan_type | TEXT | NULLABLE | 'per-job' or 'pro' |
-| stripe_customer_id | TEXT | NULLABLE | |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `customer_id` | UUID | FK → users(id), NOT NULL | Job creator |
+| `property_id` | UUID | FK → properties(id) | Where the work is |
+| `title` | TEXT | NOT NULL | AI-generated or user-provided |
+| `description` | TEXT | | User's issue description |
+| `category` | TEXT | NOT NULL | Trade category |
+| `room` | TEXT | | Room/location within property |
+| `severity` | TEXT | CHECK IN ('low', 'medium', 'high', 'critical') | |
+| `status` | TEXT | DEFAULT 'draft', CHECK IN ('draft', 'open', 'quoted', 'scheduled', 'en_route', 'in_progress', 'completed', 'closed', 'cancelled', 'expired') | |
+| `ai_summary` | TEXT | | AI-generated summary |
+| `budget_range_low` | NUMERIC(10,2) | | Estimated low |
+| `budget_range_high` | NUMERIC(10,2) | | Estimated high |
+| `ai_analysis` | JSONB | | Full AI analysis payload (severity score, confidence, flags) |
+| `accepted_quote_id` | UUID | FK → quotes(id) | Selected quote |
+| `assigned_tradesperson_id` | UUID | FK → users(id) | Assigned after quote accepted |
+| `expires_at` | TIMESTAMPTZ | | Job board expiration (default: created_at + 72h) |
+| `completed_at` | TIMESTAMPTZ | | When work was marked complete |
+| `closed_at` | TIMESTAMPTZ | | When customer approved completion |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
----
+**Status flow:**
+```
+draft → open → quoted → scheduled → en_route → in_progress → completed → closed
+                                                                    ↗
+draft → open → expired                              (scope_change) ─┘
+draft → open → cancelled
+```
 
-### `managed_properties`
+#### `job_photos`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), NOT NULL | |
+| `photo_url` | TEXT | NOT NULL | Cloud Storage URL |
+| `photo_type` | TEXT | CHECK IN ('initial', 'inspection', 'in_progress', 'completion', 'scope_change') | |
+| `caption` | TEXT | | |
+| `sort_order` | INTEGER | DEFAULT 0 | Display order |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
-Portfolio locations for Property Managers; supports multi-property management.
+#### `job_status_history`
+Immutable log of all status transitions for a job.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| property_manager_profile_id | UUID | FK → property_manager_profiles.id | Owner |
-| address_line_1 | TEXT | NOT NULL | |
-| city | TEXT | NOT NULL | |
-| state | VARCHAR(2) | NOT NULL | |
-| zip_code | VARCHAR(10) | NOT NULL | |
-| property_type | TEXT | NULLABLE | Residential, Commercial, etc. |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| deleted_at | TIMESTAMPTZ | NULLABLE | Soft delete |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), NOT NULL | |
+| `from_status` | TEXT | | Previous status (NULL for creation) |
+| `to_status` | TEXT | NOT NULL | New status |
+| `changed_by` | UUID | FK → users(id) | Who triggered the change |
+| `reason` | TEXT | | Optional reason (cancellation, expiration) |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
-**Indexes:** `idx_managed_properties_pm_id`
+#### `quotes`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), NOT NULL | |
+| `tradesperson_id` | UUID | FK → users(id), NOT NULL | |
+| `amount` | NUMERIC(10,2) | NOT NULL | Quoted price |
+| `message` | TEXT | | Cover message |
+| `estimated_hours` | INTEGER | | Estimated completion time |
+| `service_guarantee` | TEXT | | Guarantee statement |
+| `status` | TEXT | DEFAULT 'pending', CHECK IN ('pending', 'accepted', 'declined', 'withdrawn', 'expired') | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
----
-
-### `realtor_profiles`
-
-Extended fields for Realtor onboarding (S-05).
+#### `scope_changes`
+Additional work requests during job execution.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| user_id | UUID | FK → users.id, UNIQUE | |
-| brokerage_name | TEXT | NOT NULL | Employing brokerage |
-| license_number | TEXT | NOT NULL | Real estate license number |
-| service_radius_miles | INTEGER | NULLABLE | Client coverage radius |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), NOT NULL | |
+| `tradesperson_id` | UUID | FK → users(id), NOT NULL | |
+| `description` | TEXT | NOT NULL | What additional work is needed |
+| `additional_amount` | NUMERIC(10,2) | NOT NULL | Added cost |
+| `status` | TEXT | DEFAULT 'pending', CHECK IN ('pending', 'accepted', 'declined') | |
+| `photos` | JSONB | DEFAULT '[]' | Array of photo URLs |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `resolved_at` | TIMESTAMPTZ | | When customer accepted/declined |
 
 ---
 
-### `realtor_clients`
+### 3.6 Scheduling
 
-Client email invitations sent via the Realtor client portal.
+#### `appointments`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), UNIQUE, NOT NULL | One appointment per job |
+| `tradesperson_id` | UUID | FK → users(id), NOT NULL | |
+| `customer_id` | UUID | FK → users(id), NOT NULL | |
+| `scheduled_start` | TIMESTAMPTZ | NOT NULL | Confirmed start time |
+| `scheduled_end` | TIMESTAMPTZ | | Estimated end |
+| `status` | TEXT | DEFAULT 'proposed', CHECK IN ('proposed', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show') | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+#### `time_slot_proposals`
+Customer proposes 2-3 slots; tradesperson selects one.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| realtor_profile_id | UUID | FK → realtor_profiles.id | Inviting realtor |
-| client_email | TEXT | NOT NULL | Invited client email |
-| invited_at | TIMESTAMPTZ | DEFAULT now() | |
-| accepted_at | TIMESTAMPTZ | NULLABLE | When client completed signup |
-| client_user_id | UUID | FK → users.id, NULLABLE | Populated on acceptance |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `appointment_id` | UUID | FK → appointments(id), NOT NULL | |
+| `proposed_by` | UUID | FK → users(id), NOT NULL | |
+| `slot_start` | TIMESTAMPTZ | NOT NULL | |
+| `slot_end` | TIMESTAMPTZ | NOT NULL | |
+| `selected` | BOOLEAN | DEFAULT FALSE | TRUE = this slot was chosen |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
-**Indexes:** `idx_realtor_clients_realtor_id`, `idx_realtor_clients_email`
-
----
-
-### `tradesperson_profiles`
-
-Shared base profile for Licensed (S-07) and Unlicensed (S-08) tradespeople.
+#### `availability_templates`
+Recurring weekly availability for tradespeople.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| user_id | UUID | FK → users.id, UNIQUE | |
-| business_name | TEXT | NULLABLE | Operating business name |
-| is_licensed | BOOLEAN | NOT NULL | True for licensed tradespeople |
-| service_address | TEXT | NULLABLE | Base address for job matching |
-| service_city | TEXT | NULLABLE | |
-| service_state | VARCHAR(2) | NULLABLE | |
-| service_zip | VARCHAR(10) | NULLABLE | |
-| service_radius_miles | INTEGER | NULLABLE | Miles from base address |
-| primary_trades | TEXT[] | DEFAULT '{}' | e.g. ['Plumbing','Electrical'] |
-| subcategories | TEXT[] | DEFAULT '{}' | e.g. ['Drain Cleaning','Leak Repair'] |
-| additional_services | TEXT | NULLABLE | Free-text description |
-| business_entity_type | TEXT | NULLABLE | 'Sole Proprietor','LLC','S-Corp',etc. |
-| id_verified | BOOLEAN | DEFAULT FALSE | Government ID uploaded & verified |
-| id_document_url | TEXT | NULLABLE | GCS URL for ID document |
-| has_insurance | BOOLEAN | NULLABLE | Self-declared insurance status |
-| insurance_doc_url | TEXT | NULLABLE | GCS URL for insurance certificate |
-| stripe_account_id | TEXT | NULLABLE | Stripe Connect account ID |
-| payout_enabled | BOOLEAN | DEFAULT FALSE | Stripe payouts enabled |
-| rating | DECIMAL(3,2) | NULLABLE | Aggregate star rating |
-| jobs_completed | INTEGER | DEFAULT 0 | Total completed jobs |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tradesperson_id` | UUID | FK → users(id), NOT NULL | |
+| `day_of_week` | INTEGER | CHECK (0-6), NOT NULL | 0=Sunday, 6=Saturday |
+| `start_time` | TIME | NOT NULL | e.g., 06:00 |
+| `end_time` | TIME | NOT NULL | e.g., 18:00 |
+| `is_active` | BOOLEAN | DEFAULT TRUE | |
 
-**Indexes:** `idx_tradesperson_user_id`, `idx_tradesperson_service_zip`, `idx_tradesperson_primary_trades`
-
----
-
-### `service_areas`
-
-Zip codes a tradesperson explicitly covers (beyond the radius).
+#### `availability_exceptions`
+One-off overrides (days off, modified hours).
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| tradesperson_profile_id | UUID | FK → tradesperson_profiles.id | Owner |
-| zip_code | VARCHAR(10) | NOT NULL | Served zip / postcode |
-
-**Indexes:** `idx_service_areas_profile_id`, `idx_service_areas_zip`
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tradesperson_id` | UUID | FK → users(id), NOT NULL | |
+| `exception_date` | DATE | NOT NULL | |
+| `is_unavailable` | BOOLEAN | DEFAULT TRUE | TRUE = day off |
+| `start_time` | TIME | | Custom start (if not fully unavailable) |
+| `end_time` | TIME | | Custom end |
+| `reason` | TEXT | | |
 
 ---
 
-### `compliance_documents`
+### 3.7 Payments & Billing
 
-License documents for licensed tradespeople.
+#### `payment_methods`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `user_id` | UUID | FK → users(id), NOT NULL | |
+| `stripe_payment_method_id` | TEXT | NOT NULL | Stripe PM ID |
+| `type` | TEXT | | card, bank_account, etc. |
+| `last_four` | TEXT | | Last 4 digits |
+| `brand` | TEXT | | visa, mastercard, etc. |
+| `is_default` | BOOLEAN | DEFAULT FALSE | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+#### `transactions`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), NOT NULL | |
+| `payer_id` | UUID | FK → users(id), NOT NULL | Customer |
+| `payee_id` | UUID | FK → users(id), NOT NULL | Tradesperson |
+| `amount` | NUMERIC(10,2) | NOT NULL | Total charge |
+| `platform_fee` | NUMERIC(10,2) | NOT NULL | Platform's cut |
+| `net_amount` | NUMERIC(10,2) | NOT NULL | Tradesperson payout |
+| `stripe_payment_intent_id` | TEXT | | Stripe PI ID |
+| `stripe_transfer_id` | TEXT | | Stripe Transfer to Connect account |
+| `status` | TEXT | DEFAULT 'pending', CHECK IN ('pending', 'authorized', 'captured', 'failed', 'refunded', 'disputed') | |
+| `type` | TEXT | CHECK IN ('payment', 'refund', 'payout') | |
+| `captured_at` | TIMESTAMPTZ | | When payment was captured |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+#### `invoices`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), NOT NULL | |
+| `customer_id` | UUID | FK → users(id), NOT NULL | |
+| `tradesperson_id` | UUID | FK → users(id), NOT NULL | |
+| `invoice_number` | TEXT | UNIQUE, NOT NULL | Sequential: INV-YYYYMM-XXXX |
+| `subtotal` | NUMERIC(10,2) | NOT NULL | Labor + materials |
+| `platform_fee` | NUMERIC(10,2) | NOT NULL | |
+| `total` | NUMERIC(10,2) | NOT NULL | Customer pays this |
+| `line_items` | JSONB | NOT NULL | [{description, quantity, unit_price, total}] |
+| `pdf_url` | TEXT | | Cloud Storage URL for generated PDF |
+| `status` | TEXT | DEFAULT 'draft', CHECK IN ('draft', 'sent', 'approved', 'paid', 'disputed', 'voided') | |
+| `sent_at` | TIMESTAMPTZ | | |
+| `paid_at` | TIMESTAMPTZ | | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+---
+
+### 3.8 Compliance & Verification
+
+#### `compliance_records`
+**Never soft-deleted.** Active compliance data lives in Cloud SQL; archived to BigQuery in Phase 1D.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| tradesperson_profile_id | UUID | FK → tradesperson_profiles.id | |
-| license_type | TEXT | NOT NULL | e.g. 'Electrician','Plumber' |
-| license_number | TEXT | NOT NULL | License number |
-| expiration_date | DATE | NOT NULL | License expiry |
-| document_url | TEXT | NOT NULL | GCS URL for license document |
-| verification_status | TEXT | DEFAULT 'pending', CHECK (verification_status IN ('pending','approved','rejected')) | Admin review state |
-| verified_at | TIMESTAMPTZ | NULLABLE | When admin approved |
-| verified_by | UUID | FK → users.id, NULLABLE | Admin user who reviewed |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `user_id` | UUID | FK → users(id), NOT NULL | |
+| `type` | TEXT | NOT NULL, CHECK IN ('identity', 'license', 'insurance', 'background_check') | |
+| `status` | TEXT | DEFAULT 'pending', CHECK IN ('pending', 'approved', 'rejected', 'expired') | |
+| `document_url` | TEXT | | Cloud Storage signed URL |
+| `document_name` | TEXT | | Original filename |
+| `verified_by` | UUID | FK → users(id) | Admin who reviewed |
+| `verified_at` | TIMESTAMPTZ | | |
+| `expires_at` | TIMESTAMPTZ | | License/insurance expiration |
+| `rejection_reason` | TEXT | | |
+| `admin_notes` | TEXT | | Internal notes |
+| `metadata` | JSONB | | License number, state, coverage limits, etc. |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
 ---
 
-### `payout_accounts`
+### 3.9 Support
 
-Stripe Connect payout configuration.
+#### `support_tickets`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `user_id` | UUID | FK → users(id), NOT NULL | Ticket creator |
+| `category` | TEXT | NOT NULL | Issue category |
+| `subject` | TEXT | NOT NULL | |
+| `description` | TEXT | | |
+| `status` | TEXT | DEFAULT 'open', CHECK IN ('open', 'in_progress', 'resolved', 'closed') | |
+| `priority` | TEXT | DEFAULT 'normal', CHECK IN ('low', 'normal', 'high', 'urgent') | |
+| `assigned_admin_id` | UUID | FK → users(id) | |
+| `resolved_at` | TIMESTAMPTZ | | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+#### `support_messages`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `ticket_id` | UUID | FK → support_tickets(id), NOT NULL | |
+| `sender_id` | UUID | FK → users(id), NOT NULL | |
+| `body` | TEXT | NOT NULL | |
+| `attachment_urls` | TEXT[] | | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+---
+
+### 3.10 Audit & Analytics
+
+#### `reviews`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `job_id` | UUID | FK → jobs(id), NOT NULL | |
+| `reviewer_id` | UUID | FK → users(id), NOT NULL | Who left the review |
+| `reviewee_id` | UUID | FK → users(id), NOT NULL | Who was reviewed |
+| `rating` | INTEGER | CHECK (1-5), NOT NULL | |
+| `comment` | TEXT | | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| | | UNIQUE (job_id, reviewer_id) | One review per party per job |
+
+#### `notifications`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `user_id` | UUID | FK → users(id), NOT NULL | |
+| `type` | TEXT | NOT NULL | e.g., 'new_quote', 'job_accepted', 'payment_captured' |
+| `title` | TEXT | NOT NULL | |
+| `body` | TEXT | | |
+| `data` | JSONB | | Payload (job_id, quote_id, etc.) |
+| `is_read` | BOOLEAN | DEFAULT FALSE | |
+| `read_at` | TIMESTAMPTZ | | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+#### `audit_log`
+**Append-only. No updates. No deletes. Ever.**
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| user_id | UUID | FK → users.id, UNIQUE | |
-| stripe_account_id | TEXT | NOT NULL | Stripe Connect account ID |
-| business_entity_type | TEXT | NOT NULL | Entity type for 1099 |
-| payouts_enabled | BOOLEAN | DEFAULT FALSE | Stripe payouts enabled flag |
-| bank_last4 | VARCHAR(4) | NULLABLE | Last 4 of connected bank |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `actor_id` | UUID | FK → users(id) | Who performed the action (NULL for system) |
+| `entity_type` | TEXT | NOT NULL | Table name: 'job', 'user', 'compliance_record', etc. |
+| `entity_id` | UUID | NOT NULL | ID of the affected record |
+| `action` | TEXT | NOT NULL | 'create', 'update', 'delete', 'approve', 'reject', 'suspend', etc. |
+| `old_state` | JSONB | | Previous state snapshot |
+| `new_state` | JSONB | | New state snapshot |
+| `ip_address` | INET | | Request IP |
+| `user_agent` | TEXT | | Browser/client info |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
 ---
 
-## Job Lifecycle Tables
-
-### `jobs`
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| homeowner_user_id | UUID | FK → users.id | Job requester (homeowner, realtor, or PM) |
-| assigned_tradesperson_id | UUID | FK → users.id, NULLABLE | Winning tradesperson after quote accepted |
-| title | TEXT | NOT NULL | Short job title (auto-generated from room + category) |
-| description | TEXT | NOT NULL | Full problem description (free-text from Step 5) |
-| category | TEXT | NOT NULL | Trade type: e.g. 'Plumbing', 'Electrical', 'HVAC' |
-| room | TEXT | NOT NULL | Room where issue is located (Step 1 of job creation) |
-| severity | TEXT | CHECK (severity IN ('routine','moderate','urgent')) | Customer-selected urgency level |
-| job_nature | TEXT | NULLABLE, CHECK (job_nature IN ('Cosmetic','Routine Maintenance','Repair / Fix','Renovation','Other')) | Nature of job selected during intake |
-| affected_part | TEXT | NULLABLE | What part of the room is not working (uncovering Q1) |
-| adjacent_impact | TEXT | NULLABLE | Other items in the room being affected (uncovering Q2) |
-| housewide_impact | TEXT | NULLABLE | Anything else in the house being impacted (uncovering Q3) |
-| status | TEXT | DEFAULT 'open', CHECK (status IN ('open','quoted','scheduled','in_progress','completed','cancelled','expired')) | Current job lifecycle status |
-| address | TEXT | NOT NULL | Service location address |
-| city | TEXT | NOT NULL | |
-| state | VARCHAR(2) | NOT NULL | |
-| zip_code | VARCHAR(10) | NOT NULL | |
-| expires_at | TIMESTAMPTZ | NOT NULL | Job expires 72 hours after posting if no quote accepted |
-| scheduled_at | TIMESTAMPTZ | NULLABLE | Agreed appointment time after quote accepted |
-| completed_at | TIMESTAMPTZ | NULLABLE | |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
-| deleted_at | TIMESTAMPTZ | NULLABLE | |
-
----
-
-### `quotes`
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| job_id | UUID | FK → jobs.id | |
-| tradesperson_user_id | UUID | FK → users.id | Quoting tradesperson |
-| price | DECIMAL(10,2) | NOT NULL | Flat rate to complete the full job scope |
-| estimated_hours | DECIMAL(4,1) | NOT NULL | Tradesperson's estimated completion time in hours |
-| hourly_overage_rate | DECIMAL(6,2) | NOT NULL | Hourly rate charged if job exceeds estimated_hours |
-| message | TEXT | NULLABLE | Tradesperson pitch / approach description |
-| tradesperson_rating_at_submission | DECIMAL(3,2) | NULLABLE | Snapshot of tradesperson rating when quote submitted |
-| status | TEXT | DEFAULT 'pending', CHECK (status IN ('pending','accepted','rejected','withdrawn')) | |
-| accepted_at | TIMESTAMPTZ | NULLABLE | |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
-
----
-
-### `payments`
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| job_id | UUID | FK → jobs.id | |
-| quote_id | UUID | FK → quotes.id | |
-| payer_user_id | UUID | FK → users.id | Who paid |
-| payee_user_id | UUID | FK → users.id | Who received |
-| amount | DECIMAL(10,2) | NOT NULL | Gross amount |
-| platform_fee | DECIMAL(10,2) | NOT NULL | TradesOn commission |
-| net_payout | DECIMAL(10,2) | NOT NULL | Amount to tradesperson |
-| stripe_payment_intent_id | TEXT | NULLABLE | |
-| stripe_transfer_id | TEXT | NULLABLE | |
-| status | TEXT | DEFAULT 'pending', CHECK (status IN ('pending','processing','completed','failed','refunded')) | |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | |
-
----
-
-### `invoices`
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| job_id | UUID | FK → jobs.id | |
-| payment_id | UUID | FK → payments.id | |
-| line_items | JSONB | NOT NULL | Array of {description, qty, unit_price} |
-| subtotal | DECIMAL(10,2) | NOT NULL | |
-| tax | DECIMAL(10,2) | DEFAULT 0 | |
-| total | DECIMAL(10,2) | NOT NULL | |
-| pdf_url | TEXT | NULLABLE | GCS URL for generated PDF |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-
----
-
-## Supporting Tables
-
-### `job_photos`
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| job_id | UUID | FK → jobs.id | |
-| uploaded_by | UUID | FK → users.id | |
-| photo_url | TEXT | NOT NULL | GCS URL |
-| photo_type | TEXT | CHECK (photo_type IN ('intake','before','after','completion')) | |
-| created_at | TIMESTAMPTZ | DEFAULT now() | |
-
----
-
-### `audit_log`
-
-Immutable record of all significant system actions. No updates or deletes.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| id | UUID | PK | |
-| actor_user_id | UUID | FK → users.id, NULLABLE | Who triggered (null = system) |
-| action | TEXT | NOT NULL | e.g. 'job.created', 'quote.accepted' |
-| resource_type | TEXT | NOT NULL | e.g. 'jobs', 'quotes', 'payments' |
-| resource_id | UUID | NOT NULL | ID of affected row |
-| metadata | JSONB | NULLABLE | Additional context |
-| ip_address | INET | NULLABLE | |
-| created_at | TIMESTAMPTZ | DEFAULT now() | Immutable — never update |
-
----
-
-## Screen-to-Table Mapping
-
-| Screen | Tables Written |
-|---|---|
-| S-01 Login | `users` (read) |
-| S-02 Signup | `users` |
-| S-03 Role Selection | `users.role` |
-| S-04 Property Manager | `property_manager_profiles`, `managed_properties`, `user_addresses`, `user_notification_preferences` |
-| S-05 Realtor | `realtor_profiles`, `user_addresses`, `user_notification_preferences` |
-| S-06 Homeowner | `homeowner_profiles`, `user_addresses`, `user_notification_preferences` |
-| S-07 Licensed Tradesperson | `tradesperson_profiles`, `service_areas`, `compliance_documents`, `payout_accounts`, `user_addresses`, `user_notification_preferences` |
-| S-08 Unlicensed Tradesperson | `tradesperson_profiles`, `service_areas`, `payout_accounts`, `user_addresses`, `user_notification_preferences` |
-| S-26–28 Job Creation | `jobs`, `job_photos` |
-| S-29–32 Job Board / Quotes | `jobs`, `quotes` |
-| S-33–36 Scheduling | `jobs.scheduled_at` |
-| S-37–41 Execution | `jobs.status`, `job_photos` |
-| S-42–44 Invoicing | `invoices`, `payments` |
-| S-45–47 Payments | `payments`, `homeowner_profiles.stripe_customer_id`, `payout_accounts` |
-| S-48–49 Support | `audit_log` |
-
----
-
-## Index Strategy
+## 4. Indexes
 
 ```sql
--- User lookups
+-- Users
+CREATE INDEX idx_users_firebase_uid ON users(firebase_uid);
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NULL;
 
--- Address / geo lookups
-CREATE INDEX idx_user_addresses_user_id ON user_addresses(user_id);
+-- User Roles
+CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX idx_user_roles_role ON user_roles(role);
 
--- Job matching
+-- Jobs
+CREATE INDEX idx_jobs_customer_id ON jobs(customer_id);
 CREATE INDEX idx_jobs_status ON jobs(status);
-CREATE INDEX idx_jobs_zip ON jobs(zip_code);
 CREATE INDEX idx_jobs_category ON jobs(category);
+CREATE INDEX idx_jobs_assigned_tradesperson ON jobs(assigned_tradesperson_id);
+CREATE INDEX idx_jobs_created_at ON jobs(created_at DESC);
+CREATE INDEX idx_jobs_expires_at ON jobs(expires_at) WHERE status = 'open';
 
--- Tradesperson geo matching
-CREATE INDEX idx_tradesperson_service_zip ON tradesperson_profiles(service_zip);
-CREATE INDEX idx_service_areas_zip ON service_areas(zip_code);
-
--- Quote lookups
+-- Quotes
 CREATE INDEX idx_quotes_job_id ON quotes(job_id);
-CREATE INDEX idx_quotes_tradesperson ON quotes(tradesperson_user_id);
+CREATE INDEX idx_quotes_tradesperson_id ON quotes(tradesperson_id);
+CREATE INDEX idx_quotes_status ON quotes(status);
+
+-- Appointments
+CREATE INDEX idx_appointments_job_id ON appointments(job_id);
+CREATE INDEX idx_appointments_tradesperson ON appointments(tradesperson_id);
+CREATE INDEX idx_appointments_scheduled ON appointments(scheduled_start);
+
+-- Transactions
+CREATE INDEX idx_transactions_job_id ON transactions(job_id);
+CREATE INDEX idx_transactions_payer ON transactions(payer_id);
+CREATE INDEX idx_transactions_payee ON transactions(payee_id);
+CREATE INDEX idx_transactions_status ON transactions(status);
+CREATE INDEX idx_transactions_stripe_pi ON transactions(stripe_payment_intent_id);
+
+-- Compliance
+CREATE INDEX idx_compliance_user_id ON compliance_records(user_id);
+CREATE INDEX idx_compliance_status ON compliance_records(status);
+CREATE INDEX idx_compliance_expires ON compliance_records(expires_at) WHERE status = 'approved';
+
+-- Notifications
+CREATE INDEX idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;
 
 -- Audit
-CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
-CREATE INDEX idx_audit_log_actor ON audit_log(actor_user_id);
+CREATE INDEX idx_audit_entity ON audit_log(entity_type, entity_id);
+CREATE INDEX idx_audit_actor ON audit_log(actor_id);
+CREATE INDEX idx_audit_created ON audit_log(created_at);
+
+-- Properties
+CREATE INDEX idx_properties_owner ON properties(owner_id);
+CREATE INDEX idx_properties_zip ON properties(zip_code);
+
+-- Support
+CREATE INDEX idx_support_tickets_user ON support_tickets(user_id);
+CREATE INDEX idx_support_tickets_status ON support_tickets(status);
+
+-- Reviews
+CREATE INDEX idx_reviews_reviewee ON reviews(reviewee_id);
+CREATE INDEX idx_reviews_job ON reviews(job_id);
 ```
 
 ---
 
-## Data Retention Policy
+## 5. Data Retention Policy
 
-| Table | Retention | Notes |
-|---|---|---|
-| users | Indefinite | Soft delete only; anonymize PII after 7 years |
-| audit_log | 7 years | Immutable — no deletes |
-| jobs | 5 years post-completion | |
-| payments / invoices | 7 years | Tax / legal requirement |
-| compliance_documents | 7 years | Regulatory compliance |
-| job_photos | 2 years | Compress after 6 months |
-| realtor_clients | Until user deletion | |
+| Record Type | Retention | Rationale |
+|-------------|-----------|-----------|
+| Identity verification | 7 years | Payment/KYC compliance |
+| License records | 7 years | Contractor liability |
+| Insurance documents | 5 years | Claims window |
+| Audit logs | 7 years | SOC 2 / legal discovery |
+| Payment records | 7 years | IRS / Stripe requirement |
+| Job records | Indefinite | Business data |
+| User accounts | Until deletion request + 30 day grace | CCPA/GDPR |
+| Support tickets | 3 years | Customer service SLA |
 
 ---
 
-*Schema version: 1.1.0 — Aligned to onboarding screens S-03 through S-08 (March 2026)*
+## 6. BigQuery Analytics Mirror (Phase 1D)
+
+When dashboards are built in Phase 1D, stream these tables to BigQuery via Cloud Datastream:
+
+| Cloud SQL Table | BigQuery Dataset | Purpose |
+|-----------------|-----------------|---------|
+| `audit_log` | `tradeson_analytics.audit_log` | Immutable audit archive, 7-year queries |
+| `jobs` | `tradeson_analytics.jobs` | Job volume, category, severity trends |
+| `quotes` | `tradeson_analytics.quotes` | Quoting behavior, acceptance rates |
+| `transactions` | `tradeson_analytics.transactions` | Revenue, GMV, platform fee analysis |
+| `users` + `user_roles` | `tradeson_analytics.users_denormalized` | MAU, role distribution, activation funnels |
+| `compliance_records` | `tradeson_analytics.compliance` | Verification throughput, rejection rates |
+| `reviews` | `tradeson_analytics.reviews` | Service quality metrics |
+
+**Admin Portal screens served (Phase 1D):**
+- S-21: Core Metrics Dashboard (users, MAU, active jobs, revenue)
+- S-22: Funnel Tracking (acquisition funnels)
+- S-23: Behavioral Metrics (supply/demand heat maps)
+
+---
+
+## 7. Screen-to-Table Mapping
+
+Maps every PRD screen to the database tables it reads from or writes to.
+
+| Screen | Name | Primary Tables | Operations |
+|--------|------|---------------|------------|
+| S-01 | Login | `users` | Read (Firebase Auth handles actual login) |
+| S-02 | Account Creation | `users`, `user_roles` | Write |
+| S-03 | User Type Selection | `user_roles` | Write |
+| S-04 | Property Manager Onboarding | `property_manager_profiles`, `properties` | Write |
+| S-05 | Realtor Onboarding | `realtor_profiles`, `brokerages` | Write, Read |
+| S-06 | Homeowner Onboarding | `homeowner_profiles`, `properties`, `payment_methods` | Write |
+| S-07 | Licensed Trade Onboarding | `tradesperson_profiles`, `compliance_records`, `availability_templates` | Write |
+| S-08 | Non-Licensed Trade Onboarding | `tradesperson_profiles`, `compliance_records`, `availability_templates` | Write |
+| S-09 | Brokerage Setup | `brokerages` | Write |
+| S-10 | Admin Permissions | `user_roles`, `brokerages` | Read, Write |
+| S-11 | Plan Selection | `brokerages` | Write |
+| S-12 | Billing Configuration | `brokerages`, `payment_methods` | Write |
+| S-13 | Review & Confirm | `brokerages` | Read |
+| S-14 | User Management | `realtor_profiles`, `brokerages`, `users` | Read, Write |
+| S-15 | Brokerage Admin Dashboard | `brokerages`, `realtor_profiles`, `jobs` | Read |
+| S-16 | Brokerage Billing | `brokerages`, `transactions`, `invoices` | Read |
+| S-17 | Compliance Review | `compliance_records`, `users`, `tradesperson_profiles` | Read, Write |
+| S-18 | Account Monitoring | `users`, `user_roles`, `compliance_records`, `reviews` | Read |
+| S-19 | Admin Resolutions | `users`, `user_roles`, `audit_log` | Read, Write |
+| S-20 | Audit Log | `audit_log` | Read |
+| S-21 | Core Metrics Dashboard | BigQuery (Phase 1D) | Read |
+| S-22 | Funnel Tracking | BigQuery (Phase 1D) | Read |
+| S-23 | Behavioral Metrics | BigQuery (Phase 1D) | Read |
+| S-24 | Tradesperson Dashboard | `jobs`, `quotes`, `transactions`, `tradesperson_profiles`, `availability_templates` | Read |
+| S-25 | Realtor Dashboard | `jobs`, `quotes`, `transactions`, `realtor_profiles` | Read |
+| S-26 | Job Input Form | `jobs`, `job_photos`, `properties` | Write |
+| S-27 | AI Analysis View | `jobs` | Read, Write (AI updates) |
+| S-28 | User Confirmation | `jobs` | Read, Write |
+| S-29 | Job Board (Tradesperson) | `jobs`, `job_photos`, `properties` | Read |
+| S-30 | Job Detail & Drilldown | `jobs`, `job_photos`, `quotes` | Read |
+| S-31 | Quote Submission | `quotes` | Write |
+| S-32 | Quote Review (Customer) | `quotes`, `tradesperson_profiles`, `reviews` | Read, Write |
+| S-33 | Availability Manager | `availability_templates`, `availability_exceptions` | Read, Write |
+| S-34 | Time Slot Selection | `appointments`, `time_slot_proposals`, `availability_templates` | Read, Write |
+| S-35 | Pre-Job Checklist | `jobs`, `appointments` | Read |
+| S-36 | Day-Of Route View | `appointments`, `properties`, `jobs` | Read |
+| S-37 | Live Tracking (Customer) | `appointments`, `jobs` | Read (polling) |
+| S-38 | Onsite Adjustment Panel | `scope_changes`, `job_photos` | Write |
+| S-39 | Scope Change Approval | `scope_changes` | Read, Write |
+| S-40 | Completion Submission | `jobs`, `job_photos`, `job_status_history` | Write |
+| S-41 | Completion Documentation | `jobs`, `job_photos` | Read |
+| S-42 | Invoice Line Items | `invoices`, `scope_changes` | Read, Write |
+| S-43 | PDF Invoice Preview | `invoices` | Read |
+| S-44 | Customer Invoice Approval | `invoices`, `transactions` | Read, Write |
+| S-45 | Customer Payment Method | `payment_methods` | Read, Write |
+| S-46 | Tradesperson Payout Setup | `tradesperson_profiles` (stripe_account_id) | Read, Write |
+| S-47 | Job Cancellation | `jobs`, `job_status_history`, `transactions` | Write |
+| S-48 | Support Contact Form | `support_tickets` | Write |
+| S-49 | Support Ticket Tracker | `support_tickets`, `support_messages` | Read, Write |
+
+---
+
+## Summary
+
+| Metric | Count |
+|--------|-------|
+| Total tables | 22 |
+| Identity & auth | 2 (users, user_roles) |
+| Role profiles | 4 (homeowner, tradesperson, realtor, property_manager) |
+| Brokerage | 1 |
+| Properties | 1 |
+| Job lifecycle | 4 (jobs, job_photos, job_status_history, quotes) |
+| Scope changes | 1 |
+| Scheduling | 4 (appointments, time_slot_proposals, availability_templates, availability_exceptions) |
+| Payments | 3 (payment_methods, transactions, invoices) |
+| Compliance | 1 |
+| Support | 2 (support_tickets, support_messages) |
+| Reviews | 1 |
+| Notifications | 1 |
+| Audit | 1 |
+| PRD screens mapped | 49/49 |
