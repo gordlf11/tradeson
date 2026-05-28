@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Clock, MapPin, CheckCircle2, AlertTriangle,
   PlayCircle, DollarSign, Package, Calendar,
-  Bell, Camera, XCircle,
+  Bell, Camera, XCircle, Navigation, CheckCircle, WifiOff,
 } from 'lucide-react';
+import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import JobTrackingMap, { type JobTrackingMapProps } from '../components/JobTrackingMap';
 import { Badge } from '../components/ui/Badge';
 import TopNav from '../components/TopNav';
 import { useAuth } from '../contexts/AuthContext';
@@ -101,6 +104,7 @@ function JobPosterView() {
   const [checklist, setChecklist] = useState<boolean[]>(new Array(POSTER_CHECKLIST.length).fill(false));
   const [state, setState] = useState<PosterState>('waiting');
   const [showCancel, setShowCancel] = useState(false);
+  const [trackingStatus, setTrackingStatus] = useState<JobTrackingMapProps['jobStatus']>('accepted');
 
   if (state === 'cancelled') {
     return (
@@ -225,6 +229,17 @@ function JobPosterView() {
             <CountdownDisplay {...countdown} label="Appointment starts in" />
           )}
 
+          {/* Live tracking map */}
+          <JobTrackingMap
+            jobId="mock-job-001"
+            jobAddress="123 Main St, Springfield"
+            tradespersonName="Bob's Plumbing Services"
+            tradespersonPhone="(555) 867-5309"
+            tradespersonCategory="Plumbing"
+            jobStatus={trackingStatus}
+            onMessageClick={() => navigate('/completion')}
+          />
+
           {/* Pre-service checklist */}
           <Card style={{ padding: 'var(--space-4)' }}>
             <h3 style={{ margin: '0 0 var(--space-3)', fontSize: '1rem' }}>Pre-Service Checklist</h3>
@@ -273,7 +288,11 @@ function JobPosterView() {
           {state === 'waiting' && (
             <div style={{ padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
               <p style={{ margin: '0 0 var(--space-2)', fontSize: '0.7rem', color: 'var(--text-tertiary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Demo</p>
-              <Button variant="outline" size="sm" onClick={() => setState('job_started')}>Simulate: Job started</Button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                <Button variant="outline" size="sm" onClick={() => setTrackingStatus('en_route')}>Simulate: En Route</Button>
+                <Button variant="outline" size="sm" onClick={() => setTrackingStatus('arrived')}>Simulate: Arrived</Button>
+                <Button variant="outline" size="sm" onClick={() => setState('job_started')}>Simulate: Job started</Button>
+              </div>
             </div>
           )}
           {state === 'job_started' && (
@@ -315,12 +334,236 @@ function JobPosterView() {
   );
 }
 
+// ── Geolocation permission indicator ──────────────────────────────────────────
+
+type GeoPermission = 'prompt' | 'granted' | 'denied' | 'unavailable';
+
+function detectBrowser(): string {
+  const ua = navigator.userAgent;
+  if (/Chrome/.test(ua) && !/Edg/.test(ua)) return 'Chrome';
+  if (/Edg/.test(ua)) return 'Edge';
+  if (/Firefox/.test(ua)) return 'Firefox';
+  if (/Safari/.test(ua) && !/Chrome/.test(ua)) return 'Safari';
+  return 'your browser';
+}
+
+const BROWSER_GEO_INSTRUCTIONS: Record<string, string> = {
+  Chrome:  'Settings → Privacy and security → Site Settings → Location → Allow',
+  Edge:    'Settings → Cookies and site permissions → Location → Allow',
+  Firefox: 'Click the lock icon in the address bar → Connection secure → More information → Permissions',
+  Safari:  'Preferences → Websites → Location → Allow',
+};
+
+function GeoPermissionBanner({ permission }: { permission: GeoPermission }) {
+  const browser = detectBrowser();
+  const instructions = BROWSER_GEO_INSTRUCTIONS[browser] ?? 'check your browser privacy settings';
+
+  if (permission === 'granted') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--success)', fontWeight: '600' }}>
+        <CheckCircle size={14} />
+        Location services: enabled
+      </div>
+    );
+  }
+  if (permission === 'prompt') {
+    return (
+      <div style={{
+        background: 'var(--warning-light)', border: '1px solid var(--warning)',
+        borderRadius: 'var(--radius-sm)', padding: 'var(--space-2) var(--space-3)',
+        fontSize: '0.78rem', color: 'var(--warning)', fontWeight: '600',
+      }}>
+        This job requires location sharing. Click "I'm On My Way" to enable.
+      </div>
+    );
+  }
+  if (permission === 'denied') {
+    return (
+      <div style={{
+        background: 'var(--danger-light)', border: '1px solid var(--danger)',
+        borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)',
+        fontSize: '0.78rem', color: 'var(--danger)',
+      }}>
+        <div style={{ fontWeight: '700', marginBottom: '4px' }}>Location access is required for job tracking.</div>
+        <div>To re-enable: {browser} → {instructions}</div>
+      </div>
+    );
+  }
+  return null;
+}
+
+// ── On My Way tracking controls ────────────────────────────────────────────────
+
+interface OnMyWayControlsProps {
+  jobId: string;
+  tradespersonUID: string;
+  participants: string[];
+  isScheduledToday: boolean;
+}
+
+type TrackingState = 'idle' | 'en_route' | 'arrived';
+
+function OnMyWayControls({ jobId, tradespersonUID, participants, isScheduledToday }: OnMyWayControlsProps) {
+  const [trackingState, setTrackingState] = useState<TrackingState>('idle');
+  const [permission, setPermission] = useState<GeoPermission>('prompt');
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+
+  // Check permission status on mount (HTTPS guard too)
+  useEffect(() => {
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      setPermission('unavailable');
+      return;
+    }
+    if (!navigator.geolocation) { setPermission('unavailable'); return; }
+    navigator.permissions?.query({ name: 'geolocation' }).then(result => {
+      setPermission(result.state as GeoPermission);
+      result.addEventListener('change', () => setPermission(result.state as GeoPermission));
+    }).catch(() => setPermission('prompt'));
+  }, []);
+
+  // Cleanup watchPosition on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+    };
+  }, []);
+
+  const handleOnMyWay = () => {
+    if (!navigator.geolocation) return;
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setPermission('granted');
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setAccuracy(pos.coords.accuracy);
+
+        // Write tracking doc to Firestore
+        await setDoc(doc(db, 'tracking', jobId), {
+          jobId,
+          tradespersonUID,
+          participants,
+          lat,
+          lng,
+          status: 'en_route',
+          enRouteAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          arrivedAt: null,
+        }, { merge: true });
+
+        setTrackingState('en_route');
+
+        // Start continuous watch
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          async (p) => {
+            setAccuracy(p.coords.accuracy);
+            await updateDoc(doc(db, 'tracking', jobId), {
+              lat: p.coords.latitude,
+              lng: p.coords.longitude,
+              updatedAt: serverTimestamp(),
+            });
+          },
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 15_000, timeout: 10_000 },
+        );
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setPermission('denied');
+          setLocationError('Location access is required for job tracking. Please enable location in your browser settings and try again.');
+        } else {
+          setLocationError('Could not get your location. Please try again.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  };
+
+  const handleArrived = async () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    await updateDoc(doc(db, 'tracking', jobId), {
+      status: 'arrived',
+      arrivedAt: serverTimestamp(),
+    });
+    setTrackingState('arrived');
+  };
+
+  if (!isScheduledToday) return null;
+
+  return (
+    <Card style={{ padding: 'var(--space-4)', border: '2px solid var(--primary)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+        <Navigation size={18} color="var(--primary)" />
+        <h3 style={{ margin: 0, fontSize: '1rem' }}>Live Tracking</h3>
+      </div>
+
+      <GeoPermissionBanner permission={permission} />
+
+      {accuracy !== null && accuracy > 100 && (
+        <div style={{
+          marginTop: 'var(--space-2)', background: 'var(--warning-light)', border: '1px solid var(--warning)',
+          borderRadius: 'var(--radius-sm)', padding: 'var(--space-2) var(--space-3)',
+          fontSize: '0.75rem', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          <WifiOff size={13} />
+          Your location accuracy is low ({Math.round(accuracy)}m). For best tracking, move closer to a window.
+        </div>
+      )}
+
+      {locationError && (
+        <div style={{
+          marginTop: 'var(--space-2)', background: 'var(--danger-light)', borderRadius: 'var(--radius-sm)',
+          padding: 'var(--space-2) var(--space-3)', fontSize: '0.78rem', color: 'var(--danger)',
+        }}>
+          {locationError}
+        </div>
+      )}
+
+      <div style={{ marginTop: 'var(--space-3)' }}>
+        {trackingState === 'idle' && (
+          <Button
+            variant="primary"
+            fullWidth
+            icon={<Navigation size={18} />}
+            onClick={handleOnMyWay}
+            disabled={permission === 'unavailable'}
+          >
+            I'm On My Way
+          </Button>
+        )}
+        {trackingState === 'en_route' && (
+          <Button
+            fullWidth
+            icon={<CheckCircle size={18} />}
+            onClick={handleArrived}
+            style={{ background: 'var(--success)', color: 'white', border: 'none', borderRadius: 'var(--radius-full)', fontWeight: '700', padding: 'var(--space-3) var(--space-6)', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', width: '100%' }}
+          >
+            I've Arrived
+          </Button>
+        )}
+        {trackingState === 'arrived' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: 'var(--space-3)', color: 'var(--success)', fontWeight: '700' }}>
+            <CheckCircle size={18} />
+            Arrived ✓
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 // ── Tradesperson view ─────────────────────────────────────────────────────────
 
 type TradeState = 'waiting' | 'started' | 'adjusting' | 'adjustment_submitted' | 'adjustment_accepted' | 'adjustment_denied';
 
 function TradespersonView() {
   const navigate = useNavigate();
+  const { firebaseUser } = useAuth();
   const appointment = getMockAppointment();
   const countdown = useCountdown(appointment);
   const tradeCategory = 'Plumbing'; // will come from job data once data layer is wired
@@ -383,6 +626,16 @@ function TradespersonView() {
           {/* Countdown */}
           {state === 'waiting' && (
             <CountdownDisplay {...countdown} label="Job starts in" />
+          )}
+
+          {/* On My Way tracking controls — only shown before job is flagged started */}
+          {state === 'waiting' && (
+            <OnMyWayControls
+              jobId="mock-job-001"
+              tradespersonUID={firebaseUser?.uid ?? 'mock-tradesperson-uid'}
+              participants={['mock-customer-uid', firebaseUser?.uid ?? 'mock-tradesperson-uid']}
+              isScheduledToday={true}
+            />
           )}
 
           {/* Materials checklist */}
