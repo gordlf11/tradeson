@@ -10,7 +10,12 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import api from '../services/api';
-import { logAdminAction, getAuditLog, getSupportTickets, updateSupportTicket } from '../services/messagingService';
+import {
+  logAdminAction,
+  updateSupportTicket,
+  subscribeToAuditLog,
+  subscribeToSupportTickets,
+} from '../services/messagingService';
 import type { SupportTicket } from '../services/messagingService';
 import { RoleSwitcherList } from '../components/RoleSwitcherMenu';
 
@@ -562,33 +567,66 @@ function ResolutionsSection({ preselectedAccount, adminEmail }: { preselectedAcc
   );
 }
 
+// ── Live indicator dot ─────────────────────────────────────────────────────
+
+function LiveDot({ active, error }: { active: boolean; error?: boolean }) {
+  if (error) return (
+    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)', display: 'inline-block', flexShrink: 0 }} />
+  );
+  if (!active) return (
+    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--border)', display: 'inline-block', flexShrink: 0 }} />
+  );
+  return (
+    <span style={{ position: 'relative', width: 8, height: 8, display: 'inline-flex', flexShrink: 0 }}>
+      <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 2s ease-in-out infinite' }} />
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', position: 'relative' }} />
+    </span>
+  );
+}
+
+function LastUpdatedLabel({ updatedAt }: { updatedAt: Date | null }) {
+  const [label, setLabel] = useState('—');
+  useEffect(() => {
+    if (!updatedAt) return;
+    const tick = () => {
+      const secs = Math.round((Date.now() - updatedAt.getTime()) / 1000);
+      setLabel(secs < 5 ? 'just now' : `${secs}s ago`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [updatedAt]);
+  return <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>Updated {label}</span>;
+}
+
 // ── Section: Audit Log ─────────────────────────────────────────────────────
 
 function AuditLogSection() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [liveActive, setLiveActive] = useState(false);
+  const [liveError, setLiveError] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  const load = () => {
-    getAuditLog()
-      .then(data => {
-        if (data.length) {
-          setEntries(data.map(e => ({
-            id: e.id,
-            adminEmail: e.adminEmail,
-            actionType: e.actionType,
-            targetUser: e.targetUserEmail,
-            targetEmail: e.targetUserEmail,
-            reason: e.reason,
-            timestamp: e.timestamp.toLocaleString('en-US', {
-              month: 'short', day: 'numeric', year: 'numeric',
-              hour: 'numeric', minute: '2-digit',
-            }),
-          })));
-        }
-      })
-      .catch(() => {});
-  };
-
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const unsub = subscribeToAuditLog((data, ts) => {
+      setLiveActive(true);
+      setLiveError(false);
+      setUpdatedAt(ts);
+      setEntries(data.map(e => ({
+        id: e.id,
+        adminEmail: e.adminEmail,
+        actionType: e.actionType,
+        targetUser: e.targetUserEmail,
+        targetEmail: e.targetUserEmail,
+        reason: e.reason,
+        timestamp: e.timestamp.toLocaleString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric',
+          hour: 'numeric', minute: '2-digit',
+        }),
+      })));
+    });
+    return unsub;
+  }, []);
 
   const actionColor = (action: string) => {
     if (action.includes('Approved')) return 'var(--success)';
@@ -611,14 +649,12 @@ function AuditLogSection() {
         </p>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-3)' }}>
-        <button onClick={load} style={{
-          background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-          padding: '6px 12px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600',
-          color: 'var(--primary)', fontFamily: 'inherit',
-        }}>
-          ↻ Refresh
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <LiveDot active={liveActive} error={liveError} />
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Live</span>
+          <LastUpdatedLabel updatedAt={updatedAt} />
+        </div>
       </div>
 
       {/* Table */}
@@ -693,11 +729,22 @@ function AuditLogSection() {
 
 function MetricsSection() {
   const [m, setM] = useState(emptyMetrics);
+  const [liveActive, setLiveActive] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    api.getPlatformMetrics()
-      .then((data: any) => { if (data) setM(data); })
-      .catch(() => {});
+    const fetch = () => {
+      api.getPlatformMetrics()
+        .then((data: any) => {
+          if (data) { setM(data); setLiveActive(true); setError(false); setUpdatedAt(new Date()); }
+        })
+        .catch(() => setError(true));
+    };
+    fetch();
+    // Postgres-backed — poll every 30s (no Firestore mirror yet)
+    const id = setInterval(fetch, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   const fmtCurrency = (n: number) => `$${n.toLocaleString()}`;
@@ -705,6 +752,15 @@ function MetricsSection() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+
+      {/* Live status bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <LiveDot active={liveActive} error={error} />
+        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '600' }}>
+          {error ? 'Connection error' : liveActive ? 'Refreshing every 30s' : 'Loading…'}
+        </span>
+        <LastUpdatedLabel updatedAt={updatedAt} />
+      </div>
 
       {/* Users */}
       <div>
@@ -879,18 +935,21 @@ const STATUS_OPTIONS   = ['open', 'in_progress', 'resolved', 'closed'];
 function SupportSection() {
   const [tickets, setTickets]           = useState<SupportTicket[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [liveActive, setLiveActive]     = useState(false);
+  const [updatedAt, setUpdatedAt]       = useState<Date | null>(null);
   const [expanded, setExpanded]         = useState<string | null>(null);
   const [saving, setSaving]             = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('open');
 
-  const load = () => {
-    getSupportTickets()
-      .then(data => { setTickets(data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const unsub = subscribeToSupportTickets((data, ts) => {
+      setTickets(data);
+      setLiveActive(true);
+      setUpdatedAt(ts);
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
 
   const updateField = async (ticketId: string, field: keyof Pick<SupportTicket, 'status' | 'priority' | 'team' | 'owner'>, value: string) => {
     setSaving(ticketId);
@@ -945,9 +1004,11 @@ function SupportSection() {
             </button>
           ))}
         </div>
-        <button onClick={load} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary)', fontFamily: 'inherit' }}>
-          ↻ Refresh
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <LiveDot active={liveActive} />
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Live</span>
+          <LastUpdatedLabel updatedAt={updatedAt} />
+        </div>
       </div>
 
       {loading ? (
