@@ -78,9 +78,9 @@ service cloud.firestore {
           && request.resource.data.senderId == request.auth.uid
           && isParticipant(get(/databases/$(database)/documents/threads/$(threadId)).data.participants);
 
-        // Only the `read` flag can be toggled by participants.
+        // Only the `readAt` timestamp can be set by the recipient participant.
         allow update: if isParticipant(get(/databases/$(database)/documents/threads/$(threadId)).data.participants)
-          && changedKeys().hasOnly(['read']);
+          && changedKeys().hasOnly(['readAt']);
 
         allow delete: if isAdmin();
       }
@@ -167,13 +167,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Live tracking — reserved for future tradesperson en-route feature.
-    // Any signed-in user can read; only the tradesperson can write their
-    // own location.
+    // Live tracking — tradesperson writes location; job participants read.
+    // The tradesperson may only write/update their own tracking doc.
+    // Posters and admins can read. Neither can write posterUID, jobTitle,
+    // or other immutable fields (those live in Postgres).
     match /tracking/{jobId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn()
-        && request.resource.data.tradesperson_id == request.auth.uid;
+      allow get, list: if isAdmin()
+        || isParticipant(resource.data.participants);
+
+      allow create: if isSignedIn()
+        && request.resource.data.tradespersonUID == request.auth.uid;
+
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && resource.data.tradespersonUID == request.auth.uid
+            && changedKeys().hasOnly(['lat', 'lng', 'updatedAt', 'status', 'enRouteAt', 'arrivedAt']));
+
+      allow delete: if isAdmin();
     }
 
     // ── Default deny ──────────────────────────────────────────────────────

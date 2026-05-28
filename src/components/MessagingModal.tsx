@@ -11,6 +11,7 @@ import {
   subscribeToMessages,
   sendMessage,
   ensureThread,
+  markThreadRead,
   type Message,
 } from '../services/messagingService';
 
@@ -52,23 +53,31 @@ export default function MessagingModal({
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
 
     ensureThread(jobId, jobTitle, customerId, customerName, tradespersonId, tradespersonName)
       .then((tid) => {
+        if (cancelled) return;
         setThreadId(tid);
         unsubscribe = subscribeToMessages(tid, setMessages);
+        // Mark any messages addressed to current user as read on open
+        markThreadRead(tid, currentUserId).catch(() => {});
       })
       .catch(() => {
-        // Firebase may not be configured yet — fall back to local mock
         setFirebaseError(true);
       });
 
-    return () => { unsubscribe?.(); };
-  }, [jobId, jobTitle, customerId, customerName, tradespersonId, tradespersonName]);
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [jobId, jobTitle, customerId, customerName, tradespersonId, tradespersonName, currentUserId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    // Mark incoming messages read as they arrive while the modal is open
+    if (threadId) markThreadRead(threadId, currentUserId).catch(() => {});
+  }, [messages, threadId, currentUserId]);
 
   const handleSend = async () => {
     if (!text.trim()) return;
@@ -82,16 +91,17 @@ export default function MessagingModal({
         id: Date.now().toString(),
         senderId: currentUserId,
         senderName: currentUserName,
+        recipientUID: otherUserId,
         text: draft,
         createdAt: new Date(),
-        read: false,
+        readAt: null,
       }]);
       setSending(false);
       return;
     }
 
     try {
-      await sendMessage(threadId, currentUserId, currentUserName, draft);
+      await sendMessage(threadId, currentUserId, currentUserName, otherUserId, draft);
     } catch {
       // Re-add to input if send fails
       setText(draft);

@@ -43,9 +43,10 @@ export interface Message {
   id: string;
   senderId: string;
   senderName: string;
+  recipientUID: string;
   text: string;
   createdAt: Date;
-  read: boolean;
+  readAt: Date | null;
 }
 
 export interface Thread {
@@ -101,22 +102,72 @@ export async function sendMessage(
   threadId: string,
   senderId: string,
   senderName: string,
+  recipientUID: string,
   text: string,
 ): Promise<void> {
   const messagesRef = collection(db, 'threads', threadId, 'messages');
   await addDoc(messagesRef, {
     senderId,
     senderName,
+    recipientUID,
     text,
     createdAt: serverTimestamp(),
-    read: false,
+    readAt: null,
   });
-  // Update thread summary
   const threadRef = doc(db, 'threads', threadId);
   await updateDoc(threadRef, {
     lastMessage: text,
     lastMessageAt: serverTimestamp(),
   });
+}
+
+/** Mark all unread messages addressed to this user in a thread as read. */
+export async function markThreadRead(threadId: string, currentUID: string): Promise<void> {
+  const messagesRef = collection(db, 'threads', threadId, 'messages');
+  const q = query(messagesRef, where('recipientUID', '==', currentUID), where('readAt', '==', null));
+  const snap = await getDocs(q);
+  await Promise.all(snap.docs.map(d => updateDoc(d.ref, { readAt: serverTimestamp() })));
+}
+
+/** Subscribe to the count of unread messages for a user across all their threads. */
+export function subscribeToUnreadCount(
+  userId: string,
+  callback: (count: number) => void,
+): () => void {
+  // Listen to all threads this user participates in, then count unread messages.
+  const threadsRef = collection(db, 'threads');
+  const threadsQ = query(threadsRef, where('participants', 'array-contains', userId));
+
+  const threadUnsubs: Array<() => void> = [];
+
+  const unsubThreads = onSnapshot(threadsQ, (threadsSnap) => {
+    // Clear old message listeners when thread list changes.
+    threadUnsubs.forEach(fn => fn());
+    threadUnsubs.length = 0;
+
+    if (threadsSnap.empty) { callback(0); return; }
+
+    const counts = new Map<string, number>();
+
+    threadsSnap.docs.forEach(threadDoc => {
+      const messagesRef = collection(db, 'threads', threadDoc.id, 'messages');
+      const unreadQ = query(
+        messagesRef,
+        where('recipientUID', '==', userId),
+        where('readAt', '==', null),
+      );
+      const unsub = onSnapshot(unreadQ, snap => {
+        counts.set(threadDoc.id, snap.size);
+        callback(Array.from(counts.values()).reduce((a, b) => a + b, 0));
+      });
+      threadUnsubs.push(unsub);
+    });
+  });
+
+  return () => {
+    unsubThreads();
+    threadUnsubs.forEach(fn => fn());
+  };
 }
 
 /** Subscribe to messages in a thread (real-time). Returns unsubscribe fn. */
@@ -133,9 +184,10 @@ export function subscribeToMessages(
         id: d.id,
         senderId: data.senderId,
         senderName: data.senderName,
+        recipientUID: data.recipientUID ?? '',
         text: data.text,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
-        read: data.read,
+        readAt: data.readAt instanceof Timestamp ? data.readAt.toDate() : null,
       };
     });
     callback(messages);
@@ -301,5 +353,67 @@ export async function getAuditLog(maxEntries = 100): Promise<AuditLogEntry[]> {
       reason: data.reason ?? '',
       timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(),
     };
+  });
+}
+
+/** Live subscription to audit log entries. Returns unsubscribe fn. */
+export function subscribeToAuditLog(
+  callback: (entries: AuditLogEntry[], updatedAt: Date) => void,
+  maxEntries = 100,
+): () => void {
+  const q = query(
+    collection(db, 'audit_log'),
+    orderBy('timestamp', 'desc'),
+    limit(maxEntries),
+  );
+  return onSnapshot(q, snapshot => {
+    const entries: AuditLogEntry[] = snapshot.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        adminEmail: data.adminEmail ?? '',
+        actionType: data.actionType ?? '',
+        targetUserId: data.targetUserId ?? '',
+        targetUserEmail: data.targetUserEmail ?? '',
+        reason: data.reason ?? '',
+        timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(),
+      };
+    });
+    callback(entries, new Date());
+  });
+}
+
+/** Live subscription to support tickets. Returns unsubscribe fn. */
+export function subscribeToSupportTickets(
+  callback: (tickets: SupportTicket[], updatedAt: Date) => void,
+  maxTickets = 200,
+): () => void {
+  const q = query(
+    collection(db, 'support_tickets'),
+    orderBy('createdAt', 'desc'),
+    limit(maxTickets),
+  );
+  return onSnapshot(q, snapshot => {
+    const tickets: SupportTicket[] = snapshot.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        userId: data.userId ?? '',
+        userEmail: data.userEmail ?? '',
+        userName: data.userName ?? '',
+        userRole: data.userRole ?? '',
+        category: data.category ?? '',
+        subject: data.subject ?? '',
+        description: data.description ?? '',
+        relatedJobId: data.relatedJobId,
+        status: data.status ?? 'open',
+        priority: data.priority ?? 'medium',
+        team: data.team ?? 'unassigned',
+        owner: data.owner ?? 'unassigned',
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
+      };
+    });
+    callback(tickets, new Date());
   });
 }

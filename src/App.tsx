@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Briefcase, Calendar, Plus, LayoutDashboard, Home, Building2, Users } from 'lucide-react';
+import { Briefcase, Calendar, Plus, LayoutDashboard, Home, Building2, Users, MessageCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { subscribeToUnreadCount } from './services/messagingService';
 
 // Auth
 import Login from './pages/Login';
@@ -64,13 +66,38 @@ function getDashboardPath(role: string) {
   return isTradeRole(role) ? '/dashboard/tradesperson' : '/dashboard/customer';
 }
 
+// ── Unread message badge ──────────────────────────────────────────────────
+
+function UnreadBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <span style={{
+      position: 'absolute', top: '-4px', right: '-6px',
+      background: 'var(--danger)', color: 'white',
+      borderRadius: 'var(--radius-full)', fontSize: '0.6rem', fontWeight: '700',
+      minWidth: '16px', height: '16px', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: '0 3px', lineHeight: 1,
+    }}>
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 // ── Role-aware Bottom Nav ─────────────────────────────────────────────────
 
 const BottomNav = () => {
   const location = useLocation();
   const path = location.pathname;
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser } = useAuth();
   const userRole = userProfile?.role || localStorage.getItem('userRole') || 'homeowner';
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const uid = firebaseUser?.uid;
+    if (!uid) return;
+    const unsub = subscribeToUnreadCount(uid, setUnreadCount);
+    return unsub;
+  }, [firebaseUser?.uid]);
 
   // Hide nav on auth, onboarding, and admin screens
   const hideNavPaths = ['/login', '/signup', '/forgot-password', '/onboarding', '/role-selection', '/dashboard/admin'];
@@ -78,6 +105,14 @@ const BottomNav = () => {
 
   const dashPath = getDashboardPath(userRole);
   const isOnDash = path.includes('/dashboard');
+
+  const msgNavItem = (
+    <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`} style={{ position: 'relative' }}>
+      <MessageCircle size={20} />
+      <UnreadBadge count={unreadCount} />
+      <span>Messages</span>
+    </Link>
+  );
 
   if (isTradeRole(userRole)) {
     return (
@@ -90,6 +125,7 @@ const BottomNav = () => {
           <Calendar size={20} />
           <span>Schedule</span>
         </Link>
+        {msgNavItem}
         <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
@@ -107,8 +143,9 @@ const BottomNav = () => {
         </Link>
         <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
           <Building2 size={20} />
-          <span>Jobs I Posted</span>
+          <span>Jobs</span>
         </Link>
+        {msgNavItem}
         <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
@@ -126,8 +163,9 @@ const BottomNav = () => {
         </Link>
         <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
           <Users size={20} />
-          <span>Jobs I Posted</span>
+          <span>Jobs</span>
         </Link>
+        {msgNavItem}
         <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
@@ -145,8 +183,9 @@ const BottomNav = () => {
       </Link>
       <Link to="/job-board" className={`nav-item ${path.includes('/job-board') ? 'active' : ''}`}>
         <Home size={20} />
-        <span>Jobs I Posted</span>
+        <span>Jobs</span>
       </Link>
+      {msgNavItem}
       <Link to={dashPath} className={`nav-item ${isOnDash ? 'active' : ''}`}>
         <LayoutDashboard size={20} />
         <span>Dashboard</span>
