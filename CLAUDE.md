@@ -842,7 +842,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [x] **jobs / quotes / compliance / flagged / platform_metrics** — locked to admin-only (clients reach these via Cloud Run API, not Firestore) · *Larry*
 - [x] **Legacy collections locked down** — `messaging_threads`, `conversations` (pre-architecture-split residue) admin-only · *Larry*
 - [x] **Default deny** on unknown paths · *Larry*
-- [ ] **Admin custom claim** — set `admin: true` on admin Firebase Auth user via Admin SDK; rules already check `request.auth.token.admin == true` · *Larry*
+- [x] **Admin custom claim** — set `admin: true` on admin Firebase Auth user via Admin SDK; `scripts/setAdminClaim.mjs` run; admin can sign in to `/dashboard/admin` · *Larry*
 
 #### Data Layer — Replace Mock Data with Cloud Run API (`api.ts`)
 **Source of truth is Postgres. All jobs/quotes/user reads go through `src/services/api.ts`. Do NOT add Firestore collections for these.**
@@ -853,15 +853,15 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [ ] **Quote acceptance** — wire accept action to `api.acceptQuote(quoteId)` · *Larry*
 - [ ] **Job creation** — wire `JobCreation.tsx` submit to `api.createJob(formData)` · *Larry*
 - [ ] **Admin dashboard** — add admin-only API routes (or BigQuery-backed) for compliance, flagged, audit, metrics; replace mock arrays · *Larry*
-- [ ] **Reviews** — migrate `submitReview()` from Firestore to a new `api.submitReview()` route; load via `api.listReviews(tradespersonId)` · *Larry*
+- [x] **Reviews** — `reviews.ts` route live; `messagingService.submitReview()` now calls API not Firestore · *Larry + Kevin*
 - [x] **Run Firestore seed script** — seeded to `tradeson-491518` for messaging/review/audit collections · *Larry*
 
 #### Real-Time UX via FCM (Critical — replaces Firestore listeners for non-messaging events)
 - [x] **FCM service worker** — `firebase-messaging-sw.js` created in `public/`; registers Firebase Messaging for background push · *Kevin*
-- [ ] **Store FCM token on login** — save to `users/{uid}.fcmToken` in Firestore (only client-writable field on users collection) · *Larry*
-- [ ] **Cloud Run → Pub/Sub event emission** — every PG write in `api/` publishes `quote.submitted`, `quote.accepted`, `job.status_changed`, etc. · *Larry*
-- [ ] **FCM fan-out Cloud Function** — Pub/Sub subscriber that reads user FCM tokens and sends push messages · *Larry*
-- [ ] **Client foreground message handler** — `onMessage` listener in `AuthContext` or top-level hook; triggers data refresh + in-app toast · *Kevin*
+- [x] **Store FCM token on login** — saved to `users/{uid}.fcmToken` in Firestore on auth state change · *Larry*
+- [x] **Cloud Run → Pub/Sub event emission** — Pub/Sub publisher in Cloud Run; `quote.submitted`, `quote.accepted`, `job.status_changed`, etc. · *Larry*
+- [x] **FCM fan-out Cloud Function** — `fcm-fanout` Cloud Function deployed; Pub/Sub subscriber reads FCM tokens and sends push · *Larry*
+- [x] **Client foreground message handler** — `onMessage` listener wired; triggers data refresh + in-app toast · *Kevin*
 - [ ] **Send notification on new quote** — customer gets push when tradesperson submits quote · *Larry*
 - [ ] **Send notification on job accepted** — tradesperson gets push when their quote is accepted · *Larry*
 - [ ] **Send notification on new message** — recipient gets push when they're not in the thread · *Larry*
@@ -888,6 +888,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [x] **quotes (tradespersonId, createdAt desc)** · *Larry*
 - [x] **threads (participants array-contains, lastMessageAt desc)** — used by `messagingService.getUserThreads` · *Larry*
 - [x] **reviews (tradespersonId, createdAt desc)** · *Larry*
+- [~] **messages COLLECTION_GROUP (recipientUID asc, readAt asc)** — required for `subscribeToUnreadCount` + `markThreadRead`; committed to `firebase/firestore.indexes.json` but **needs `firebase deploy --only firestore:indexes` to take effect** · *Kevin (2026-05-27)*
 
 #### Postgres (Cloud SQL) Indexes — TODO
 - [ ] **jobs** — `(status, trade_id, created_at desc)`, `(customer_id, status, created_at desc)`, `(accepted_tradesperson_id, status, created_at desc)` · *Larry*
@@ -900,7 +901,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 - [x] **Per-job payment routes** — `direct-charge` (job poster pays) + `platform-payout` (transfer to tradesperson minus 10% fee) · *Kevin*
 - [x] **Platform fee** — `PLATFORM_FEE_PERCENT=0.10` (10%), enforced in `/stripe/platform-payout` and `/stripe/direct-charge` · *Kevin*
 - [x] **Stripe SetupIntent + PaymentElement** — `POST /api/v1/stripe/create-setup-intent` route added; `StripeCheckoutWrapper.tsx` rewritten from `EmbeddedCheckout` (deleted) to `Elements` + `PaymentElement`; collects card for future per-job charges; graceful DB-unavailable fallback · *Kevin*
-- [ ] **Payout trigger** — wire `/api/v1/stripe/platform-payout` call on job completion · *Larry*
+- [x] **Payout trigger** — pre-auth jobs captured via `confirm-complete`; legacy jobs use `stripe.transfers.create()` in PATCH status handler · *Kevin*
 - [ ] **Payment history** — load real transaction records into CustomerDashboard Payment History section · *Larry*
 - [ ] **Run Stripe migration** — `psql $DATABASE_URL -f api/src/schema/stripe_migration.sql` adds `stripe_customer_id` to users (needed for Connect flow) · *Larry*
 - [x] **No Stripe products needed** — subscriptions removed; job payments use dynamic `amount_cents` · *Kevin*
@@ -983,13 +984,13 @@ This section tracks every item required to take TradesOn from demo to a producti
 | Category | Total | Complete | Remaining |
 |---|---|---|---|
 | Critical — Auth & Session | 6 | 6 | 0 |
-| Critical — Firestore Rules | 7 | 6 | 1 |
-| Critical — Data Layer (→ api.ts) | 9 | 1 | 8 |
-| Critical — FCM Real-Time UX | 10 | 1 | 9 |
+| Critical — Firestore Rules | 7 | 7 | 0 |
+| Critical — Data Layer (→ api.ts) | 9 | 2 | 7 |
+| Critical — FCM Real-Time UX | 10 | 5 | 5 |
 | High — File Uploads | 5 | 0 | 5 |
-| High — Firestore Indexes | 7 | 7 | 0 |
+| High — Firestore Indexes | 8 | 7 | 1 |
 | High — Postgres Indexes | 3 | 0 | 3 |
-| High — Payments | 9 | 6 | 3 |
+| High — Payments | 9 | 7 | 2 |
 | High — Error Handling | 5 | 2 | 3 |
 | High — Demo Mode & Presenter | 6 | 6 | 0 |
 | Important — AI | 3 | 0 | 3 |
@@ -997,7 +998,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 | Important — Performance | 4 | 0 | 4 |
 | Important — Mobile | 5 | 0 | 5 |
 | Launch Enhancements | 14 | 0 | 14 |
-| **TOTAL** | **96** | **35** | **61** |
+| **TOTAL** | **97** | **42** | **55** |
 
 > When Claude completes an item, update `[ ]` → `[x]` and update the Progress Summary counts.
 > When an item is in progress, update `[ ]` → `[~]`.
@@ -1092,8 +1093,9 @@ This section tracks every item required to take TradesOn from demo to a producti
 | Collection | Source of truth? | Used by client? | Key Fields |
 |---|---|---|---|
 | `threads` | ✅ Firestore | ✅ `messagingService.ts` | `id, jobId, jobTitle, participants[], participantNames{}, lastMessage, lastMessageAt, jobStatus, createdAt` |
-| `messages` | ✅ Firestore | ✅ `messagingService.ts` | subcollection of `threads/{threadId}/messages` — `senderId, senderName, text, createdAt, read` |
-| `reviews` | 🟡 Firestore (migrating to PG) | ✅ `messagingService.submitReview` | `id, jobId, reviewerId, tradespersonId, rating, body, createdAt` |
+| `messages` | ✅ Firestore | ✅ `messagingService.ts` | subcollection of `threads/{threadId}/messages` — `senderId, senderName, text, createdAt, recipientUID, readAt` |
+| `reviews` | ✅ Postgres | ❌ (API-only) | Firestore copy locked admin-only; client uses `api.submitReview()` |
+| `tracking` | ✅ Firestore | ✅ `JobTrackingMap.tsx`, `OnMyWayControls` | `jobId, tradespersonUID, posterUID, participants[], lat, lng, status, enRouteAt, arrivedAt, updatedAt` |
 | `audit_log` | ✅ Firestore | ✅ `messagingService.logAdminAction` | `id, adminEmail, actionType, targetUserId, reason, timestamp` |
 | `users` | ❌ Postgres | FCM token only | `id, fcmToken` (transactional fields live in PG `users` table) |
 | `jobs` | ❌ Postgres | Unused from client | Seed/Firestore→BQ mirror only |

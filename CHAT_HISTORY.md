@@ -15,6 +15,77 @@
 - [Next steps]
 -->
 
+## 2026-05-27 -- Kevin (Claude Sonnet 4.6) -- HANDOFF TO LARRY: Firestore deploy required + WS3 server-side blocker
+
+> **LARRY — READ THIS FIRST.** This entry is a direct handoff. The three workstreams below are built and pushed to master. Two actions are required from you before the messaging unread badge and live tracking are production-safe.
+
+### What Kevin shipped today (WS1–WS3)
+
+**WS1 — Messaging schema + unread badge**
+- Message schema: `read: boolean` → `recipientUID: string, readAt: Date | null` across `messagingService.ts`, `MessagingModal.tsx`, Firestore rules
+- `markThreadRead(threadId, currentUID)` — batch-updates `readAt` on unread messages addressed to the current user
+- `subscribeToUnreadCount(userId, callback)` — nested Firestore listeners; sums unread across all user threads
+- `MessagingModal.tsx` — calls `markThreadRead` on open; writes `recipientUID` with every outbound message
+- `App.tsx` BottomNav — `UnreadBadge` on messaging icon for all four role variants
+
+**WS2 — Admin Dashboard live data**
+- Audit log + support tickets: one-time `getDocs` → `onSnapshot` real-time listeners
+- Metrics section: 30s interval polling against Postgres API; `LiveDot` + `LastUpdatedLabel` components
+
+**WS3 — Live GPS tracking**
+- `JobTrackingMap.tsx` (new): Leaflet + OSM; `onSnapshot` to `tracking/{jobId}`; smooth van animation; Haversine distance; stale-location warning; status banners; tradesperson info card with tel: link
+- `OnMyWayControls`: geolocation guard; "I'm On My Way" → GPS stream → `setDoc tracking/{jobId}`; "I've Arrived" → `updateDoc status: arrived`; `GeoPermissionBanner` with per-browser re-enable instructions
+- Both views wired with real `JobData` from route param + `api.getJob(jobId)`; demo mode falls back to `MOCK_JOB`
+- App.tsx: `/job-day-of` → `/job-day-of/:jobId?` (optional param preserves demo mode)
+
+**Tests + Vitest**
+- Vitest installed; `vite.config.ts` uses `vitest/config`; jsdom + jest-dom
+- `haversinemiles.test.ts` (5 unit tests), `GeoPermissionBanner.test.tsx` (5 UI tests) — all pass
+
+### 🔴 Action required from Larry: Firestore deploy
+
+These changes are committed to master but **not yet deployed** to Firestore:
+
+**1. Firestore rules** (`firebase/firestore.rules`) — two changes:
+- `tracking/{jobId}` get rule: added `|| resource == null` guard so the poster's `onSnapshot` doesn't permission-error before the tracking doc exists
+- Message update rule: `changedKeys().hasOnly(['readAt'])` replaces the old `['read']`
+- `support_tickets` collection rule is now in the file (covers Larry priority list items 2 + 5)
+
+**2. Firestore index** (`firebase/firestore.indexes.json`) — new COLLECTION_GROUP index:
+- `messages(recipientUID ASC, readAt ASC)` — without this, `subscribeToUnreadCount` and `markThreadRead` fail silently; unread badge never updates
+
+**Deploy command** (from tradeson repo root):
+```bash
+./node_modules/.bin/firebase login        # skip if already authenticated
+./node_modules/.bin/firebase deploy --only firestore:rules,firestore:indexes
+```
+
+### Item 9 — Server-side tracking doc creation (WS3 blocker)
+
+Full code snippet is in CLAUDE.md under **Larry priority list item 9**. Short version:
+
+On quote acceptance (`PATCH /api/v1/quotes/:id/accept`), use the Admin SDK to write the initial `tracking/{jobId}` doc:
+```ts
+await adminDb.collection('tracking').doc(jobId).set({
+  jobId, tradespersonUID: tradesperson_firebase_uid, posterUID: homeowner_firebase_uid,
+  participants: [homeowner_firebase_uid, tradesperson_firebase_uid],
+  lat: null, lng: null, status: 'accepted',
+  enRouteAt: null, arrivedAt: null, updatedAt: FieldValue.serverTimestamp(),
+}, { merge: true });
+```
+
+**Once item 9 ships, Kevin will immediately do (5-minute change):**
+1. `OnMyWayControls.handleOnMyWay()`: `setDoc(..., { merge: true })` → `updateDoc(...)`
+2. `tracking` create rule: `allow create: if isSignedIn()...` → `allow create: if false`
+
+Just ping Kevin when item 9 is deployed.
+
+### Kevin's remaining backlog (post-Larry item 9)
+- Dashboard "Track Job" nav links → `/job-day-of/${job.id}` (blocked on data layer wiring)
+- WS3E Firestore emulator tests (blocked on emulator setup)
+
+---
+
 ## 2026-05-27 -- Kevin (Claude Sonnet 4.6) -- WS1–WS3: Messaging schema, Admin live data, Live GPS tracking
 
 ### What was done
