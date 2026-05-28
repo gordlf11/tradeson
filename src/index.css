@@ -54,6 +54,46 @@
   --transition-fast: all 0.15s ease;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Theme: "nude" — warm neutral background with terracotta accents.
+ * Opt-in via localStorage.setItem('theme', 'nude'). main.tsx applies the
+ * data-theme attribute on document.documentElement before React mounts.
+ * All component-level styles read from these CSS custom properties, so
+ * switching themes is a single attribute change with no React re-render.
+ * ───────────────────────────────────────────────────────────────────────── */
+:root[data-theme="nude"] {
+  --bg-base:             #FAF7F2;
+  --bg-surface:          #FFFFFF;
+  --bg-surface-elevated: #F4EFE7;
+  --bg-overlay:          rgba(250, 247, 242, 0.92);
+
+  --primary:             #C97B5C;
+  --primary-hover:       #B6694C;
+  --primary-light:       rgba(201, 123, 92, 0.12);
+
+  --navy:                #3A2E2A;
+
+  --success:             #7D8B6B;
+  --success-light:       rgba(125, 139, 107, 0.10);
+  --warning:             #D4A574;
+  --warning-light:       rgba(212, 165, 116, 0.12);
+  --danger:              #B85C5C;
+  --danger-light:        rgba(184, 92, 92, 0.10);
+
+  --text-primary:        #3A2E2A;
+  --text-secondary:      #8A7A6F;
+  --text-tertiary:       #B5A89C;
+
+  --border:              #E8DFD2;
+  --border-focus:        rgba(201, 123, 92, 0.35);
+
+  --shadow-sm:           0 1px 3px rgba(58, 46, 42, 0.07);
+  --shadow-md:           0 4px 6px rgba(58, 46, 42, 0.09);
+  --shadow-lg:           0 10px 25px rgba(58, 46, 42, 0.12);
+  --shadow-glow:         0 0 20px rgba(201, 123, 92, 0.22);
+  --glass:               rgba(255, 252, 247, 0.94);
+}
+
 /* Reset & Base */
 * {
   box-sizing: border-box;

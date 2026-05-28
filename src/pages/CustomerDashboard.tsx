@@ -26,7 +26,7 @@ interface ActiveJob {
   expiresIn?: string;
   acceptedProvider?: string;
   acceptedProviderId?: string;
-  acceptedProviderFirebaseId?: string;
+  acceptedProviderFirebaseUid?: string;
   acceptedPrice?: number;
   confirmedDay?: string;
   confirmedSlot?: string;
@@ -66,7 +66,9 @@ interface ApiJobRow {
   budget_max?: number | string | null;
   quote_count?: number | string;
   tradesperson_name?: string | null;
-  tradesperson_firebase_uid?: string | null;
+  // Firebase UID for the assigned tradesperson — needed by MessagingModal so
+  // Firestore thread participants match what security rules check (request.auth.uid).
+  assigned_tradesperson_firebase_uid?: string | null;
 }
 
 // Map Postgres job status → the dashboard's ActiveJob status variants.
@@ -123,7 +125,7 @@ function toActiveJob(row: ApiJobRow): ActiveJob {
     expiresIn: expiresInLabel(row.expires_at),
     acceptedProvider: row.tradesperson_name || undefined,
     acceptedProviderId: row.assigned_tradesperson_id || undefined,
-    acceptedProviderFirebaseId: row.tradesperson_firebase_uid || undefined,
+    acceptedProviderFirebaseUid: row.assigned_tradesperson_firebase_uid || undefined,
     acceptedPrice,
   };
 }
@@ -518,15 +520,16 @@ export default function CustomerDashboard() {
         </div>
       </div>
 
-      {/* Messaging Modal */}
-      {messagingJob && messagingJob.acceptedProvider && (
+      {/* Messaging Modal — pass Firebase UIDs (not PG UUIDs) so Firestore
+          thread participants match what security rules check (request.auth.uid). */}
+      {messagingJob && messagingJob.acceptedProvider && firebaseUser?.uid && messagingJob.acceptedProviderFirebaseUid && (
         <MessagingModal
           jobId={messagingJob.id}
           jobTitle={messagingJob.title}
-          currentUserId={firebaseUser?.uid || ''}
+          currentUserId={firebaseUser.uid}
           currentUserName={displayName}
           currentUserRole={userRole}
-          otherUserId={messagingJob.acceptedProviderFirebaseId ?? ''}
+          otherUserId={messagingJob.acceptedProviderFirebaseUid}
           otherUserName={messagingJob.acceptedProvider}
           onClose={() => setMessagingJob(null)}
         />

@@ -59,11 +59,15 @@ router.get('/:jobId/quotes', requireAuth, async (req: AuthenticatedRequest, res)
       `SELECT q.id, q.tradesperson_user_id, u.full_name AS tradesperson_name,
               q.price, q.estimated_hours, q.hourly_overage_rate, q.message, q.status,
               COALESCE(q.tradesperson_rating_at_submission, 0) AS rating,
-              q.created_at
+              q.created_at,
+              tp.trusted_badge_earned_at IS NOT NULL AS trusted
        FROM quotes q
        JOIN users u ON u.id = q.tradesperson_user_id
+       LEFT JOIN tradesperson_profiles tp ON tp.user_id = q.tradesperson_user_id
        WHERE q.job_id = $1
-       ORDER BY q.tradesperson_rating_at_submission DESC NULLS LAST, q.price ASC`,
+       ORDER BY (tp.trusted_badge_earned_at IS NOT NULL) DESC,
+                q.tradesperson_rating_at_submission DESC NULLS LAST,
+                q.price ASC`,
       [jobId]
     );
 

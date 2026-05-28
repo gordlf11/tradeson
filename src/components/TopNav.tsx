@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { TradesOnWordmark } from './Logo';
 import { useAuth } from '../contexts/AuthContext';
+import { RoleSwitcherList } from './RoleSwitcherMenu';
 
 interface TopNavProps {
   title?: string;
@@ -249,6 +250,8 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{userEmail}</div>
             </div>
+            <RoleSwitcherList onAfterSwitch={() => setIsUserMenuOpen(false)} />
+            <div style={{ height: 1, background: 'var(--border)', margin: 'var(--space-2) 0' }} />
             {userMenuItems.map((item) => (
               <button key={item.id} onClick={() => handleMenuItemClick(item)} style={{
                 background: 'transparent', border: 'none', cursor: 'pointer',

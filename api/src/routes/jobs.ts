@@ -107,10 +107,11 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
     // versions passed a placeholder null in $2 which Postgres rejected with
     // 42P18 "could not determine data type of parameter $2".
     if (acceptedTradespersonId) {
-      // Tradesperson dashboard — jobs assigned to this tradesperson (all statuses)
+      // Tradesperson dashboard — jobs assigned to this tradesperson (all statuses).
+      // homeowner_firebase_uid lets the TP message the customer with a valid
+      // Firebase UID in the Firestore thread participants array.
       query = `SELECT j.*,
-                 u.full_name as customer_name,
-                 u.firebase_uid as customer_firebase_uid,
+                 u.full_name as customer_name, u.firebase_uid as homeowner_firebase_uid,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count
                FROM jobs j
                JOIN users u ON j.homeowner_user_id = u.id
@@ -121,11 +122,14 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
       params = [acceptedTradespersonId, parseInt(limit as string), parseInt(offset as string)];
       if (status) params.push(status);
     } else if (customerId) {
-      // Customer dashboard — jobs posted by a specific homeowner (for admin/realtor views)
+      // Customer dashboard — jobs posted by a specific homeowner (for admin/realtor views).
+      // assigned_tradesperson_firebase_uid is needed by the MessagingModal so the
+      // Firestore participants array uses Firebase UIDs (which security rules check
+      // via request.auth.uid), not PG UUIDs — otherwise thread create is rejected.
       query = `SELECT j.*,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count,
                  (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name,
-                 (SELECT u2.firebase_uid FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_firebase_uid
+                 (SELECT u2.firebase_uid FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as assigned_tradesperson_firebase_uid
                FROM jobs j
                WHERE j.homeowner_user_id = $1 AND j.deleted_at IS NULL
                  ${status ? 'AND j.status = $4' : ''}
@@ -136,7 +140,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
     } else if (role === 'licensed_tradesperson' || role === 'unlicensed_tradesperson') {
       // Tradespeople see all open jobs + any job they've already quoted on
       // (so their own bids remain visible after the job moves from 'open' → 'quoted').
-      query = `SELECT j.*, u.full_name as customer_name,
+      // homeowner_firebase_uid is needed so the messaging modal uses the
+      // customer's Firebase UID (Firestore rules check request.auth.uid).
+      query = `SELECT j.*, u.full_name as customer_name, u.firebase_uid as homeowner_firebase_uid,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count,
                  EXISTS (SELECT 1 FROM quotes q2 WHERE q2.job_id = j.id AND q2.tradesperson_user_id = $1) as i_quoted
                FROM jobs j
@@ -156,7 +162,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
       query = `SELECT j.*,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count,
                  (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name,
-                 (SELECT u2.firebase_uid FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_firebase_uid
+                 (SELECT u2.firebase_uid FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as assigned_tradesperson_firebase_uid
                FROM jobs j
                WHERE j.homeowner_user_id = $1 AND j.deleted_at IS NULL
                  ${status ? 'AND j.status = $4' : ''}

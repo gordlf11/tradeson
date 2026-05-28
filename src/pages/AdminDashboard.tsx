@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Shield, Users, Briefcase, DollarSign, AlertTriangle, CheckCircle,
   XCircle, FileText, TrendingUp, Eye,
   BarChart2, Flag, LogOut, ChevronDown, ChevronUp,
-  UserCheck, AlertOctagon, Lock, MessageCircle, ChevronRight
+  UserCheck, AlertOctagon, Lock, MessageCircle, ChevronRight, User
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import api from '../services/api';
 import { logAdminAction, getAuditLog, getSupportTickets, updateSupportTicket } from '../services/messagingService';
 import type { SupportTicket } from '../services/messagingService';
+import { RoleSwitcherList } from '../components/RoleSwitcherMenu';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1061,7 +1062,20 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
   const [flaggingAccount, setFlaggingAccount] = useState<FlaggedAccount | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const adminEmail = localStorage.getItem('userEmail') || 'admin@tradeson.com';
+
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [isUserMenuOpen]);
 
   const [pendingCompliance, setPendingCompliance] = useState(0);
   const [highSeverityFlags, setHighSeverityFlags] = useState(0);
@@ -1114,18 +1128,60 @@ export default function AdminDashboard() {
             </div>
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', margin: '2px 0 0' }}>{adminEmail}</p>
           </div>
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-              color: 'rgba(255,255,255,0.8)', padding: '6px 12px', borderRadius: 'var(--radius-sm)',
-              cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'inherit',
-            }}
-          >
-            <LogOut size={14} />
-            Sign Out
-          </button>
+          <div ref={userMenuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setIsUserMenuOpen((v) => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+                padding: '4px 8px 4px 4px', borderRadius: '999px',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+              aria-label="Open account menu"
+            >
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: 'var(--primary)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <User size={14} color="white" />
+              </div>
+              <ChevronDown size={14} color="rgba(255,255,255,0.7)" />
+            </button>
+
+            {isUserMenuOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                background: '#0c2342', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                minWidth: 220, zIndex: 200, padding: 'var(--space-3)',
+              }}>
+                <div style={{
+                  padding: '4px 8px 10px', borderBottom: '1px solid rgba(255,255,255,0.12)',
+                  marginBottom: 8,
+                }}>
+                  <div style={{ color: 'white', fontSize: '0.85rem', fontWeight: 600 }}>Admin</div>
+                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.72rem' }}>{adminEmail}</div>
+                </div>
+                <RoleSwitcherList variant="dark" onAfterSwitch={() => setIsUserMenuOpen(false)} />
+                <div style={{ height: 1, background: 'rgba(255,255,255,0.12)', margin: '8px 0' }} />
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', textAlign: 'left',
+                    fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 500,
+                    color: '#ff6b6b',
+                  }}
+                >
+                  <LogOut size={14} />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Alert banner */}

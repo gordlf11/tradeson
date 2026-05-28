@@ -180,7 +180,9 @@ export default function UnlicensedTradespersonOnboarding() {
     localStorage.setItem('userRole', 'non-licensed-trade');
     localStorage.setItem('hasOnboarded', 'true');
     setIsSubmitting(false);
-    navigate('/job-board');
+    // Send tradespersons through the 2-minute Trusted Badge mini-course
+    // before they hit the job board. They can Skip on each card.
+    navigate('/onboarding/trusted-badge');
   };
 
   const handleBack = () => {

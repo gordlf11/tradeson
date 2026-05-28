@@ -14,6 +14,7 @@ import PropertyManagerOnboarding from './pages/PropertyManagerOnboarding';
 import RealtorOnboarding from './pages/RealtorOnboarding';
 import LicensedTradespersonOnboarding from './pages/LicensedTradespersonOnboarding';
 import UnlicensedTradespersonOnboarding from './pages/UnlicensedTradespersonOnboarding';
+import TrustedBadge from './pages/onboarding/TrustedBadge';
 
 // Dashboards
 import TradespersonDashboard from './pages/TradespersonDashboard';
@@ -261,6 +262,7 @@ function AppRoutes() {
         <Route path="/onboarding/realtor" element={<RequireAuth><RequireOnboarding><RealtorOnboarding /></RequireOnboarding></RequireAuth>} />
         <Route path="/onboarding/licensed-trade" element={<RequireAuth><RequireOnboarding><LicensedTradespersonOnboarding /></RequireOnboarding></RequireAuth>} />
         <Route path="/onboarding/non-licensed-trade" element={<RequireAuth><RequireOnboarding><UnlicensedTradespersonOnboarding /></RequireOnboarding></RequireAuth>} />
+        <Route path="/onboarding/trusted-badge" element={<RequireAuth><TrustedBadge /></RequireAuth>} />
 
         {/* Dashboards — requires auth */}
         <Route path="/dashboard" element={<RequireAuth><DashboardRedirect /></RequireAuth>} />

@@ -313,4 +313,35 @@ router.post('/non-licensed-trade', requireAuth, async (req: AuthenticatedRequest
   }
 });
 
+// POST /api/v1/onboarding/trusted-badge/complete
+// Marks the Customer Ready mini-course (4 swipe cards) as completed.
+// Sets tradesperson_profiles.trusted_badge_earned_at = now(). Idempotent:
+// re-running on an already-trusted account is a no-op (we don't reset
+// the timestamp). Boost-only enforcement is read at quote-display time.
+router.post('/trusted-badge/complete', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const id = await ensureUser(req);
+  try {
+    const result = await pool.query(
+      `UPDATE tradesperson_profiles
+         SET trusted_badge_earned_at = COALESCE(trusted_badge_earned_at, now()),
+             updated_at = now()
+       WHERE user_id = $1
+       RETURNING trusted_badge_earned_at`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Tradesperson profile not found. Complete tradesperson onboarding first.' });
+      return;
+    }
+    await logAuditEvent(id, 'trusted_badge.earned', 'tradesperson_profiles', id, {}, req.ip);
+    res.json({
+      success: true,
+      trusted_badge_earned_at: result.rows[0].trusted_badge_earned_at,
+    });
+  } catch (err) {
+    console.error('Trusted Badge complete error:', err);
+    res.status(500).json({ error: 'Failed to record Trusted Badge completion' });
+  }
+});
+
 export default router;

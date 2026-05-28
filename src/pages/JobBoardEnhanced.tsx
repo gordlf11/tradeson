@@ -9,6 +9,7 @@ import { Input } from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { TRADES } from '../config/tradeTaxonomy';
+import TrustedBadgePill from '../components/TrustedBadgePill';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ interface Quote {
   message: string;
   submittedAt: string;
   verified: boolean;
+  trusted?: boolean;
   availability?: Availability[];
 }
 
@@ -159,6 +161,7 @@ function mapApiQuote(row: any): Quote {
     message: row.message || '',
     submittedAt: relativeTime(row.created_at),
     verified: false,
+    trusted: row.trusted === true,
     availability: row.availability || undefined,
   };
 }
@@ -185,7 +188,7 @@ const FALLBACK_JOBS: Job[] = [
     description: 'Older home needs panel upgrade to support new EV charger. Must be ESA-certified.',
     room: 'Basement', jobNature: 'Upgrade', photos: 3,
     quotes: [
-      { id: 'q1', tradespersonId: 'tp-1', tradespersonName: 'Volt Masters Electric', rating: 4.9, reviewCount: 47, totalPrice: 1850, estimatedHours: 8, hourlyOverage: 75, message: 'ESA-certified with 12 years of panel work. Can pull permits same week. Price includes labour and materials.', submittedAt: '1 hr ago', verified: true },
+      { id: 'q1', tradespersonId: 'tp-1', tradespersonName: 'Volt Masters Electric', rating: 4.9, reviewCount: 47, totalPrice: 1850, estimatedHours: 8, hourlyOverage: 75, message: 'ESA-certified with 12 years of panel work. Can pull permits same week. Price includes labour and materials.', submittedAt: '1 hr ago', verified: true, trusted: true },
       { id: 'q2', tradespersonId: 'tp-2', tradespersonName: 'PowerPro Electrical', rating: 4.6, reviewCount: 31, totalPrice: 2100, estimatedHours: 10, hourlyOverage: 65, message: 'Licensed master electrician, fully insured. 200A panel with full inspection included. Flexible scheduling.', submittedAt: '2 hrs ago', verified: true },
       { id: 'q3', tradespersonId: 'tp-3', tradespersonName: 'Bright Spark Solutions', rating: 4.4, reviewCount: 19, totalPrice: 1620, estimatedHours: 7, hourlyOverage: 80, message: 'Competitive pricing, ESA permit handled. Work guaranteed for 2 years.', submittedAt: '3 hrs ago', verified: false },
     ],
@@ -929,9 +932,12 @@ function QuoteComparisonModal({ job, onClose, onAccept }: ComparisonModalProps) 
               {/* Provider info */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
                 <div>
-                  <div style={{ fontWeight: '700', fontSize: '0.92rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                    {q.tradespersonName}
-                    {q.verified && <CheckCircle size={13} color="var(--success)" style={{ display: 'inline', marginLeft: '6px', verticalAlign: 'middle' }} />}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '4px', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: '700', fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                      {q.tradespersonName}
+                      {q.verified && <CheckCircle size={13} color="var(--success)" style={{ display: 'inline', marginLeft: '6px', verticalAlign: 'middle' }} />}
+                    </span>
+                    {q.trusted && <TrustedBadgePill size={11} />}
                   </div>
                   <button
                     onClick={() => {}}
