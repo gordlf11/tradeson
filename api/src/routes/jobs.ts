@@ -110,6 +110,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
       // Tradesperson dashboard — jobs assigned to this tradesperson (all statuses)
       query = `SELECT j.*,
                  u.full_name as customer_name,
+                 u.firebase_uid as customer_firebase_uid,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count
                FROM jobs j
                JOIN users u ON j.homeowner_user_id = u.id
@@ -123,7 +124,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
       // Customer dashboard — jobs posted by a specific homeowner (for admin/realtor views)
       query = `SELECT j.*,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count,
-                 (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name
+                 (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name,
+                 (SELECT u2.firebase_uid FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_firebase_uid
                FROM jobs j
                WHERE j.homeowner_user_id = $1 AND j.deleted_at IS NULL
                  ${status ? 'AND j.status = $4' : ''}
@@ -153,7 +155,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
       // Customers see their own jobs
       query = `SELECT j.*,
                  (SELECT COUNT(*) FROM quotes q WHERE q.job_id = j.id) as quote_count,
-                 (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name
+                 (SELECT u2.full_name FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_name,
+                 (SELECT u2.firebase_uid FROM users u2 WHERE u2.id = j.assigned_tradesperson_id) as tradesperson_firebase_uid
                FROM jobs j
                WHERE j.homeowner_user_id = $1 AND j.deleted_at IS NULL
                  ${status ? 'AND j.status = $4' : ''}
