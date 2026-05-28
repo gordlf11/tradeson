@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, MapPin, CreditCard, Bell, Shield, LogOut, ChevronRight, Edit2, Plus, Check, RefreshCw, HelpCircle } from 'lucide-react';
+import { User, MapPin, CreditCard, Bell, Shield, LogOut, ChevronRight, Edit2, Plus, Check, RefreshCw, HelpCircle, Award } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -25,6 +25,8 @@ export default function Settings() {
   const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
   const userName = localStorage.getItem('userName') || '';
   const userRole = localStorage.getItem('userRole') || 'homeowner';
+  const isTradesperson = ['licensed-trade', 'non-licensed-trade', 'licensed_tradesperson', 'unlicensed_tradesperson'].includes(userRole);
+  const trustedBadgeEarned = localStorage.getItem('trustedBadgeEarned') === 'true';
   const additionalRoles: string[] = JSON.parse(localStorage.getItem('additionalRoles') || '[]');
   const allUserRoles = [userRole, ...additionalRoles.filter(r => r !== userRole)];
 
@@ -287,6 +289,46 @@ export default function Settings() {
             </Card>
           </div>
         ))}
+
+        {/* Professional Development — tradesperson only */}
+        {isTradesperson && (
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Professional Development
+            </h3>
+            <Card style={{ padding: 0 }}>
+              <button
+                onClick={() => navigate('/onboarding/trusted-badge')}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none', cursor: 'pointer',
+                  padding: 'var(--space-4)', display: 'flex', alignItems: 'center',
+                  gap: 'var(--space-3)', textAlign: 'left', transition: 'background-color 0.15s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-base)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{
+                  width: '40px', height: '40px',
+                  background: trustedBadgeEarned ? 'var(--primary-light)' : 'var(--bg-base)',
+                  borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', flexShrink: 0,
+                  color: trustedBadgeEarned ? 'var(--primary)' : 'var(--text-secondary)',
+                }}>
+                  <Award size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '2px' }}>
+                    TradesOn Certified Training
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: trustedBadgeEarned ? 'var(--success)' : 'var(--text-secondary)' }}>
+                    {trustedBadgeEarned ? 'Trusted Badge earned' : 'Earn your Trusted Badge · 2 min'}
+                  </div>
+                </div>
+                <ChevronRight size={18} color="var(--text-tertiary)" />
+              </button>
+            </Card>
+          </div>
+        )}
 
         {/* Support */}
         <div style={{ marginBottom: 'var(--space-6)' }}>
