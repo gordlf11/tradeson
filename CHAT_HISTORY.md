@@ -15,6 +15,61 @@
 - [Next steps]
 -->
 
+## 2026-05-27 -- Kevin (Claude Sonnet 4.6) -- WS1–WS3: Messaging schema, Admin live data, Live GPS tracking
+
+### What was done
+
+**Git sync**
+- Merged remote `origin/main` + `origin/master` into local `master`; resolved three-way conflicts in `CLAUDE.md`, `docs/DATABASE_SCHEMA.md`, and `api/src/routes/jobs.ts` (kept Larry's naming: `homeowner_firebase_uid`, `assigned_tradesperson_firebase_uid`)
+- Committed uncommitted changes in `api/src/routes/jobs.ts` (field aliases for dashboard filters) and pushed everything to GitHub
+
+**WS1 — Real-time in-platform messaging** (commit `2f4e062`)
+- **Message schema**: replaced `read: boolean` with `recipientUID: string` and `readAt: Date | null` across `messagingService.ts`, `MessagingModal.tsx`, and Firestore rules
+- `sendMessage`: now accepts and writes `recipientUID` per message
+- `markThreadRead(threadId, currentUID)`: batch-updates `readAt` on all unread messages addressed to current user
+- `subscribeToUnreadCount(userId, callback)`: nested `onSnapshot` across user's threads → sums unread per thread → fires total
+- `MessagingModal.tsx`: calls `markThreadRead` on thread open and on new message; sends `otherUserId` as `recipientUID`; race-condition guard (`cancelled` flag)
+- `App.tsx` BottomNav: unread badge (`UnreadBadge`) added to messaging nav item for all four role variants; subscribes to `subscribeToUnreadCount(firebaseUser?.uid, setUnreadCount)`
+- Firestore rules: message update `changedKeys → ['readAt']`; `tracking/{jobId}` field-level control (tradesperson may only write `lat, lng, updatedAt, status, enRouteAt, arrivedAt`)
+
+**WS2 — Admin Dashboard live data** (commit `3132600`)
+- `AuditLogSection` + `SupportSection`: converted from one-time `getDocs` to `subscribeToAuditLog` / `subscribeToSupportTickets` with `liveActive/liveError/updatedAt` state per section
+- `MetricsSection`: 30s `setInterval` polling for Postgres-backed metrics (no Firestore mirror); live indicator state; fires immediately on mount
+- `LiveDot` component: green pulse (active), red (error), grey (inactive)
+- `LastUpdatedLabel` component: "Updated Xs ago" with 1s tick in each section header
+- Removed unused `getSupportTickets` import
+
+**WS3 — Live job tracking** (commit `27459f4`)
+- **`JobTrackingMap.tsx`** (new Leaflet + OpenStreetMap component):
+  - Subscribes to `tracking/{jobId}` via `onSnapshot`; smooth van animation via `requestAnimationFrame` lerp over 2s
+  - Geocodes job address with Nominatim (no API key); stale-location warning >3 min while en_route
+  - STATUS_BANNER by jobStatus; Haversine distance; tradesperson info card with tel: link + message button
+- **`OnMyWayControls`** (added to `JobDayOf.tsx`):
+  - HTTPS + `navigator.geolocation` guard on mount; real `navigator.permissions.query` for permission state
+  - "I'm On My Way" → `getCurrentPosition` → `setDoc tracking/{jobId}` → `watchPosition` continuous updates
+  - "I've Arrived" → `clearWatch` → `updateDoc status: arrived`
+  - `GeoPermissionBanner`: per-browser re-enable instructions (Chrome/Edge/Firefox/Safari)
+  - Low-accuracy warning at >100m
+- **`TradespersonView`** now renders `<OnMyWayControls>` (only when `state === 'waiting'`)
+- **`JobPosterView`** now renders `<JobTrackingMap>` with demo buttons to simulate `en_route`/`arrived` states
+- Leaflet dep: `leaflet@^1.9.4` + `@types/leaflet@^1.9.21`
+- Firestore rules: `tracking/{jobId}` locked to field-level writes; participants array gates poster reads
+
+### Decisions
+- Used `tracking/{jobId}` Firestore collection (not `jobs/{jobId}`) — `jobs` is admin-only (PG is source of truth); `tracking` was pre-provisioned with appropriate rules
+- Leaflet + OSM chosen over Mapbox GL JS (no existing map library; TODO to upgrade for Directions API / driving ETA)
+- Firebase UIDs (not PG UUIDs) in `participants` array — Firestore security rules check `request.auth.uid`
+- Demo controls for tracking states isolated from real Firestore state so demo never writes real data
+
+### Next steps (WS3 incomplete items)
+- Replace mock `jobId="mock-job-001"` and `participants` with real data from route params once data layer is wired (Larry's WS: JobBoard → api.ts)
+- WS3E: Write tests — unit (haversinemiles), integration (Firestore emulator), security rule test, UI test
+- Larry: `POST /api/v1/jobs/{id}/tracking` endpoint to create the initial `tracking/{jobId}` doc server-side on quote acceptance
+- Consider upgrading `JobTrackingMap` from Leaflet/OSM to Mapbox GL JS for driving ETA (Directions API)
+- `onMessageClick` in `JobPosterView` should open `MessagingModal` with real thread — wire once job data is available
+
+---
+
 ## 2026-05-17 to 2026-05-20 -- Larry (Claude Opus 4.7) -- Marathon: pre-test stabilization + custom domain + messaging fix
 
 ### What was done
