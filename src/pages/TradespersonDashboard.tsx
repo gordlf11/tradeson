@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, DollarSign, Star, AlertTriangle, Calendar,
   Clock, ChevronRight, CheckCircle, TrendingUp, Shield,
-  MessageCircle, X,
+  MessageCircle, X, Navigation,
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
@@ -632,8 +632,8 @@ export default function TradespersonDashboard() {
                         </div>
                         <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--primary)' }}>${job.estimatedValue}</div>
                       </div>
-                      {/* Messaging — available on accepted/confirmed jobs */}
-                      <div style={{ paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
+                      {/* Messaging + Day-of tracking — available on accepted/confirmed jobs */}
+                      <div style={{ paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)', display: 'flex', gap: 'var(--space-2)' }}>
                         <button
                           onClick={() => setMessagingJob(job)}
                           style={{
@@ -646,6 +646,19 @@ export default function TradespersonDashboard() {
                         >
                           <MessageCircle size={14} />
                           Message {job.client}
+                        </button>
+                        <button
+                          onClick={() => navigate(`/job-day-of/${job.id}`)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            background: 'var(--bg-base)', border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)', padding: '6px 12px',
+                            color: 'var(--text-primary)', fontSize: '0.78rem', fontWeight: '700',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          <Navigation size={14} />
+                          Day of Job
                         </button>
                       </div>
                     </Card>

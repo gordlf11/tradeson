@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus, CheckCircle,
   Home, Building2, Users, Bell, Briefcase, AlertCircle,
-  MessageCircle, Calendar
+  MessageCircle, Calendar, Navigation,
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
@@ -370,6 +370,19 @@ export default function CustomerDashboard() {
                           >
                             <MessageCircle size={14} />
                             Message {job.acceptedProvider}
+                          </button>
+                          <button
+                            onClick={() => navigate(`/job-day-of/${job.id}`)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              background: 'var(--bg-base)', border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-sm)', padding: '6px 12px',
+                              color: 'var(--text-primary)', fontSize: '0.78rem', fontWeight: '700',
+                              cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            <Navigation size={14} />
+                            Track Job
                           </button>
                         </div>
                       )}

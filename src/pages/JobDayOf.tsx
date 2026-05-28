@@ -10,6 +10,7 @@ import { db } from '../services/firebase';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import JobTrackingMap, { type JobTrackingMapProps } from '../components/JobTrackingMap';
+import MessagingModal from '../components/MessagingModal';
 import { Badge } from '../components/ui/Badge';
 import TopNav from '../components/TopNav';
 import { useAuth } from '../contexts/AuthContext';
@@ -120,11 +121,13 @@ const MOCK_ADJUSTMENT = { originalPrice: 195, newPrice: 240, delta: 45, reason: 
 
 function JobPosterView({ job }: { job: JobData }) {
   const navigate = useNavigate();
+  const { firebaseUser, userProfile } = useAuth();
   const countdown = useCountdown(job.scheduledAt);
   const [checklist, setChecklist] = useState<boolean[]>(new Array(POSTER_CHECKLIST.length).fill(false));
   const [state, setState] = useState<PosterState>('waiting');
   const [showCancel, setShowCancel] = useState(false);
   const [trackingStatus, setTrackingStatus] = useState<JobTrackingMapProps['jobStatus']>('accepted');
+  const [messagingOpen, setMessagingOpen] = useState(false);
 
   if (state === 'cancelled') {
     return (
@@ -257,7 +260,7 @@ function JobPosterView({ job }: { job: JobData }) {
             tradespersonPhone={job.tradespersonPhone}
             tradespersonCategory={job.category}
             jobStatus={trackingStatus}
-            onMessageClick={() => navigate('/completion')}
+            onMessageClick={() => setMessagingOpen(true)}
           />
 
           {/* Pre-service checklist */}
@@ -322,6 +325,20 @@ function JobPosterView({ job }: { job: JobData }) {
             </div>
           )}
         </div>
+
+        {/* Messaging modal — opened from the tracking map's message button */}
+        {messagingOpen && firebaseUser?.uid && job.tradespersonFirebaseUid && (
+          <MessagingModal
+            jobId={job.id}
+            jobTitle={job.title}
+            currentUserId={firebaseUser.uid}
+            currentUserName={userProfile?.full_name ?? 'You'}
+            currentUserRole={userProfile?.role ?? 'homeowner'}
+            otherUserId={job.tradespersonFirebaseUid}
+            otherUserName={job.tradespersonName}
+            onClose={() => setMessagingOpen(false)}
+          />
+        )}
 
         {/* Cancel confirmation bottom sheet */}
         {showCancel && (
