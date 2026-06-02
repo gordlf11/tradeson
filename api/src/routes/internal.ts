@@ -2,6 +2,7 @@
 // `x-internal-secret` header and invoked by Cloud Scheduler / webhooks only:
 //   POST /release-expired-holds        — every 30 min, captures expired holds
 //   POST /populate-flagged-accounts    — nightly, flags expired docs + poor ratings
+// Deployed automatically by the `tradesonapi` Cloud Build trigger (includedFiles: api/**).
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import pool from '../config/db';
