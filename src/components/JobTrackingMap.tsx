@@ -176,11 +176,10 @@ export default function JobTrackingMap({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Default center: geographic center of the Dakotas — the map re-centers
-    // to the job address after geocoding completes.
+    // Default center: Rapid City, SD — re-centers on job address after geocoding.
     const map = L.map(mapContainerRef.current, {
-      center: [46.8, -100.4],
-      zoom: 7,
+      center: [44.0806, -103.2310],
+      zoom: 11,
       zoomControl: true,
     });
 
@@ -209,7 +208,7 @@ export default function JobTrackingMap({
         .addTo(map)
         .bindPopup(`<strong>Job Site</strong><br>${jobAddress}`);
     }
-    map.setView(destLatLng, 13);
+    map.setView(destLatLng, 11);
   }, [destLatLng, jobAddress]);
 
   // Smoothly animate van marker to new location over ~2 seconds

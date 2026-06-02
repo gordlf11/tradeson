@@ -100,12 +100,12 @@ interface JobData {
   customerName: string;
 }
 
-const DEMO_VAN_LOCATION = { lat: 39.7617, lng: -89.6801, updatedAt: new Date() };
+const DEMO_VAN_LOCATION = { lat: 44.1680, lng: -103.1880, updatedAt: new Date() };
 
 const MOCK_JOB: JobData = {
   id: 'mock-job-001',
   title: 'Kitchen Sink Leak Repair',
-  address: '123 Main St, Springfield',
+  address: '18 E Main St, Rapid City, SD 57701',
   category: 'Plumbing',
   scheduledAt: new Date(),
   homeownerFirebaseUid: 'mock-customer-uid',
