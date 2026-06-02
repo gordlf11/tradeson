@@ -51,6 +51,51 @@ router.post('/', async (req: Request, res: Response) => {
         break;
       }
 
+      // Customer disputed a charge (chargeback) — flag the tradesperson whose
+      // payout this job funds, for admin review. Disputes are push-only (can't
+      // be polled), so the nightly flagged-accounts sweep can't catch these.
+      // Idempotent: skip if the user already has an unresolved dispute flag.
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute;
+        const piId = typeof dispute.payment_intent === 'string'
+          ? dispute.payment_intent
+          : dispute.payment_intent?.id;
+
+        if (!piId) {
+          console.warn(`Dispute ${dispute.id}: no payment_intent to map to a user`);
+          break;
+        }
+
+        // Map the disputed payment intent → the tradesperson on that job.
+        const owner = await pool.query(
+          `SELECT COALESCE(p.payee_user_id, j.assigned_tradesperson_id) AS user_id
+           FROM jobs j
+           LEFT JOIN payments p ON p.job_id = j.id
+           WHERE j.stripe_payment_intent_id = $1 OR p.stripe_payment_intent_id = $1
+           LIMIT 1`,
+          [piId]
+        );
+        const userId = owner.rows[0]?.user_id;
+
+        if (!userId) {
+          console.warn(`Dispute ${dispute.id}: no matching job/payment for PI ${piId}`);
+          break;
+        }
+
+        await pool.query(
+          `INSERT INTO flagged_accounts (user_id, flag_reason, flag_type, severity)
+           SELECT $1, $2, 'dispute', 'high'
+           WHERE NOT EXISTS (
+             SELECT 1 FROM flagged_accounts
+             WHERE user_id = $1 AND flag_type = 'dispute' AND resolved_at IS NULL
+           )`,
+          [userId, `Stripe dispute ${dispute.id} (reason: ${dispute.reason}, amount: ${dispute.amount})`]
+        ).catch(err => console.error('dispute flag insert failed:', err));
+
+        console.log(`Dispute ${dispute.id} flagged user ${userId}`);
+        break;
+      }
+
       default:
         // Unhandled event type — safe to ignore
         break;

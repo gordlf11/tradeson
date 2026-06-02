@@ -83,4 +83,85 @@ router.post('/release-expired-holds', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/v1/internal/populate-flagged-accounts
+// Called by Cloud Scheduler nightly. Inserts flagged_accounts rows for the two
+// conditions we can detect by polling:
+//   1. expired_insurance — a tradesperson with any compliance document past its
+//      expiration_date (license/insurance cert).
+//   2. poor_reviews — a tradesperson whose 30-day average rating is below 2.5
+//      (requires >= 2 reviews in the window so a single bad review can't flag).
+// The third condition, 'dispute', is event-driven (Stripe charge.dispute.created
+// webhook in webhooks.ts) — disputes can't be polled.
+//
+// Both inserts are idempotent: a NOT EXISTS guard skips users who already have an
+// UNRESOLVED flag of the same type, so re-running nightly never duplicates.
+// Protected by the same shared secret header as the release sweep.
+router.post('/populate-flagged-accounts', async (req: Request, res: Response) => {
+  const secret = req.headers['x-internal-secret'];
+  if (!process.env.INTERNAL_SECRET || secret !== process.env.INTERNAL_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    // 1. Expired compliance / insurance documents → high severity.
+    //    DISTINCT ON collapses multiple expired docs for one user into a single flag.
+    const expired = await pool.query(`
+      INSERT INTO flagged_accounts (user_id, flag_reason, flag_type, severity)
+      SELECT DISTINCT ON (tp.user_id)
+             tp.user_id,
+             'Compliance/insurance document expired on ' || cd.expiration_date::text,
+             'expired_insurance',
+             'high'
+      FROM compliance_documents cd
+      JOIN tradesperson_profiles tp ON tp.id = cd.tradesperson_profile_id
+      JOIN users u ON u.id = tp.user_id
+      WHERE cd.expiration_date < now()
+        AND u.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM flagged_accounts fa
+          WHERE fa.user_id = tp.user_id
+            AND fa.flag_type = 'expired_insurance'
+            AND fa.resolved_at IS NULL
+        )
+      ORDER BY tp.user_id, cd.expiration_date ASC
+      RETURNING id
+    `);
+
+    // 2. Poor 30-day average rating (< 2.5 over >= 2 reviews) → medium severity.
+    const poor = await pool.query(`
+      INSERT INTO flagged_accounts (user_id, flag_reason, flag_type, severity)
+      SELECT r.reviewee_id,
+             'Low 30-day rating: ' || ROUND(AVG(r.rating), 1)::text
+               || ' avg over ' || COUNT(*)::text || ' reviews',
+             'poor_reviews',
+             'medium'
+      FROM reviews r
+      JOIN users u ON u.id = r.reviewee_id
+      WHERE r.created_at >= now() - interval '30 days'
+        AND u.deleted_at IS NULL
+      GROUP BY r.reviewee_id
+      HAVING AVG(r.rating) < 2.5
+         AND COUNT(*) >= 2
+         AND NOT EXISTS (
+           SELECT 1 FROM flagged_accounts fa
+           WHERE fa.user_id = r.reviewee_id
+             AND fa.flag_type = 'poor_reviews'
+             AND fa.resolved_at IS NULL
+         )
+      RETURNING id
+    `);
+
+    const summary = {
+      expired_insurance: expired.rowCount ?? 0,
+      poor_reviews: poor.rowCount ?? 0,
+    };
+    console.log('Flagged-account sweep:', JSON.stringify(summary));
+    res.json({ flagged: summary });
+  } catch (err: any) {
+    console.error('populate-flagged-accounts error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

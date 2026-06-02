@@ -449,8 +449,8 @@ Two developers working async with separate Claude sessions will lose context wit
 
 ---
 
-## 🔴 LARRY — Next Session Priority List
-> Last updated: 2026-05-27. Items 1–8 are from Larry's prior list. Item 9 is new from Kevin's WS3 live tracking work (2026-05-27) and is required before the tracking feature is production-safe.
+## 🟢 LARRY — Priority List (ALL ITEMS SHIPPED)
+> Last updated: 2026-06-01. **Items 1–9 are all complete.** Code is committed; Firestore rules + indexes are deployed (`firebase deploy`, 2026-06-01); the auto-release scheduler is live and verified end-to-end (`HTTP 200`). The single follow-up is deploying the new `tradeson-api` revision for item 6 and creating its nightly Cloud Scheduler job (commands below). Full detail preserved in the COMPLETED table; the old per-item TODO write-ups were removed since they no longer describe open work.
 
 ---
 
@@ -468,249 +468,31 @@ Two developers working async with separate Claude sessions will lose context wit
 | `GET /api/v1/jobs` dashboard filters | `acceptedTradespersonId` + `customerId` query params added — TradespersonDashboard and CustomerDashboard now fetch real data | Kevin |
 | `/join` referral route + referral code wiring | `JoinRedirect` in `App.tsx` saves `?ref=CODE`; `AuthContext.signup()` passes `referred_by_code` to `api.createUser()` | Kevin |
 | Auto-release endpoint | `POST /api/v1/internal/release-expired-holds` live in `internal.ts` | Kevin |
+| **1.** `onboarding_completed` column | Column in `migration.sql`; persisted in `PUT /users/me`; set `TRUE` in all 5 `onboarding.ts` flows. Schema confirmed live in prod (no missing-column errors in logs). | Larry |
+| **2+5.** `support_tickets` Firestore rule | Final UID-based `create` rule in `firestore.rules`; **deployed 2026-06-01**. | Larry |
+| **3.** `DELETE /api/v1/users/me` | Soft-deletes + archives to `deleted_accounts`; `requireAuth` enforces `deleted_at IS NULL`. | Larry |
+| **4.** Job query auth gap | `403 Forbidden` when `customerId`/`acceptedTradespersonId` ≠ caller and not admin (`jobs.ts`). | Larry |
+| **6.** Nightly flagged-account auto-population | `POST /internal/populate-flagged-accounts` (expired docs + poor 30-day ratings, idempotent); `charge.dispute.created` webhook inserts `dispute` flags. **Needs: deploy `tradeson-api` + create nightly scheduler.** | Larry |
+| **7.** Referral code backend | `POST /api/v1/users` resolves `referred_by_code` → `referred_by_realtor_id` (`users.ts`). | Larry |
+| **8.** Auto-release Cloud Scheduler | `release-expired-payment-holds` cron live (`*/30`), `INTERNAL_SECRET` via Secret Manager, verified end-to-end (`HTTP 200`). | Larry |
+| **9.** Server-side `tracking/{jobId}` creation | Seeded on quote accept; `OnMyWayControls` uses `updateDoc`; `tracking` rule tightened to `create: if false`; **deployed 2026-06-01**. | Larry + Kevin |
 
 ---
 
-### 1. 🟠 HIGH — Add `onboarding_completed` to `users` table
+### 📌 Only remaining follow-up — item 6 deploy
 
-**Context:** The frontend `RequireOnboarding` guard (added 2026-05-18) blocks re-entry into role-selection and onboarding flows. It currently uses `localStorage.hasOnboarded` and `userProfile.profile != null` as signals. These cover 99% of cases, but fail when the API is down AND the user's localStorage has been cleared (e.g., new device, privacy wipe, incognito).
+The item-6 code is committed but not yet deployed. After `tradeson-api` is redeployed, create the nightly cron (reusing the same `INTERNAL_SECRET` Secret Manager value the release job uses):
 
-Adding a `onboarding_completed` DB column makes the flag durable across all devices and browser resets, since `GET /api/v1/users/me` would always return it.
-
-**Migration** — add to `api/src/schema/migration.sql` and run against Cloud SQL:
-```sql
-ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
+```bash
+export CLOUDSDK_PYTHON=/opt/homebrew/bin/python3   # gcloud needs Python 3.10–3.14
+gcloud scheduler jobs create http populate-flagged-accounts \
+  --location=us-central1 --project=tradeson-491518 \
+  --schedule="0 8 * * *" --time-zone=UTC --http-method=POST \
+  --uri="https://tradeson-api-63629008205.us-central1.run.app/api/v1/internal/populate-flagged-accounts" \
+  --headers="x-internal-secret=$(gcloud secrets versions access latest --secret=tradeson-internal-secret --project=tradeson-491518)"
 ```
 
-**Backend** — update `PUT /api/v1/users/me` in `api/src/routes/users.ts` to accept and persist the field:
-```ts
-const { full_name, phone_number, profile_photo_url, role, onboarding_completed } = req.body;
-// In the UPDATE query:
-`UPDATE users SET
-  full_name = COALESCE($1, full_name),
-  phone_number = COALESCE($2, phone_number),
-  profile_photo_url = COALESCE($3, profile_photo_url),
-  role = COALESCE($5, role),
-  onboarding_completed = COALESCE($6, onboarding_completed),
-  updated_at = now()
- WHERE id = $4 RETURNING *`
-// Add $6 = onboarding_completed ?? null to the params array
-```
-
-**Also** — each `POST /api/v1/onboarding/*` handler in `onboarding.ts` should set `onboarding_completed = TRUE` on the `users` row at the end of its transaction (same DB call that creates the profile row).
-
-**Frontend is already wired** — `AuthContext.UserProfile` has `onboarding_completed?: boolean`, and `RequireOnboarding` + Login auto-redirect both check it first. No frontend changes needed once the column exists.
-
----
-
-### 2. 🟠 HIGH — Firestore Security Rules: `support_tickets` collection (original create rule)
-
-Kevin built a Contact Support page (`src/pages/ContactSupport.tsx`) that writes to a new Firestore `support_tickets` collection. The current rules have **default deny** on unknown paths, so this collection is blocked.
-
-**Add to `firestore.rules`**:
-```
-match /support_tickets/{ticketId} {
-  // Any authenticated user can create a ticket
-  allow create: if request.auth != null
-    && request.resource.data.userId == request.auth.token.email;
-
-  // Only admins can read, update (triage), or list tickets
-  allow read, update: if request.auth.token.admin == true;
-
-  // Nobody can delete
-  allow delete: if false;
-}
-```
-
-**Deploy**: `firebase deploy --only firestore:rules`
-
----
-
-### 3. 🔴 CRITICAL — Account Deletion Endpoint Missing
-
-**Context:** `PrivacySettings.tsx` calls `api.deleteMe()` → `DELETE /api/v1/users/me`. This route does **not exist** in `api/src/routes/users.ts`. The call silently fails (500 or 404), the user stays logged in, and their account is never deactivated. This is a GDPR / legal exposure at any user count.
-
-**Add to `api/src/routes/users.ts`:**
-```ts
-router.delete('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { id } = req.user!;
-  if (!id) { res.status(404).json({ error: 'User not found' }); return; }
-  try {
-    await pool.query(
-      `UPDATE users SET deleted_at = now(), is_active = FALSE, updated_at = now() WHERE id = $1`,
-      [id]
-    );
-    await logAuditEvent(id, 'user.deleted', 'users', id, {}, req.ip);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Delete user error:', err);
-    res.status(500).json({ error: 'Failed to delete account' });
-  }
-});
-```
-
-Also ensure `requireAuth` middleware checks `deleted_at IS NULL` so soft-deleted users can't re-authenticate.
-
----
-
-### 4. 🔴 CRITICAL — Job Query Authorization Gap
-
-**Context:** `GET /api/v1/jobs` in `api/src/routes/jobs.ts` accepts `?customerId=UUID` and `?acceptedTradespersonId=UUID` query params with **no check** that the requester owns that ID. Any authenticated user (e.g., a tradesperson) can pass `?customerId=<any homeowner UUID>` and read all their job posts, property addresses, and quote history. This is a data privacy violation.
-
-**Fix in `api/src/routes/jobs.ts`**, in the `GET /api/v1/jobs` handler, before the query branches:
-```ts
-// Authorization: non-admin users can only query their own jobs
-if (customerId && customerId !== id && role !== 'admin') {
-  return res.status(403).json({ error: 'Forbidden' });
-}
-if (acceptedTradespersonId && acceptedTradespersonId !== id && role !== 'admin') {
-  return res.status(403).json({ error: 'Forbidden' });
-}
-```
-
----
-
-### 5. 🟠 HIGH — Firestore `support_tickets` Rule: Switch to UID
-
-**Context:** `ContactSupport.tsx` now correctly passes `userId: firebaseUser.uid` (fixed 2026-05-18). The Firestore security rule still checks `request.resource.data.userId == request.auth.token.email`. Update the rule to match UID:
-
-```
-match /support_tickets/{ticketId} {
-  allow create: if request.auth != null
-    && request.resource.data.userId == request.auth.uid;
-  allow read, update: if request.auth.token.admin == true;
-  allow delete: if false;
-}
-```
-
-**Deploy**: `firebase deploy --only firestore:rules`
-
----
-
-### 6. 🟡 MEDIUM — Nightly Flagged Account Auto-Population
-
-The `flagged_accounts` table won't self-populate. Set up a Cloud Scheduler cron (or Cloud Run scheduled job) to run nightly and insert rows for:
-- Tradespersons whose insurance certificate expired (check `compliance_documents.expiration_date < now()`)
-- Tradespersons whose 30-day avg rating drops below 2.5 (check `reviews` table)
-- Wire `charge.dispute.created` Stripe webhook to insert a `dispute` flag row
-
----
-
-### 7. 🟠 HIGH — Referral Link Signup Tracking — Backend Half
-
-**Context:** The frontend half is done: `/join?ref=CODE` saves to localStorage, and `AuthContext.signup()` passes `referred_by_code` to `api.createUser()`. The backend `POST /api/v1/users` needs to resolve that code and write `users.referred_by_realtor_id`.
-
-**One change needed in `api/src/routes/users.ts`** — after the user INSERT, add:
-
-```ts
-const { referred_by_code } = req.body;
-if (referred_by_code) {
-  const rpResult = await pool.query(
-    'SELECT id FROM realtor_profiles WHERE referral_code = $1',
-    [referred_by_code]
-  );
-  if (rpResult.rows.length > 0) {
-    await pool.query(
-      'UPDATE users SET referred_by_realtor_id = $1 WHERE id = $2',
-      [rpResult.rows[0].id, newUserId]
-    );
-  }
-}
-```
-
-No migration needed — `referred_by_realtor_id` column already exists on `users`.
-
-**Verify:** Sign up a new homeowner via a broker's referral URL. The broker's dashboard KPI "Referral Signups" should increment from 0 to 1.
-
----
-
-### 8. 🟠 HIGH — Auto-Release Cloud Scheduler Job
-
-**Context:** The endpoint `POST /api/v1/internal/release-expired-holds` is live. It needs a Cloud Scheduler job to call it every 30 minutes, or tradespeople on jobs that expire won't get paid automatically.
-
-**Create in GCP Console → Cloud Scheduler → Create Job:**
-
-| Field | Value |
-|---|---|
-| Name | `release-expired-payment-holds` |
-| Frequency | `*/30 * * * *` |
-| Timezone | UTC |
-| Target | HTTP |
-| URL | `https://tradeson-app-63629008205.us-central1.run.app/api/v1/internal/release-expired-holds` |
-| HTTP method | POST |
-| Headers | `x-internal-secret: <value of INTERNAL_SECRET env var>` |
-| Body | (empty) |
-
-**Also add `INTERNAL_SECRET` to Cloud Run env vars** (GCP Console → Cloud Run → tradeson-api → Edit & Deploy → Variables). Generate with: `openssl rand -hex 32`
-
-**Verify:** Manually set a job to `pending_confirmation` with `auto_release_at = now() - interval '1 minute'` in the DB, then POST to the endpoint with the secret header. Job should flip to `completed`.
-
----
-
-### ~~Old Item 12~~ — Endpoint done; Cloud Scheduler still needed (see item 4 above)
-
-**`POST /api/v1/internal/release-expired-holds` is live in `api/src/routes/internal.ts`.**
-Larry only needs to create the Cloud Scheduler job (GCP Console) and add `INTERNAL_SECRET` to Cloud Run env vars.
-
----
-
-### 9. 🔴 CRITICAL — Server-side `tracking/{jobId}` creation on quote acceptance (WS3 blocker)
-
-**Context (Kevin, 2026-05-27):** Live GPS tracking is now fully built on the frontend. The tradesperson-side `OnMyWayControls` component and the poster-side `JobTrackingMap` component are both wired and deployed. There are two production blockers that require a backend change before the feature is safe to enable for real jobs:
-
-**Problem 1 — Poster gets a Firestore permission-denied on read before the doc exists.**
-`JobTrackingMap` subscribes to `tracking/{jobId}` via `onSnapshot` the moment the poster opens the job view. The Firestore rule `allow get: if isParticipant(resource.data.participants)` fails when the document doesn't exist yet — `resource.data` is null and the rule errors. This means every poster will see a Firestore permission error in the console (harmless today, but a red flag in production).
-
-**Problem 2 — `participants` array contains real Firebase UIDs, but the tradesperson's client doesn't know the poster's Firebase UID.**
-Currently `OnMyWayControls` writes `participants: [job.homeownerFirebaseUid, firebaseUID]`. The frontend now reads `homeownerFirebaseUid` from `api.getJob()` which returns it via the existing `homeowner_firebase_uid` JOIN alias. This actually works already — but it means the tradesperson's first `setDoc` is a client-controlled write that sets the `participants` array. If a malicious client sends the wrong UID in that array, the poster can't read the tracking doc. Server-side creation eliminates this attack surface.
-
-**Fix — Write the initial `tracking/{jobId}` doc from the API on quote acceptance:**
-
-In `api/src/routes/quotes.ts` (or wherever `PATCH /api/v1/quotes/:id/accept` is handled), after the Postgres update, add:
-
-```ts
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-
-const adminDb = getFirestore();  // Admin SDK bypasses Firestore rules
-
-// Fetch Firebase UIDs for both parties from the accepted quote / job JOIN
-// (they're already in the query result as homeowner_firebase_uid and assigned_tradesperson_firebase_uid)
-
-await adminDb.collection('tracking').doc(jobId).set({
-  jobId,
-  tradespersonUID: tradesperson_firebase_uid,
-  posterUID:       homeowner_firebase_uid,
-  participants:    [homeowner_firebase_uid, tradesperson_firebase_uid],
-  lat:             null,
-  lng:             null,
-  status:          'accepted',
-  enRouteAt:       null,
-  arrivedAt:       null,
-  updatedAt:       FieldValue.serverTimestamp(),
-}, { merge: true });
-```
-
-**After this ships:** Change `OnMyWayControls.handleOnMyWay()` in `src/pages/JobDayOf.tsx` from `setDoc(..., { merge: true })` to `updateDoc(...)`. The doc will always exist by the time the tradesperson clicks "I'm On My Way". Also tighten the Firestore `tracking` create rule to `allow create: if false` — the Admin SDK bypasses rules so server creation still works; this just blocks any rogue client writes.
-
-**Current Firestore rule to tighten (in `firebase/firestore.rules`):**
-```
-// BEFORE (allows client create — replace once server-side creation ships):
-allow create: if isSignedIn()
-  && request.resource.data.tradespersonUID == request.auth.uid;
-
-// AFTER:
-allow create: if false;  // server creates via Admin SDK on quote acceptance
-```
-
-Kevin will make the `setDoc → updateDoc` swap and rule update in the same PR once Larry ships the API change. Just give Kevin a heads-up when it's deployed.
-
-**WS3E test backlog (Kevin will write once emulator is available):**
-- Firestore emulator integration: tradesperson can write lat/lng/status; cannot write tradespersonUID or participants
-- Firestore emulator integration: poster (participant) can read tracking doc, cannot write any field
-- Security rule test: changedKeys check blocks `{ tradespersonUID: 'attacker-uid' }` update
-- Security rule test: non-participant gets permission-denied on read
-
----
+Also add `charge.dispute.created` to the Stripe webhook endpoint's enabled events (Stripe Dashboard → Developers → Webhooks).
 
 ---
 
