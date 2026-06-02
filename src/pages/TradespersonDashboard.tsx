@@ -271,6 +271,50 @@ const TRADE_COLORS: Record<string, string> = {
   'Carpentry': '#FF9800', 'Masonry': '#607D8B',
 };
 
+function DonutChart({ slices, centerLabel, centerSub }: {
+  slices: { value: number; color: string }[];
+  centerLabel: string;
+  centerSub: string;
+}) {
+  const size = 160;
+  const cx = size / 2;
+  const cy = size / 2;
+  const R = 68;
+  const r = 40;
+  const total = slices.reduce((s, sl) => s + sl.value, 0);
+  if (total === 0) return null;
+
+  let angle = -Math.PI / 2;
+  const paths = slices.map((slice, i) => {
+    const sweep = (slice.value / total) * 2 * Math.PI;
+    const gap = slices.length > 1 ? 0.025 : 0;
+    const sa = angle + gap;
+    const ea = angle + sweep - gap;
+    angle += sweep;
+    const large = sweep - 2 * gap > Math.PI ? 1 : 0;
+    const d = [
+      `M ${cx + R * Math.cos(sa)} ${cy + R * Math.sin(sa)}`,
+      `A ${R} ${R} 0 ${large} 1 ${cx + R * Math.cos(ea)} ${cy + R * Math.sin(ea)}`,
+      `L ${cx + r * Math.cos(ea)} ${cy + r * Math.sin(ea)}`,
+      `A ${r} ${r} 0 ${large} 0 ${cx + r * Math.cos(sa)} ${cy + r * Math.sin(sa)}`,
+      'Z',
+    ].join(' ');
+    return <path key={i} d={d} fill={slice.color} />;
+  });
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+      {paths}
+      <text x={cx} y={cy - 5} textAnchor="middle" fontSize="24" fontWeight="800" fill="var(--text-primary)" fontFamily="inherit">
+        {centerLabel}
+      </text>
+      <text x={cx} y={cy + 13} textAnchor="middle" fontSize="10" fill="var(--text-secondary)" fontFamily="inherit">
+        {centerSub}
+      </text>
+    </svg>
+  );
+}
+
 function ServiceMixSection({ offeredServices, primaryTrades, completedJobs }: {
   offeredServices: string[];
   primaryTrades: string[];
@@ -304,66 +348,77 @@ function ServiceMixSection({ offeredServices, primaryTrades, completedJobs }: {
   const totalServices = byTrade.reduce((s, t) => s + t.services.length, 0);
   const totalJobs = completedJobs.length;
 
+  // Slices by job count when available, otherwise by service count (capability view)
+  const slices = byTrade.map(t => ({
+    value: totalJobs > 0 ? t.jobCount : t.services.length,
+    color: TRADE_COLORS[t.trade] || 'var(--primary)',
+  }));
+  const chartTotal = slices.reduce((s, sl) => s + sl.value, 0);
+
   return (
     <div>
       {sectionHeader('Service Mix', totalJobs > 0
         ? `${totalJobs} completed job${totalJobs !== 1 ? 's' : ''} across ${byTrade.length} trade${byTrade.length !== 1 ? 's' : ''}`
         : `${totalServices} services across ${byTrade.length} trade${byTrade.length !== 1 ? 's' : ''}`
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        {byTrade.map(({ trade, services, jobCount }) => {
-          const color = TRADE_COLORS[trade] || 'var(--primary)';
-          const pct = totalServices > 0 ? Math.round((services.length / totalServices) * 100) : 0;
-          return (
-            <Card key={trade} style={{ padding: 'var(--space-4)', borderLeft: `3px solid ${color}` }}>
-              {/* Trade header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <span style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{trade}</span>
-                  {totalJobs > 0 && (
-                    <span style={{ fontSize: '0.72rem', fontWeight: '700', color, background: `${color}18`, padding: '2px 7px', borderRadius: 'var(--radius-full)' }}>
-                      {jobCount} job{jobCount !== 1 ? 's' : ''}
-                    </span>
+      <Card style={{ padding: 'var(--space-4)' }}>
+
+        {/* Donut chart + legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+          <DonutChart
+            slices={slices}
+            centerLabel={String(totalJobs > 0 ? totalJobs : totalServices)}
+            centerSub={totalJobs > 0 ? 'jobs' : 'services'}
+          />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {byTrade.map(({ trade, services, jobCount }) => {
+              const color = TRADE_COLORS[trade] || 'var(--primary)';
+              const sliceValue = totalJobs > 0 ? jobCount : services.length;
+              const pct = chartTotal > 0 ? Math.round((sliceValue / chartTotal) * 100) : 0;
+              return (
+                <div key={trade} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-primary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {trade}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
+                    {totalJobs > 0 ? `${jobCount} job${jobCount !== 1 ? 's' : ''}` : `${services.length} svcs`}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: '700', color, flexShrink: 0, minWidth: '34px', textAlign: 'right' }}>
+                    {pct}%
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sub-service chips */}
+        <div style={{ marginTop: 'var(--space-4)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {byTrade.map(({ trade, services }) => {
+            const color = TRADE_COLORS[trade] || 'var(--primary)';
+            return services.map(svc => {
+              const svcJobs = completedJobs.filter(j =>
+                j.title?.toLowerCase().includes(svc.toLowerCase()) ||
+                j.subService?.toLowerCase() === svc.toLowerCase()
+              ).length;
+              return (
+                <div key={`${trade}-${svc}`} style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  background: 'var(--bg-base)', border: `1px solid ${color}33`,
+                  borderRadius: 'var(--radius-full)', padding: '3px 10px',
+                  fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '500',
+                }}>
+                  <span>{svc}</span>
+                  {totalJobs > 0 && svcJobs > 0 && (
+                    <span style={{ fontWeight: '700', color, fontSize: '0.7rem' }}>{svcJobs}</span>
                   )}
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  {services.length} service{services.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {/* Breadth bar */}
-              <div style={{ height: '5px', background: 'var(--border)', borderRadius: '3px', marginBottom: 'var(--space-3)', overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '3px', transition: 'width 0.4s ease' }} />
-              </div>
-
-              {/* Sub-service chips */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {services.map(svc => {
-                  const svcJobs = completedJobs.filter(j =>
-                    j.title?.toLowerCase().includes(svc.toLowerCase()) ||
-                    j.subService?.toLowerCase() === svc.toLowerCase()
-                  ).length;
-                  return (
-                    <div key={svc} style={{
-                      display: 'flex', alignItems: 'center', gap: '4px',
-                      background: 'var(--bg-base)', border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-full)', padding: '3px 10px',
-                      fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '500',
-                    }}>
-                      <span>{svc}</span>
-                      {totalJobs > 0 && (
-                        <span style={{ fontWeight: '700', color: svcJobs > 0 ? color : 'var(--text-tertiary)', fontSize: '0.7rem' }}>
-                          {svcJobs}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+              );
+            });
+          })}
+        </div>
+      </Card>
     </div>
   );
 }
