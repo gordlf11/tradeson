@@ -1,3 +1,7 @@
+// Internal routes — not behind Firebase auth. Each is gated by the shared
+// `x-internal-secret` header and invoked by Cloud Scheduler / webhooks only:
+//   POST /release-expired-holds        — every 30 min, captures expired holds
+//   POST /populate-flagged-accounts    — nightly, flags expired docs + poor ratings
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import pool from '../config/db';
