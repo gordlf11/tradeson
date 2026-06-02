@@ -183,8 +183,8 @@ service cloud.firestore {
 
       allow list: if isAdmin();
 
-      allow create: if isSignedIn()
-        && request.resource.data.tradespersonUID == request.auth.uid;
+      // Server creates via Admin SDK on quote acceptance — block all client creates.
+      allow create: if false;
 
       allow update: if isAdmin()
         || (isSignedIn()

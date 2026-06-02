@@ -5,7 +5,7 @@ import {
   PlayCircle, DollarSign, Package, Calendar,
   Bell, Camera, XCircle, Navigation, CheckCircle, WifiOff,
 } from 'lucide-react';
-import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -437,14 +437,12 @@ export function GeoPermissionBanner({ permission }: { permission: GeoPermission 
 
 interface OnMyWayControlsProps {
   jobId: string;
-  tradespersonUID: string;
-  participants: string[];
   isScheduledToday: boolean;
 }
 
 type TrackingState = 'idle' | 'en_route' | 'arrived';
 
-function OnMyWayControls({ jobId, tradespersonUID, participants, isScheduledToday }: OnMyWayControlsProps) {
+function OnMyWayControls({ jobId, isScheduledToday }: OnMyWayControlsProps) {
   const [trackingState, setTrackingState] = useState<TrackingState>('idle');
   const [permission, setPermission] = useState<GeoPermission>('prompt');
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -481,18 +479,14 @@ function OnMyWayControls({ jobId, tradespersonUID, participants, isScheduledToda
         const { latitude: lat, longitude: lng } = pos.coords;
         setAccuracy(pos.coords.accuracy);
 
-        // Write tracking doc to Firestore
-        await setDoc(doc(db, 'tracking', jobId), {
-          jobId,
-          tradespersonUID,
-          participants,
+        // Doc was seeded server-side on quote acceptance — only update mutable fields.
+        await updateDoc(doc(db, 'tracking', jobId), {
           lat,
           lng,
           status: 'en_route',
           enRouteAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          arrivedAt: null,
-        }, { merge: true });
+        });
 
         setTrackingState('en_route');
 
@@ -602,7 +596,7 @@ function OnMyWayControls({ jobId, tradespersonUID, participants, isScheduledToda
 
 type TradeState = 'waiting' | 'started' | 'adjusting' | 'adjustment_submitted' | 'adjustment_accepted' | 'adjustment_denied';
 
-function TradespersonView({ job, firebaseUID }: { job: JobData; firebaseUID: string }) {
+function TradespersonView({ job }: { job: JobData }) {
   const navigate = useNavigate();
   const countdown = useCountdown(job.scheduledAt);
   const isScheduledToday = job.scheduledAt.toDateString() === new Date().toDateString();
@@ -672,8 +666,6 @@ function TradespersonView({ job, firebaseUID }: { job: JobData; firebaseUID: str
           {state === 'waiting' && (
             <OnMyWayControls
               jobId={job.id}
-              tradespersonUID={firebaseUID}
-              participants={[job.homeownerFirebaseUid, firebaseUID]}
               isScheduledToday={isScheduledToday}
             />
           )}
@@ -856,7 +848,7 @@ function TradespersonView({ job, firebaseUID }: { job: JobData; firebaseUID: str
 
 export default function JobDayOf() {
   const { jobId } = useParams<{ jobId: string }>();
-  const { userProfile, firebaseUser } = useAuth();
+  const { userProfile } = useAuth();
   const role = userProfile?.role ?? localStorage.getItem('userRole') ?? 'homeowner';
   const isDemo = localStorage.getItem('demoMode') === 'true';
   const [job, setJob] = useState<JobData | null>(isDemo ? MOCK_JOB : null);
@@ -906,8 +898,7 @@ export default function JobDayOf() {
     );
   }
 
-  const firebaseUID = firebaseUser?.uid ?? '';
   return isTradeRole(role)
-    ? <TradespersonView job={job} firebaseUID={firebaseUID} />
+    ? <TradespersonView job={job} />
     : <JobPosterView job={job} />;
 }
