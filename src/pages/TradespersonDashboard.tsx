@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import MessagingModal from '../components/MessagingModal';
 import TrustedBadgePill from '../components/TrustedBadgePill';
 import { useAuth } from '../contexts/AuthContext';
+import { SkeletonJobCard, ErrorState, EmptyState } from '../components/ui/Skeleton';
 import api from '../services/api';
 
 interface ActiveJob {
@@ -448,6 +449,7 @@ export default function TradespersonDashboard() {
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const [refetchKey, setRefetchKey] = useState(0);
   const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(true);
   const [earnings, setEarnings] = useState({ this_month: 0, pending_payout: 0, lifetime: 0, avg_per_job: 0, jobs_completed: 0 });
@@ -507,7 +509,7 @@ export default function TradespersonDashboard() {
       .finally(() => { if (!cancelled) setQuotesLoading(false); });
 
     return () => { cancelled = true; };
-  }, [userProfile]);
+  }, [userProfile, refetchKey]);
 
   if (!userProfile && localStorage.getItem('demoMode') !== 'true') {
     return (
@@ -651,19 +653,17 @@ export default function TradespersonDashboard() {
           <div>
             {sectionHeader('Active & Upcoming Jobs', `${activeJobs.length} assignments`)}
             {jobsLoading ? (
-              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading jobs…</p>
-              </Card>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {[1,2].map(i => <SkeletonJobCard key={i} />)}
+              </div>
             ) : jobsError ? (
-              <Card style={{ padding: 'var(--space-4)', borderLeft: '3px solid var(--danger)' }}>
-                <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: 0, fontWeight: 600 }}>Could not load jobs</p>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', margin: '4px 0 0' }}>{jobsError}</p>
-              </Card>
+              <ErrorState message={jobsError} onRetry={() => setRefetchKey(k => k + 1)} />
             ) : activeJobs.length === 0 ? (
-              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                <Briefcase size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No active jobs yet. Browse the job board to submit quotes.</p>
-              </Card>
+              <EmptyState
+                icon={<Briefcase size={36} />}
+                title="No active jobs yet"
+                body="Browse the job board to find jobs and submit quotes."
+              />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                 {activeJobs.map(job => {

@@ -1,46 +1,42 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Briefcase, Calendar, Plus, LayoutDashboard, Home, Building2, Users, MessageCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { subscribeToUnreadCount } from './services/messagingService';
+import ErrorBoundary from './components/ErrorBoundary';
+import DemoNavigator from './components/DemoNavigator';
 
-// Auth
+// Auth — kept eager so the login screen has zero delay
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
-
-// Onboarding
-import RoleSelection from './pages/RoleSelection';
-import HomeownerOnboarding from './pages/HomeownerOnboarding';
-import PropertyManagerOnboarding from './pages/PropertyManagerOnboarding';
-import RealtorOnboarding from './pages/RealtorOnboarding';
-import LicensedTradespersonOnboarding from './pages/LicensedTradespersonOnboarding';
-import UnlicensedTradespersonOnboarding from './pages/UnlicensedTradespersonOnboarding';
-import TrustedBadge from './pages/onboarding/TrustedBadge';
-
-// Dashboards
-import TradespersonDashboard from './pages/TradespersonDashboard';
-import CustomerDashboard from './pages/CustomerDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import RealtorDashboard from './pages/RealtorDashboard';
-
-// Main App
-import JobCreation from './pages/JobCreation';
-import JobBoard from './pages/JobBoardEnhanced';
-import JobExecution from './pages/JobExecution';
-import JobCompletion from './pages/JobCompletion';
-import Scheduling from './pages/Scheduling';
-import Settings from './pages/Settings';
-import ProfileSettings from './pages/ProfileSettings';
-import LocationSettings from './pages/LocationSettings';
-import PaymentSettings from './pages/PaymentSettings';
-import PrivacySettings from './pages/PrivacySettings';
-import InsuranceUpload from './pages/InsuranceUpload';
-import JobDayOf from './pages/JobDayOf';
-import ErrorBoundary from './components/ErrorBoundary';
 import Demo from './pages/Demo';
-import DemoNavigator from './components/DemoNavigator';
-import ContactSupport from './pages/ContactSupport';
+
+// All other pages — lazy loaded for code splitting
+const RoleSelection                      = lazy(() => import('./pages/RoleSelection'));
+const HomeownerOnboarding                = lazy(() => import('./pages/HomeownerOnboarding'));
+const PropertyManagerOnboarding          = lazy(() => import('./pages/PropertyManagerOnboarding'));
+const RealtorOnboarding                  = lazy(() => import('./pages/RealtorOnboarding'));
+const LicensedTradespersonOnboarding     = lazy(() => import('./pages/LicensedTradespersonOnboarding'));
+const UnlicensedTradespersonOnboarding   = lazy(() => import('./pages/UnlicensedTradespersonOnboarding'));
+const TrustedBadge                       = lazy(() => import('./pages/onboarding/TrustedBadge'));
+const TradespersonDashboard              = lazy(() => import('./pages/TradespersonDashboard'));
+const CustomerDashboard                  = lazy(() => import('./pages/CustomerDashboard'));
+const AdminDashboard                     = lazy(() => import('./pages/AdminDashboard'));
+const RealtorDashboard                   = lazy(() => import('./pages/RealtorDashboard'));
+const JobCreation                        = lazy(() => import('./pages/JobCreation'));
+const JobBoard                           = lazy(() => import('./pages/JobBoardEnhanced'));
+const JobExecution                       = lazy(() => import('./pages/JobExecution'));
+const JobCompletion                      = lazy(() => import('./pages/JobCompletion'));
+const Scheduling                         = lazy(() => import('./pages/Scheduling'));
+const Settings                           = lazy(() => import('./pages/Settings'));
+const ProfileSettings                    = lazy(() => import('./pages/ProfileSettings'));
+const LocationSettings                   = lazy(() => import('./pages/LocationSettings'));
+const PaymentSettings                    = lazy(() => import('./pages/PaymentSettings'));
+const PrivacySettings                    = lazy(() => import('./pages/PrivacySettings'));
+const InsuranceUpload                    = lazy(() => import('./pages/InsuranceUpload'));
+const JobDayOf                           = lazy(() => import('./pages/JobDayOf'));
+const ContactSupport                     = lazy(() => import('./pages/ContactSupport'));
 
 // ── Referral link handler ─────────────────────────────────────────────────
 // Saves ?ref=CODE to localStorage then bounces to /signup.
@@ -277,9 +273,15 @@ const RequireAuth = ({ children }: { children: React.ReactNode }) => {
 
 // ── App ───────────────────────────────────────────────────────────────────
 
+const PageFallback = () => (
+  <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+    <div className="loader" style={{ width: 36, height: 36 }} />
+  </div>
+);
+
 function AppRoutes() {
   return (
-    <>
+    <Suspense fallback={<PageFallback />}>
       <Routes>
         {/* Demo mode — public, activates demo and hard-redirects */}
         <Route path="/demo" element={<Demo />} />
@@ -327,7 +329,7 @@ function AppRoutes() {
       </Routes>
       <BottomNav />
       {localStorage.getItem('demoMode') === 'true' && <DemoNavigator />}
-    </>
+    </Suspense>
   );
 }
 

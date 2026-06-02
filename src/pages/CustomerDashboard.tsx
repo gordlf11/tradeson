@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import MessagingModal from '../components/MessagingModal';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import { SkeletonMetricCard, ErrorState, EmptyState } from '../components/ui/Skeleton';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -198,6 +199,7 @@ export default function CustomerDashboard() {
   const [jobs, setJobs] = useState<ActiveJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const [refetchKey, setRefetchKey] = useState(0);
 
   const [messagingJob, setMessagingJob] = useState<ActiveJob | null>(null);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
@@ -243,7 +245,7 @@ export default function CustomerDashboard() {
       .finally(() => { if (!cancelled) setPaymentsLoading(false); });
 
     return () => { cancelled = true; };
-  }, [userProfile]);
+  }, [userProfile, refetchKey]);
 
   const activeJobs = jobs.filter(j => j.status !== 'completed');
 
@@ -266,8 +268,8 @@ export default function CustomerDashboard() {
     return (
       <>
         <TopNav title="Dashboard" />
-        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading your dashboard…</div>
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          {[1,2,3].map(i => <SkeletonMetricCard key={i} />)}
         </div>
       </>
     );
@@ -313,15 +315,12 @@ export default function CustomerDashboard() {
 
           {/* Jobs loading / error banner */}
           {jobsLoading && (
-            <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading your jobs…</p>
-            </Card>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              {[1,2].map(i => <SkeletonMetricCard key={i} />)}
+            </div>
           )}
           {!jobsLoading && jobsError && (
-            <Card style={{ padding: 'var(--space-4)', borderLeft: '3px solid var(--danger)' }}>
-              <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: 0, fontWeight: 600 }}>Could not load jobs</p>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', margin: '4px 0 0' }}>{jobsError}</p>
-            </Card>
+            <ErrorState message={jobsError} onRetry={() => setRefetchKey(k => k + 1)} />
           )}
 
           {/* 1. Accepted Jobs */}
@@ -427,11 +426,14 @@ export default function CustomerDashboard() {
           {!jobsLoading && !jobsError && acceptedJobs.length === 0 && pendingJobs.length === 0 && quotesInJobs.length === 0 && (
             <div>
               {sectionHeader('Your Jobs', undefined, { label: '+ New Job', onClick: () => navigate('/job-creation') })}
-              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                <Home size={32} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: '0 0 var(--space-4)' }}>No active jobs. Post your first service request.</p>
-                <Button variant="primary" onClick={() => navigate('/job-creation')} icon={<Plus size={16} />}>Create a Job</Button>
-              </Card>
+              <EmptyState
+                icon={<Home size={36} />}
+                title="No active jobs"
+                body="Post your first service request to get quotes from verified tradespeople."
+              />
+              <div style={{ marginTop: 'var(--space-3)' }}>
+                <Button variant="primary" fullWidth onClick={() => navigate('/job-creation')} icon={<Plus size={16} />}>Create a Job</Button>
+              </div>
             </div>
           )}
 

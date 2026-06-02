@@ -1,5 +1,28 @@
 # 🤖 Claude Development Assistant Configuration
 
+---
+
+## 🔴 LARRY — ACTION REQUIRED (read this first every session)
+
+> Last updated: 2026-06-01 by Kevin.
+
+The following items are **open and blocking launch**. Complete them in priority order this session:
+
+| # | Priority | Item |
+|---|---|---|
+| 1 | 🔴 CRITICAL | **Wire data layer** — JobBoard, CustomerDashboard, TradespersonDashboard, QuoteSubmissionModal, QuoteAcceptance, JobCreation all still on mock data. Replace with `api.listJobs()`, `api.submitQuote()`, `api.acceptQuote()`, `api.createJob()` |
+| 2 | 🔴 CRITICAL | **FCM notifications** — send push on: new quote, accepted bid, new message, schedule change, compliance decision |
+| 3 | 🟠 HIGH | **Firebase Storage security rules** — users write only to their own path; compliance docs admin-readable only. Deploy with `firebase deploy --only storage` |
+| 4 | 🟠 HIGH | **Postgres indexes** — `jobs(status,trade_id,created_at desc)`, `jobs(customer_id,status,created_at desc)`, `jobs(accepted_tradesperson_id,status,created_at desc)`, `quotes(job_id,total_price asc)`, `quotes(tradesperson_id,created_at desc)`, `reviews(tradesperson_id,created_at desc)` |
+| 5 | 🟠 HIGH | **Payment history** — load real transaction records into CustomerDashboard Payment History section via `GET /api/v1/payments/me` |
+| 6 | 🟠 HIGH | **Item 6 deploy** — redeploy `tradeson-api` to Cloud Run + create nightly Cloud Scheduler job (commands in priority list section below) + add `charge.dispute.created` to Stripe webhook events |
+| 7 | 🟡 MEDIUM | **BigQuery pipelines** — enable Firestore→BQ Extension on `threads`+`messages`; enable Datastream PG→BQ on Cloud SQL |
+| 8 | 🟡 MEDIUM | **Firestore query pagination** — `limit(20)` + "Load More" on JobBoard and dashboard lists |
+
+> **Note:** AI Job Analysis (Vertex AI / Gemini) has been **removed as a feature**. Do not implement it. Remove any Vertex AI wiring you encounter.
+
+---
+
 ## Welcome to the TradesOn Platform
 
 This file configures your Claude instance to work on the **TradesOn** platform — a two-sided marketplace connecting homeowners, realtors, and property managers with verified tradespeople for home repairs and maintenance.
@@ -707,10 +730,8 @@ This section tracks every item required to take TradesOn from demo to a producti
 
 ### 🟡 IMPORTANT — Needed Before 10K Users
 
-#### AI Integration (Vertex AI / Gemini)
-- [ ] **Job analysis endpoint** — Cloud Function or Cloud Run endpoint: POST `{title, description, category, severity}` → `{summary, estimatedCost, estimatedHours}` · *Larry*
-- [ ] **Wire AI summary in JobCreation** — call endpoint in step 3; show real Gemini output instead of hardcoded mock · *Kevin/Larry*
-- [ ] **AI cost guardrails** — cache analysis per job (don't re-call on page refresh); store result in Firestore · *Larry*
+#### AI Integration
+> **Removed as a feature** — Vertex AI / Gemini job analysis will not be built. Do not implement.
 
 #### BigQuery Analytics (future — backwards-compatible, no app changes required)
 - [ ] **Enable Firestore → BigQuery Extension** — install `firebase/firestore-bigquery-export` on `threads` + `messages` collections; no code change · *Larry*
@@ -857,10 +878,7 @@ This section tracks every item required to take TradesOn from demo to a producti
    - Wire insurance doc upload in InsuranceUpload page
    - Wire government ID upload in tradesperson onboarding
 
-5. **Vertex AI Job Analysis** (Larry)
-   - Replace mocked AI summary in JobCreation step 3 with real Gemini Flash call
-   - Input: job title + description + category + severity
-   - Output: summary, estimated cost range, estimated hours
+5. ~~**Vertex AI Job Analysis**~~ — **Removed as a feature.**
 
 6. **BigQuery pipelines** (Larry — can be enabled any time without app changes)
    - Firestore→BQ Extension on `threads` + `messages`

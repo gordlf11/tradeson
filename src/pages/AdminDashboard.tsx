@@ -1119,6 +1119,50 @@ function SupportSection() {
 
 // ── Main Admin Dashboard ───────────────────────────────────────────────────
 
+const LARRY_ITEMS = [
+  { priority: '🔴', label: 'Wire data layer — JobBoard, Dashboards, Quote flow, JobCreation (all on mock data)' },
+  { priority: '🔴', label: 'FCM notifications — new quote, accepted bid, new message, schedule change, compliance' },
+  { priority: '🟠', label: 'Firebase Storage security rules (deploy --only storage)' },
+  { priority: '🟠', label: 'Postgres indexes on jobs, quotes, reviews tables' },
+  { priority: '🟠', label: 'Payment history — wire GET /api/v1/payments/me into CustomerDashboard' },
+  { priority: '🟠', label: 'Item 6 deploy — redeploy tradeson-api + create nightly Cloud Scheduler job' },
+  { priority: '🟡', label: 'BigQuery pipelines — Firestore→BQ Extension + Datastream PG→BQ' },
+  { priority: '🟡', label: 'Firestore query pagination — limit(20) + Load More on JobBoard + dashboards' },
+];
+
+function LarrySprint() {
+  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem('larryBannerDismissed') === '1');
+  if (dismissed) return null;
+  return (
+    <div style={{
+      margin: 'var(--space-4)', background: 'rgba(255,200,0,0.08)',
+      border: '1px solid rgba(255,200,0,0.35)', borderRadius: 'var(--radius-md)',
+      padding: 'var(--space-4)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
+        <div style={{ fontWeight: '800', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+          ⚡ Larry — Open launch items
+        </div>
+        <button
+          onClick={() => { sessionStorage.setItem('larryBannerDismissed', '1'); setDismissed(true); }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontFamily: 'inherit', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 8px' }}
+        >✕</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {LARRY_ITEMS.map((item, i) => (
+          <div key={i} style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', gap: '8px' }}>
+            <span style={{ flexShrink: 0 }}>{item.priority}</span>
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 'var(--space-3)', fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+        Full detail + commands in CLAUDE.md. AI Job Analysis has been removed as a feature.
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
@@ -1259,6 +1303,9 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Larry dev-priority banner — visible to admin only, dismissible */}
+      <LarrySprint />
 
       {/* Section Content */}
       <div style={{ padding: 'var(--space-4)' }}>

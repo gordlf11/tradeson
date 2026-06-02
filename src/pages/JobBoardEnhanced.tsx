@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter, RefreshCw } from 'lucide-react';
+import { MapPin, Clock, Camera, DollarSign, Users, Star, X, CheckCircle, ChevronDown, ChevronUp, SortAsc, Filter, RefreshCw, Briefcase } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { TRADES } from '../config/tradeTaxonomy';
 import TrustedBadgePill from '../components/TrustedBadgePill';
+import { SkeletonJobCard, ErrorState, EmptyState } from '../components/ui/Skeleton';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1325,24 +1326,13 @@ export default function JobBoardEnhanced() {
           {/* Job Cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {jobsLoading && (
-              <Card style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-                <Clock size={40} style={{ margin: '0 auto 1rem', opacity: 0.25 }} />
-                <h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>Loading jobs…</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  Fetching the latest from the board.
-                </p>
-              </Card>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {[1,2,3].map(i => <SkeletonJobCard key={i} />)}
+              </div>
             )}
 
             {!jobsLoading && jobsError && (
-              <Card style={{ padding: 'var(--space-4)', borderLeft: '3px solid var(--danger)' }}>
-                <p style={{ color: 'var(--danger)', fontSize: '0.9rem', margin: 0, fontWeight: 700 }}>
-                  Could not load jobs
-                </p>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '4px 0 0' }}>
-                  {jobsError}
-                </p>
-              </Card>
+              <ErrorState message={jobsError} onRetry={() => setRefetchKey(k => k + 1)} />
             )}
 
             {!jobsLoading && !jobsError && filteredJobs.map(job => {
@@ -1536,13 +1526,11 @@ export default function JobBoardEnhanced() {
             })}
 
             {!jobsLoading && !jobsError && filteredJobs.length === 0 && (
-              <Card style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-                <Clock size={40} style={{ margin: '0 auto 1rem', opacity: 0.25 }} />
-                <h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>No Jobs Found</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  {isTradeUser ? 'Try adjusting your distance filter or check back soon.' : 'Post your first job to get started.'}
-                </p>
-              </Card>
+              <EmptyState
+                icon={<Briefcase size={40} />}
+                title="No Jobs Found"
+                body={isTradeUser ? 'Try adjusting your distance filter or check back soon.' : 'Post your first job to get started.'}
+              />
             )}
           </div>
         </div>
