@@ -10,7 +10,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { MapPin, Navigation, Clock, Phone, MessageCircle, AlertTriangle } from 'lucide-react';
