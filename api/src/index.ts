@@ -82,6 +82,21 @@ async function runMigrations() {
     console.warn('Migrations skipped:', err.message);
   }
 
+  // Performance indexes (mirror of api/src/schema/indexes.sql). Composite indexes
+  // for the hot job-board / dashboard / quote-comparison queries. Idempotent
+  // (IF NOT EXISTS); applied on boot so prod converges without a manual psql run.
+  try {
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_status_trade_created  ON jobs(status, category, created_at DESC);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_customer_status        ON jobs(homeowner_user_id, status, created_at DESC);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_tradesperson_status    ON jobs(assigned_tradesperson_id, status, created_at DESC);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotes_job_price            ON quotes(job_id, price ASC);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotes_trade_created        ON quotes(tradesperson_user_id, created_at DESC);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_created    ON reviews(reviewee_id, created_at DESC);`);
+    console.log('Migrations: performance indexes OK');
+  } catch (err: any) {
+    console.warn('Performance index migration skipped:', err.message);
+  }
+
   // Admin / compliance migration — additive, idempotent.
   // Mirror of the block at the bottom of api/src/schema/migration.sql so live
   // Cloud Run boots converge to the same schema without a manual psql run.
