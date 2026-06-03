@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../config/db';
 import { AuthenticatedRequest, requireAuth, requireAdmin } from '../middleware/auth';
 import { logAuditEvent } from '../middleware/audit';
+import { publish } from '../services/pubsub';
 
 const router = Router();
 
@@ -125,6 +126,34 @@ router.post('/compliance/:id/decision', async (req: AuthenticatedRequest, res) =
       { admin_note, decision },
       req.ip
     );
+
+    // Notify the tradesperson of the outcome. targetUserId is their Firebase
+    // UID (fan-out keys on Firestore users/{uid}.fcmToken).
+    try {
+      const uidRow = await pool.query(
+        `SELECT u.firebase_uid
+         FROM users u JOIN tradesperson_profiles tp ON tp.user_id = u.id
+         WHERE tp.id = $1`,
+        [id]
+      );
+      const firebaseUid = uidRow.rows[0]?.firebase_uid;
+      if (firebaseUid) {
+        const copy = decision === 'approved'
+          ? { title: 'Verified ✅', body: 'Your compliance documents were approved — you can now receive jobs.' }
+          : decision === 'rejected'
+          ? { title: 'Compliance update', body: 'Your compliance review needs attention. Please review your account.' }
+          : { title: 'More documents needed', body: admin_note || 'Please upload additional compliance documents to finish verification.' };
+        void publish({
+          event: 'compliance.decided',
+          targetUserId: firebaseUid,
+          title: copy.title,
+          body: copy.body,
+          data: { decision: String(decision), tradesperson_profile_id: id, type: 'compliance_decided' },
+        });
+      }
+    } catch (e: any) {
+      console.warn('compliance.decided publish skipped:', e?.message ?? e);
+    }
 
     res.json({ id, decision, admin_note });
   } catch (err) {

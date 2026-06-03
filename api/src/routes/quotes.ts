@@ -3,7 +3,7 @@ import pool from '../config/db';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { logAuditEvent } from '../middleware/audit';
 import { publish } from '../services/pubsub';
-import { messaging, firestore } from '../services/firebase';
+import { firestore } from '../services/firebase';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
@@ -111,51 +111,39 @@ router.post('/:jobId/quotes', requireAuth, async (req: AuthenticatedRequest, res
       [jobId]
     );
 
-    // Send FCM notification to job owner
+    // Notify the job owner. targetUserId MUST be the recipient's Firebase UID —
+    // the fan-out function looks up users/{uid}.fcmToken in Firestore (keyed by
+    // Firebase UID, not the Postgres user id).
     const jobResult = await pool.query(
-      `SELECT j.homeowner_user_id, u.full_name as tradesperson_name
-       FROM jobs j, users u WHERE j.id = $1 AND u.id = $2`,
+      `SELECT j.homeowner_user_id,
+              ho.firebase_uid AS homeowner_firebase_uid,
+              u.full_name     AS tradesperson_name
+       FROM jobs j
+       JOIN users ho ON ho.id = j.homeowner_user_id
+       JOIN users u  ON u.id  = $2
+       WHERE j.id = $1`,
       [jobId, id]
     );
     if (jobResult.rows.length > 0) {
-      const { homeowner_user_id, tradesperson_name } = jobResult.rows[0];
+      const { homeowner_user_id, homeowner_firebase_uid, tradesperson_name } = jobResult.rows[0];
+      const body = `${tradesperson_name} submitted a quote for $${price}`;
 
-      // Pub/Sub fan-out: Cloud Function `fcm-fanout` consumes this and sends the push.
-      void publish({
-        event: 'quote.submitted',
-        targetUserId: homeowner_user_id,
-        title: 'New Quote Received',
-        body: `${tradesperson_name} submitted a quote for $${price}`,
-        data: { job_id: jobId, quote_id: String(quote.id), type: 'quote_received' },
-      });
-
-      // TODO(K-D): remove this inline FCM block once the fan-out function is verified
-      // live in production. The Pub/Sub event above will deliver the same push.
-      const tokenResult = await pool.query(
-        'SELECT token FROM device_tokens WHERE user_id = $1 AND is_active = true',
-        [homeowner_user_id]
-      );
-      for (const { token } of tokenResult.rows) {
-        try {
-          await messaging.send({
-            token,
-            notification: {
-              title: 'New Quote Received',
-              body: `${tradesperson_name} submitted a quote for $${price}`,
-            },
-            data: { job_id: jobId, quote_id: quote.id, type: 'quote_received' },
-          });
-        } catch (fcmErr) {
-          console.error('FCM send error:', fcmErr);
-        }
+      // Pub/Sub fan-out → `fcm-fanout` sends the push.
+      if (homeowner_firebase_uid) {
+        void publish({
+          event: 'quote.submitted',
+          targetUserId: homeowner_firebase_uid,
+          title: 'New Quote Received',
+          body,
+          data: { job_id: jobId, quote_id: String(quote.id), type: 'quote_received' },
+        });
       }
 
-      // Save notification record
+      // In-app notification history (keyed by Postgres user id).
       await pool.query(
         `INSERT INTO notifications (user_id, type, title, body, data, channel)
          VALUES ($1, 'quote_received', 'New Quote Received', $2, $3, 'push')`,
-        [homeowner_user_id, `${tradesperson_name} submitted a quote for $${price}`,
-         JSON.stringify({ job_id: jobId, quote_id: quote.id })]
+        [homeowner_user_id, body, JSON.stringify({ job_id: jobId, quote_id: quote.id })]
       );
     }
 
@@ -206,6 +194,9 @@ router.post('/:id/accept', requireAuth, async (req: AuthenticatedRequest, res) =
     );
 
     const customerName = req.user!.full_name;
+    // Resolved from the same JOIN that seeds the tracking doc, then reused as
+    // the FCM target (Firebase UID, not the Postgres user id).
+    let tradespersonFirebaseUid: string | null = null;
 
     // Create the tracking/{jobId} Firestore doc server-side (Admin SDK
     // bypasses security rules) so the poster's onSnapshot has a doc to
@@ -225,6 +216,7 @@ router.post('/:id/accept', requireAuth, async (req: AuthenticatedRequest, res) =
       );
       if (uidResult.rows.length > 0) {
         const { homeowner_firebase_uid, tradesperson_firebase_uid } = uidResult.rows[0];
+        tradespersonFirebaseUid = tradesperson_firebase_uid;
         await firestore.collection('tracking').doc(String(quote.job_id)).set({
           jobId: String(quote.job_id),
           tradespersonUID: tradesperson_firebase_uid,
@@ -246,40 +238,25 @@ router.post('/:id/accept', requireAuth, async (req: AuthenticatedRequest, res) =
       console.error('Failed to seed tracking doc:', err);
     }
 
-    // Pub/Sub fan-out: Cloud Function `fcm-fanout` consumes this and sends the push.
-    void publish({
-      event: 'quote.accepted',
-      targetUserId: quote.tradesperson_user_id,
-      title: 'Bid Accepted!',
-      body: `${customerName} accepted your quote for $${quote.price}`,
-      data: { job_id: String(quote.job_id), quote_id: String(quoteId), type: 'quote_accepted' },
-    });
+    const acceptBody = `${customerName} accepted your quote for $${quote.price}`;
 
-    // TODO(K-D): remove this inline FCM block once the fan-out function is verified
-    // live in production. The Pub/Sub event above will deliver the same push.
-    const tokenResult = await pool.query(
-      'SELECT token FROM device_tokens WHERE user_id = $1 AND is_active = true',
-      [quote.tradesperson_user_id]
-    );
-    for (const { token } of tokenResult.rows) {
-      try {
-        await messaging.send({
-          token,
-          notification: {
-            title: 'Bid Accepted!',
-            body: `${customerName} accepted your quote for $${quote.price}`,
-          },
-          data: { job_id: quote.job_id, quote_id: quoteId, type: 'quote_accepted' },
-        });
-      } catch (fcmErr) {
-        console.error('FCM send error:', fcmErr);
-      }
+    // Pub/Sub fan-out → `fcm-fanout` sends the push to the tradesperson.
+    // targetUserId is their Firebase UID (resolved above with the tracking JOIN).
+    if (tradespersonFirebaseUid) {
+      void publish({
+        event: 'quote.accepted',
+        targetUserId: tradespersonFirebaseUid,
+        title: 'Bid Accepted!',
+        body: acceptBody,
+        data: { job_id: String(quote.job_id), quote_id: String(quoteId), type: 'quote_accepted' },
+      });
     }
 
+    // In-app notification history (keyed by Postgres user id).
     await pool.query(
       `INSERT INTO notifications (user_id, type, title, body, data, channel)
        VALUES ($1, 'quote_accepted', 'Bid Accepted!', $2, $3, 'push')`,
-      [quote.tradesperson_user_id, `${customerName} accepted your quote for $${quote.price}`,
+      [quote.tradesperson_user_id, acceptBody,
        JSON.stringify({ job_id: quote.job_id, quote_id: quoteId })]
     );
 

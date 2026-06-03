@@ -66,9 +66,11 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
     // Fan-out: confirm to the customer their job is live and waiting for quotes.
     // (Pushing the new job to ELIGIBLE TRADESPEOPLE is a separate matcher concern —
     // PR 6 will own that pull-model recommendation surface.)
+    // targetUserId is the creator's Firebase UID (fan-out keys on Firestore
+    // users/{uid}.fcmToken, not the Postgres user id).
     void publish({
       event: 'job.created',
-      targetUserId: id,
+      targetUserId: req.user!.firebase_uid,
       title: 'Your job is live',
       body: `${title.slice(0, 80)} — waiting for quotes from local pros.`,
       data: { jobId: String(job.id), category: String(category) },
@@ -241,7 +243,9 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
 
   try {
     const jobResult = await pool.query(
-      'SELECT * FROM jobs WHERE id = $1 AND deleted_at IS NULL',
+      `SELECT j.*, ho.firebase_uid AS homeowner_firebase_uid
+       FROM jobs j JOIN users ho ON ho.id = j.homeowner_user_id
+       WHERE j.id = $1 AND j.deleted_at IS NULL`,
       [jobId]
     );
     if (jobResult.rows.length === 0) { res.status(404).json({ error: 'Job not found' }); return; }
@@ -262,15 +266,17 @@ router.patch('/:id/status', requireAuth, async (req: AuthenticatedRequest, res) 
 
     await logAuditEvent(userId!, 'job.status_changed', 'jobs', jobId, { from: job.status, to: status }, req.ip);
 
-    // Fan-out: notify the customer that the tradesperson moved the job forward
-    // (or vice versa). The fan-out function looks up the recipient by job role.
-    void publish({
-      event: 'job.status_changed',
-      targetUserId: job.homeowner_user_id,
-      title: 'Job status updated',
-      body: `${job.title?.slice(0, 70) ?? 'Your job'} is now ${status}`,
-      data: { jobId: String(jobId), from: String(job.status), to: String(status) },
-    });
+    // Fan-out: notify the customer their job moved forward. targetUserId is the
+    // homeowner's Firebase UID (fan-out keys on Firestore users/{uid}.fcmToken).
+    if (job.homeowner_firebase_uid) {
+      void publish({
+        event: 'job.status_changed',
+        targetUserId: job.homeowner_firebase_uid,
+        title: 'Job status updated',
+        body: `${job.title?.slice(0, 70) ?? 'Your job'} is now ${status}`,
+        data: { jobId: String(jobId), from: String(job.status), to: String(status) },
+      });
+    }
 
     // When tradesperson marks done and there is NO pre-auth hold (legacy jobs or
     // tradesperson without Stripe Connect), fall back to immediate transfer on 'completed'.
