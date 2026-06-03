@@ -1,0 +1,59 @@
+rules_version = '2';
+
+// TradesOn Firebase Storage security rules.
+// Mirrors the auth model in firestore.rules: admin is carried on the
+// Firebase ID token custom claim (`request.auth.token.admin == true`).
+//
+// Storage layout (see CLAUDE.md "File Uploads"):
+//   users/{userId}/...          avatars / profile photos
+//   compliance/{userId}/...     insurance certificates + government ID (SENSITIVE)
+//   jobs/{jobId}/photos/...     job request photos
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    // 15 MB ceiling on any upload.
+    function withinSizeLimit() {
+      return request.resource.size < 15 * 1024 * 1024;
+    }
+
+    // ── Avatars / profile photos ───────────────────────────────────────────
+    // Shown on quote cards and profiles, so readable by any signed-in user;
+    // only the owner may write their own avatar.
+    match /users/{userId}/{allPaths=**} {
+      allow read:  if isSignedIn();
+      allow write: if isOwner(userId) && withinSizeLimit();
+    }
+
+    // ── Compliance documents (insurance certs, government ID) ───────────────
+    // SENSITIVE. Readable ONLY by the owning tradesperson and admins.
+    // Writable only by the owner; never deletable from the client.
+    match /compliance/{userId}/{allPaths=**} {
+      allow read:   if isOwner(userId) || isAdmin();
+      allow write:  if isOwner(userId) && withinSizeLimit();
+      allow delete: if false;
+    }
+
+    // ── Job photos ─────────────────────────────────────────────────────────
+    // Job ownership lives in Postgres and isn't derivable in a Storage rule,
+    // so any signed-in user may read (photos surface on the job board) and
+    // upload. Tighten later if photo paths get a uid prefix.
+    match /jobs/{jobId}/{allPaths=**} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && withinSizeLimit();
+    }
+
+    // ── Default deny ───────────────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
