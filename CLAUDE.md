@@ -9,7 +9,7 @@
 | # | Priority | Item | Status (2026-06-02) |
 |---|---|---|---|
 | 1 | 🔴 CRITICAL | **Wire data layer** — JobBoard, dashboards, quote submit/accept, JobCreation | ✅ **Mostly done** — pages call `api.*`; the `mock`/`FALLBACK` refs are the demo/error fallback by design, not "still on mock". Verify quote submit/accept paths end-to-end. |
-| 2 | 🔴 CRITICAL | **FCM notifications** — push on new quote, accepted bid, new message, schedule change, compliance decision | 🟡 **Phase 1 DONE** — fixed the broken UID contract (was PG UUID, now Firebase UID) so quote/job/compliance pushes actually deliver; removed the dead inline `device_tokens` blocks. **Open:** `message.sent` (Firestore-triggered fn) + `schedule change` (no write site yet). |
+| 2 | 🔴 CRITICAL | **FCM notifications** — push on new quote, accepted bid, new message, schedule change, compliance decision | 🟡 **Phase 1 + 2 DONE.** P1: fixed UID contract (PG UUID → Firebase UID) so quote/job/compliance pushes deliver; removed dead inline `device_tokens` blocks. P2: `message.sent` shipped via `functions/message-push` (Firestore-triggered, deployed). **Open:** `schedule change` — blocked, scheduling isn't persisted yet (see below). |
 | 3 | 🟠 HIGH | **Firebase Storage security rules** | 🟡 **Rules written + registered** (`firebase/storage.rules`). ⛔ Blocked: Firebase Storage not initialized — click **Get Started** in console, then `firebase deploy --only storage`. |
 | 4 | 🟠 HIGH | **Postgres indexes** | ✅ **DONE & LIVE** — in `runMigrations()`, confirmed `Migrations: performance indexes OK` in prod. |
 | 5 | 🟠 HIGH | **Payment history** — `GET /api/v1/payments/me` | 🟡 Backend route exists; remaining work is the **CustomerDashboard display** (Kevin). |
@@ -17,7 +17,7 @@
 | 7 | 🟡 MEDIUM | **BigQuery pipelines** | 🔲 Open (Larry — console). |
 | 8 | 🟡 MEDIUM | **Firestore query pagination** (`limit(20)` + Load More) | 🔲 Open (frontend). |
 
-**Larry's open queue:** #2 Phase 2 (`message.sent` Firestore function) → #2 Phase 3 (scope scheduling persistence) → enable Firebase Storage (console) → #7 BigQuery.
+**Larry's open queue:** build scheduling persistence (`appointments` route — unblocks the #2 schedule push) → enable Firebase Storage (console) → #7 BigQuery.
 **Kevin's queue:** enable `charge.dispute.created` in Stripe → confirm iOS scroll fix on device → #5 payment-history display → #8 pagination.
 
 > **Note:** AI Job Analysis (Vertex AI / Gemini) has been **removed as a feature**. Do not implement it. Remove any Vertex AI wiring you encounter.

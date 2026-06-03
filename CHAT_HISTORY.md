@@ -49,10 +49,16 @@
 - Notifications use ONE delivery path: Pub/Sub `publish()` → `fcm-fanout`. `targetUserId` is ALWAYS the recipient's Firebase UID. The PG `device_tokens` table is now unused (left in schema, harmless).
 - API deploys: push `master:production` (auto-trigger) or `gcloud builds submit`. Never the Console "Edit & deploy" button.
 
+**#2 Phase 2 — message.sent (DEPLOYED, same session)**
+- New isolated Cloud Function codebase `functions/message-push` (firebase-functions v2 `onDocumentCreated` on `threads/{threadId}/messages/{messageId}`). Reads `recipientUID`/`senderName`/`text` off the message doc → `users/{uid}.fcmToken` → push. No frontend change, no API route. Deployed + verified ACTIVE; Eventarc trigger in `nam5`. Deploy: `firebase deploy --only functions:message-push`. (Heads-up: Node 20 runtime is deprecated — bump to nodejs22 before 2026-10-30.)
+
+**#2 Phase 3 — schedule change (SCOPED — blocked, not a notification task)**
+- `Scheduling.tsx` doesn't persist anything (just `navigate('/dashboard')`). The `appointments` table + `jobs.scheduled_at` exist, but there's **no route or wiring to save a schedule.** A "schedule change" push is impossible until scheduling persistence is built (backend `POST` to write `appointments` + Kevin wiring `Scheduling.tsx`). Track as its own feature; the push falls out once the write site exists.
+
 ### Next steps
-- **Larry:** #2 Phase 2 (`message.sent` via Firestore-triggered Cloud Function — messaging is Firestore-only, no API route); #2 Phase 3 (scheduling has no backend write site — needs scoping).
-- **Larry (console, 2 min):** enable Firebase Storage, then deploy storage rules.
-- **Kevin:** add `charge.dispute.created` to Stripe webhook events; confirm the iOS scroll fix on a real device; pull latest before next session.
+- **Larry:** build scheduling persistence (then its push is trivial); #7 BigQuery pipelines.
+- **Larry (console, 2 min):** enable Firebase Storage, then `firebase deploy --only storage`.
+- **Kevin:** add `charge.dispute.created` to Stripe webhook events; build the Scheduling.tsx → save-schedule wiring (needs a new backend route — coordinate with Larry); #5 payment-history display; confirm the iOS scroll fix on a real device; pull latest before next session.
 
 ---
 
