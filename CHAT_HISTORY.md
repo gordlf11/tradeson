@@ -15,6 +15,47 @@
 - [Next steps]
 -->
 
+## 2026-06-02 -- Larry (Claude Opus 4.8) -- Deploy-trigger fix, item-6, perf indexes, storage rules, FCM UID contract fix (#2 Phase 1)
+
+### What was done
+
+**🔴 Deploy pipeline — API auto-deploy was silently broken (FIXED)**
+- The `tradesonapi` Cloud Build trigger had `includedFiles: api/***` (invalid glob). It collapses to ~`api/*` and matches only `api/`-ROOT files, so **every push touching nested `api/src/**` silently never deployed the API.** Fixed to `api/**` (export/import). Verified: an isolated `api/src` push now fires `tradesonapi` → SUCCESS.
+- **Kevin: backend changes now actually auto-deploy on `git push origin master:production`.** Confirm a build starts in Cloud Build History after backend pushes. The Console "Edit & deploy new revision" button does NOT pick up new code (reuses the old image) — always deploy via push or `gcloud builds submit`.
+
+**Item 6 — nightly flagged-account auto-population (BUILT + DEPLOYED + verified)**
+- `POST /api/v1/internal/populate-flagged-accounts` (Cloud Scheduler nightly, `x-internal-secret`): flags expired compliance docs + poor 30-day ratings (<2.5 over ≥2 reviews), idempotent via NOT EXISTS.
+- `charge.dispute.created` Stripe webhook → inserts a `dispute` flag for the tradesperson on the disputed job.
+- Cloud Scheduler job `populate-flagged-accounts` created (`0 8 * * *` UTC). Endpoint verified `200`.
+- **Kevin TODO:** add `charge.dispute.created` to the Stripe webhook endpoint's enabled events (Dashboard → Developers → Webhooks) — code is live but Stripe won't send the event until enabled.
+
+**#4 Postgres composite indexes (LIVE)**
+- Mirrored `api/src/schema/indexes.sql` into `runMigrations()` so they auto-apply on boot. Confirmed in prod logs: `Migrations: performance indexes OK`. (Note: Kevin's checklist named `total_price`/`tradesperson_id`; real columns are `price`/`tradesperson_user_id`.)
+
+**#3 Firebase Storage security rules (WRITTEN — blocked on console)**
+- `firebase/storage.rules` + registered in `firebase.json`. Owner-only writes; compliance docs (insurance, gov ID) readable only by owner + admins; avatars signed-in-readable; 15MB cap; default deny.
+- **🔴 BLOCKER (Larry, console):** Firebase Storage was never initialized — the frontend's `storageBucket` (`tradeson-491518.firebasestorage.app`) doesn't exist. **File uploads cannot work at all until someone clicks "Get Started" at https://console.firebase.google.com/project/tradeson-491518/storage (location us-central1).** Then `firebase deploy --only storage --project tradeson-491518`. This also unblocks Kevin's upload-wiring tasks.
+
+**#2 Phase 1 — FCM notifications: fixed the UID contract + removed a conflict (DEPLOYED)**
+- **Root bug:** the `fcm-fanout` function looks up `users/{uid}.fcmToken` in Firestore (keyed by **Firebase UID**), but all 4 publishers passed the **Postgres user UUID** → every push silently no-op'd. Fixed `targetUserId` to the recipient's Firebase UID on all of: `quote.submitted` (homeowner), `quote.accepted` (tradesperson), `job.created` (creator), `job.status_changed` (homeowner).
+- **Removed the dead inline `device_tokens` FCM blocks** (Kevin's `TODO(K-D)`) in quotes.ts — nothing populated `device_tokens`, so they delivered nothing AND would have double-sent once the UID was fixed. Kept the `notifications` history inserts. **Kevin: those inline blocks are gone by design (you flagged them for removal).**
+- Added `compliance.decided` publisher (admin.ts) — tradesperson gets a push on approve/reject/more-docs.
+- Deployed (rev `00043`), API healthy. **Final delivery verification still needs a real device/token** — `fcm-fanout` logs will now show a real Firebase-UID lookup.
+
+**Scroll lock fix (DEPLOYED)**
+- `html, body { overflow-x: hidden }` from the mobile-polish commit forced `overflow-y: auto` on the root → locked vertical scrolling on iOS Safari. Changed to `overflow-x: clip`. Deployed. **Needs on-device confirmation.**
+
+### Decisions
+- Notifications use ONE delivery path: Pub/Sub `publish()` → `fcm-fanout`. `targetUserId` is ALWAYS the recipient's Firebase UID. The PG `device_tokens` table is now unused (left in schema, harmless).
+- API deploys: push `master:production` (auto-trigger) or `gcloud builds submit`. Never the Console "Edit & deploy" button.
+
+### Next steps
+- **Larry:** #2 Phase 2 (`message.sent` via Firestore-triggered Cloud Function — messaging is Firestore-only, no API route); #2 Phase 3 (scheduling has no backend write site — needs scoping).
+- **Larry (console, 2 min):** enable Firebase Storage, then deploy storage rules.
+- **Kevin:** add `charge.dispute.created` to Stripe webhook events; confirm the iOS scroll fix on a real device; pull latest before next session.
+
+---
+
 ## 2026-05-26 to 2026-05-28 -- Larry (Claude Opus 4.7) -- Pre-touchbase production push: FCM live, Trusted Badge shipped, all of Kevin's blockers closed
 
 ### What was done

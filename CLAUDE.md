@@ -4,22 +4,24 @@
 
 ## 🔴 LARRY — ACTION REQUIRED (read this first every session)
 
-> Last updated: 2026-06-01 by Kevin.
+> Originally listed 2026-06-01 by Kevin. **Status updated 2026-06-02 by Larry** (see CHAT_HISTORY.md for the full session).
 
-The following items are **open and blocking launch**. Complete them in priority order this session:
+| # | Priority | Item | Status (2026-06-02) |
+|---|---|---|---|
+| 1 | 🔴 CRITICAL | **Wire data layer** — JobBoard, dashboards, quote submit/accept, JobCreation | ✅ **Mostly done** — pages call `api.*`; the `mock`/`FALLBACK` refs are the demo/error fallback by design, not "still on mock". Verify quote submit/accept paths end-to-end. |
+| 2 | 🔴 CRITICAL | **FCM notifications** — push on new quote, accepted bid, new message, schedule change, compliance decision | 🟡 **Phase 1 DONE** — fixed the broken UID contract (was PG UUID, now Firebase UID) so quote/job/compliance pushes actually deliver; removed the dead inline `device_tokens` blocks. **Open:** `message.sent` (Firestore-triggered fn) + `schedule change` (no write site yet). |
+| 3 | 🟠 HIGH | **Firebase Storage security rules** | 🟡 **Rules written + registered** (`firebase/storage.rules`). ⛔ Blocked: Firebase Storage not initialized — click **Get Started** in console, then `firebase deploy --only storage`. |
+| 4 | 🟠 HIGH | **Postgres indexes** | ✅ **DONE & LIVE** — in `runMigrations()`, confirmed `Migrations: performance indexes OK` in prod. |
+| 5 | 🟠 HIGH | **Payment history** — `GET /api/v1/payments/me` | 🟡 Backend route exists; remaining work is the **CustomerDashboard display** (Kevin). |
+| 6 | 🟠 HIGH | **Item 6** — flagged-account cron + deploy | ✅ **DONE** — built, deployed, scheduler live & verified. **Kevin:** enable `charge.dispute.created` in Stripe webhook events. |
+| 7 | 🟡 MEDIUM | **BigQuery pipelines** | 🔲 Open (Larry — console). |
+| 8 | 🟡 MEDIUM | **Firestore query pagination** (`limit(20)` + Load More) | 🔲 Open (frontend). |
 
-| # | Priority | Item |
-|---|---|---|
-| 1 | 🔴 CRITICAL | **Wire data layer** — JobBoard, CustomerDashboard, TradespersonDashboard, QuoteSubmissionModal, QuoteAcceptance, JobCreation all still on mock data. Replace with `api.listJobs()`, `api.submitQuote()`, `api.acceptQuote()`, `api.createJob()` |
-| 2 | 🔴 CRITICAL | **FCM notifications** — send push on: new quote, accepted bid, new message, schedule change, compliance decision |
-| 3 | 🟠 HIGH | **Firebase Storage security rules** — users write only to their own path; compliance docs admin-readable only. Deploy with `firebase deploy --only storage` |
-| 4 | 🟠 HIGH | **Postgres indexes** — `jobs(status,trade_id,created_at desc)`, `jobs(customer_id,status,created_at desc)`, `jobs(accepted_tradesperson_id,status,created_at desc)`, `quotes(job_id,total_price asc)`, `quotes(tradesperson_id,created_at desc)`, `reviews(tradesperson_id,created_at desc)` |
-| 5 | 🟠 HIGH | **Payment history** — load real transaction records into CustomerDashboard Payment History section via `GET /api/v1/payments/me` |
-| 6 | 🟠 HIGH | **Item 6 deploy** — redeploy `tradeson-api` to Cloud Run + create nightly Cloud Scheduler job (commands in priority list section below) + add `charge.dispute.created` to Stripe webhook events |
-| 7 | 🟡 MEDIUM | **BigQuery pipelines** — enable Firestore→BQ Extension on `threads`+`messages`; enable Datastream PG→BQ on Cloud SQL |
-| 8 | 🟡 MEDIUM | **Firestore query pagination** — `limit(20)` + "Load More" on JobBoard and dashboard lists |
+**Larry's open queue:** #2 Phase 2 (`message.sent` Firestore function) → #2 Phase 3 (scope scheduling persistence) → enable Firebase Storage (console) → #7 BigQuery.
+**Kevin's queue:** enable `charge.dispute.created` in Stripe → confirm iOS scroll fix on device → #5 payment-history display → #8 pagination.
 
 > **Note:** AI Job Analysis (Vertex AI / Gemini) has been **removed as a feature**. Do not implement it. Remove any Vertex AI wiring you encounter.
+> **Deploy note (2026-06-02):** API auto-deploys on `git push origin master:production` (the `tradesonapi` trigger glob was fixed from `api/***`→`api/**`). The Console "Edit & deploy new revision" button does NOT pick up new code — never use it.
 
 ---
 
