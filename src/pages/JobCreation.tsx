@@ -674,6 +674,8 @@ export default function JobCreation() {
               <img
                 src={URL.createObjectURL(file)}
                 alt={`Photo ${idx + 1}`}
+                loading="lazy"
+                decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
               <button

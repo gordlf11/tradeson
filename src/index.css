@@ -512,3 +512,18 @@ input, textarea, select {
   overflow-wrap: break-word;
   word-break: break-word;
 }
+
+/* Keyboard pushes content up — scroll focused input into the visible viewport.
+   scroll-padding-bottom reserves space so the focused element doesn't hide
+   behind the soft keyboard. 320px covers most mobile keyboard heights. */
+html {
+  scroll-padding-bottom: 320px;
+}
+
+/* On iOS the visual viewport shrinks when the keyboard appears.
+   dvh (dynamic viewport height) accounts for this automatically. */
+@supports (height: 100dvh) {
+  .page-container {
+    min-height: 100dvh;
+  }
+}

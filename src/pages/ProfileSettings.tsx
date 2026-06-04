@@ -82,7 +82,7 @@ export default function ProfileSettings() {
               overflow: 'hidden',
             }}>
               {avatarUrl
-                ? <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={avatarUrl} alt="avatar" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <User size={36} color="white" />
               }
             </div>
