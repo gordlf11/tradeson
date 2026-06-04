@@ -37,9 +37,12 @@ interface ActiveJob {
 interface PaymentRow {
   id: string;
   amount: number;
+  platform_fee?: number;
   status: string;
   date: string;
   job_title: string;
+  category?: string;
+  invoice_url?: string | null;
   tx_type: string;
 }
 
@@ -495,28 +498,40 @@ export default function CustomerDashboard() {
           <div>
             {sectionHeader('Payment History', payments.length > 0 ? `${payments.length} completed job${payments.length !== 1 ? 's' : ''}` : undefined)}
             {paymentsLoading ? (
-              <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>Loading history…</p>
-              </Card>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {[1,2].map(i => <SkeletonMetricCard key={i} />)}
+              </div>
             ) : payments.length === 0 ? (
-              <Card style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                <CheckCircle size={28} color="var(--text-tertiary)" style={{ margin: '0 auto var(--space-3)' }} />
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No completed jobs yet. Payment history will appear here.</p>
-              </Card>
+              <EmptyState
+                icon={<CheckCircle size={32} />}
+                title="No payment history yet"
+                body="Completed job payments will appear here."
+              />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                 {payments.map(item => (
                   <Card key={item.id} style={{ padding: 'var(--space-4)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, minWidth: 0, marginRight: 'var(--space-3)' }}>
                         <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '2px' }}>{item.job_title}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {item.category && <span style={{ marginRight: '8px' }}>{item.category}</span>}
                           {new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-primary)' }}>${Number(item.amount).toFixed(2)}</div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: '600' }}>Paid</div>
+                        {item.invoice_url && (
+                          <a
+                            href={item.invoice_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', display: 'block', marginTop: '2px' }}
+                          >
+                            Invoice ↗
+                          </a>
+                        )}
                       </div>
                     </div>
                   </Card>

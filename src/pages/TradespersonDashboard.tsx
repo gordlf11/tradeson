@@ -450,6 +450,7 @@ export default function TradespersonDashboard() {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [refetchKey, setRefetchKey] = useState(0);
+  const [visibleJobs, setVisibleJobs] = useState(20);
   const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(true);
   const [earnings, setEarnings] = useState({ this_month: 0, pending_payout: 0, lifetime: 0, avg_per_job: 0, jobs_completed: 0 });
@@ -666,7 +667,7 @@ export default function TradespersonDashboard() {
               />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {activeJobs.map(job => {
+                {activeJobs.slice(0, visibleJobs).map(job => {
                   const sc = statusConfig[job.status];
                   return (
                     <Card key={job.id} style={{ padding: 'var(--space-4)' }}>
@@ -719,6 +720,19 @@ export default function TradespersonDashboard() {
                     </Card>
                   );
                 })}
+                {activeJobs.length > visibleJobs && (
+                  <button
+                    onClick={() => setVisibleJobs(v => v + 20)}
+                    style={{
+                      width: '100%', padding: 'var(--space-3)', background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                      fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: '700',
+                      color: 'var(--primary)', cursor: 'pointer',
+                    }}
+                  >
+                    Load more ({activeJobs.length - visibleJobs} remaining)
+                  </button>
+                )}
               </div>
             )}
           </div>

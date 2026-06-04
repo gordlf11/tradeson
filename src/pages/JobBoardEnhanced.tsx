@@ -1015,6 +1015,7 @@ export default function JobBoardEnhanced() {
   const [confirmingJobId, setConfirmingJobId] = useState<string | null>(null);
   const [comparingJobId, setComparingJobId] = useState<string | null>(null);
   const [refetchKey, setRefetchKey] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(20);
   const autoCompareHandled = useRef(false);
 
   // Prefer the server-truth role from Postgres (AuthContext.getMe); fall back
@@ -1102,6 +1103,9 @@ export default function JobBoardEnhanced() {
       if (sortBy === 'Expiring Soon') return a.expiresInHours - b.expiresInHours;
       return 0;
     });
+
+  const visibleJobs = filteredJobs.slice(0, visibleCount);
+  const hasMore = filteredJobs.length > visibleCount;
 
   const handleAcceptQuote = async (jobId: string, quoteId: string) => {
     await api.acceptQuote(quoteId);
@@ -1246,7 +1250,7 @@ export default function JobBoardEnhanced() {
                     zIndex: 50, minWidth: '180px', overflow: 'hidden',
                   }}>
                     {SORT_OPTIONS.map(opt => (
-                      <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false); }} style={{
+                      <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false); setVisibleCount(20); }} style={{
                         display: 'block', width: '100%', padding: 'var(--space-3) var(--space-4)',
                         background: sortBy === opt ? 'var(--primary-light)' : 'transparent',
                         color: sortBy === opt ? 'var(--primary)' : 'var(--text-primary)',
@@ -1277,7 +1281,7 @@ export default function JobBoardEnhanced() {
               min={1}
               max={60}
               value={distanceFilter}
-              onChange={e => setDistanceFilter(Number(e.target.value))}
+              onChange={e => { setDistanceFilter(Number(e.target.value)); setVisibleCount(20); }}
               style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -1297,7 +1301,7 @@ export default function JobBoardEnhanced() {
             <div style={{ position: 'relative', marginTop: 'var(--space-2)' }}>
               <select
                 value={selectedCategory}
-                onChange={e => setSelectedCategory(e.target.value)}
+                onChange={e => { setSelectedCategory(e.target.value); setVisibleCount(20); }}
                 style={{
                   width: '100%', padding: 'var(--space-3) var(--space-4)',
                   paddingRight: '40px',
@@ -1335,7 +1339,7 @@ export default function JobBoardEnhanced() {
               <ErrorState message={jobsError} onRetry={() => setRefetchKey(k => k + 1)} />
             )}
 
-            {!jobsLoading && !jobsError && filteredJobs.map(job => {
+            {!jobsLoading && !jobsError && visibleJobs.map(job => {
               const sb = severityBadge(job.severity);
               const isExpanded = expandedJobId === job.id;
 
@@ -1524,6 +1528,20 @@ export default function JobBoardEnhanced() {
                 </Card>
               );
             })}
+
+            {!jobsLoading && !jobsError && hasMore && (
+              <button
+                onClick={() => setVisibleCount(c => c + 20)}
+                style={{
+                  width: '100%', padding: 'var(--space-3)', background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                  fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: '700',
+                  color: 'var(--primary)', cursor: 'pointer',
+                }}
+              >
+                Load more ({filteredJobs.length - visibleCount} remaining)
+              </button>
+            )}
 
             {!jobsLoading && !jobsError && filteredJobs.length === 0 && (
               <EmptyState
