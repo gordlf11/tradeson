@@ -97,7 +97,7 @@ const BottomNav = () => {
   }, [firebaseUser?.uid]);
 
   // Hide nav on auth, onboarding, and admin screens
-  const hideNavPaths = ['/login', '/signup', '/forgot-password', '/auth/action', '/onboarding', '/role-selection', '/dashboard/admin'];
+  const hideNavPaths = ['/login', '/signup', '/forgot-password', '/auth/action', '/__/auth/action', '/onboarding', '/role-selection', '/dashboard/admin'];
   if (path === '/' || hideNavPaths.some(p => path.startsWith(p))) return null;
 
   const dashPath = getDashboardPath(userRole);
@@ -296,6 +296,9 @@ function AppRoutes() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/action" element={<AuthAction />} />
+        {/* Alias matching Firebase's default handler path, in case the console
+            requires the action URL to end in /__/auth/action. */}
+        <Route path="/__/auth/action" element={<AuthAction />} />
 
         {/* Onboarding — requires auth; already-onboarded users are redirected to their dashboard */}
         <Route path="/onboarding" element={<RequireAuth><RequireOnboarding><RoleSelection /></RequireOnboarding></RequireAuth>} />
