@@ -12,6 +12,7 @@ import adminRouter from './routes/admin';
 import paymentsRouter from './routes/payments';
 import reviewsRouter from './routes/reviews';
 import realtorRouter from './routes/realtor';
+import appointmentsRouter from './routes/appointments';
 import internalRouter from './routes/internal';
 
 const app = express();
@@ -51,6 +52,7 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/reviews', reviewsRouter);
 app.use('/api/v1/realtor', realtorRouter);
+app.use('/api/v1/appointments', appointmentsRouter);
 app.use('/api/v1/internal', internalRouter);
 
 // 404 handler
@@ -267,6 +269,42 @@ async function runMigrations() {
     console.log('Migrations: broker command center schema OK');
   } catch (err: any) {
     console.warn('Broker schema migrations skipped:', err.message);
+  }
+
+  // Scheduling persistence — appointments table. Mirror of the block in
+  // api/src/schema/migration.sql (which only runs on fresh DBs), made
+  // idempotent so live Cloud Run boots converge without a manual psql run.
+  // Backs POST /api/v1/appointments and the schedule.confirmed/changed push.
+  try {
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS appointments (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        job_id            UUID NOT NULL REFERENCES jobs(id),
+        quote_id          UUID REFERENCES quotes(id),
+        tradesperson_id   UUID NOT NULL REFERENCES users(id),
+        customer_id       UUID NOT NULL REFERENCES users(id),
+        scheduled_date    DATE NOT NULL,
+        time_slot_start   TIME NOT NULL,
+        time_slot_end     TIME NOT NULL,
+        status            TEXT DEFAULT 'confirmed' CHECK (status IN (
+                            'confirmed','en_route','in_progress',
+                            'completed','cancelled','no_show')),
+        arrival_eta       TIMESTAMPTZ,
+        started_at        TIMESTAMPTZ,
+        completed_at      TIMESTAMPTZ,
+        notes             TEXT,
+        created_at        TIMESTAMPTZ DEFAULT now(),
+        updated_at        TIMESTAMPTZ DEFAULT now()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_appt_job   ON appointments(job_id);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_appt_trade ON appointments(tradesperson_id);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_appt_date  ON appointments(scheduled_date);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_appt_customer ON appointments(customer_id);`);
+    console.log('Migrations: appointments schema OK');
+  } catch (err: any) {
+    console.warn('Appointments migration skipped:', err.message);
   }
 }
 

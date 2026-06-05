@@ -30,6 +30,8 @@ export type EventName =
   | 'job.status_changed'
   | 'quote.submitted'
   | 'quote.accepted'
+  | 'schedule.confirmed'
+  | 'schedule.changed'
   | 'message.sent'
   | 'compliance.decided'
   | 'resolution.applied';

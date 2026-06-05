@@ -88,6 +88,24 @@ export const api = {
 
   getEarnings: () => request('/api/v1/payments/earnings'),
 
+  // Appointments / scheduling — persists a confirmed slot for a job and
+  // pushes schedule.confirmed/changed to the other participant.
+  // Dates: scheduled_date 'YYYY-MM-DD'; times 'HH:MM' (24h) or '8:00 AM'.
+  createAppointment: (data: {
+    job_id: string;
+    scheduled_date: string;
+    time_slot_start: string;
+    time_slot_end: string;
+    notes?: string;
+  }) => request('/api/v1/appointments', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateAppointment: (id: string, data: Record<string, unknown>) =>
+    request(`/api/v1/appointments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  listMyAppointments: () => request('/api/v1/appointments/mine'),
+
+  getJobAppointments: (jobId: string) => request(`/api/v1/appointments/${jobId}`),
+
   // Stripe — save card for future job payments (SetupIntent)
   createSetupIntent: () =>
     request('/api/v1/stripe/create-setup-intent', { method: 'POST' }),

@@ -15,6 +15,32 @@
 - [Next steps]
 -->
 
+## 2026-06-04 -- Larry (Claude Opus 4.8) -- Scheduling persistence + FCM #2 closed; verified 3 stale checklist items already done
+
+### What was done
+- **Scheduling persistence shipped (#2 schedule-change push unblocked).** New `api/src/routes/appointments.ts` mounted at `/api/v1/appointments`:
+  - `POST /` persists a confirmed slot (server derives both parties + accepted quote from the job; client can't forge participants), mirrors `scheduled_at` onto the job, emits `schedule.confirmed`.
+  - `PATCH /:id` reschedule/status; time changes emit `schedule.changed`.
+  - `GET /mine` + `GET /:jobId` participant-scoped reads.
+  - Added `schedule.confirmed` / `schedule.changed` to `pubsub.ts` event union; both push to the *other* participant's Firebase UID.
+- **`appointments` table moved into `runMigrations()`** (idempotent `CREATE TABLE IF NOT EXISTS` + indexes). It previously lived only in `migration.sql` (fresh-DB only), so prod never had the table.
+- **`api.ts` client methods** added: `createAppointment / updateAppointment / listMyAppointments / getJobAppointments` with the date/time contract documented. Kevin wires `Scheduling.tsx` → `api.createAppointment()`.
+- API `tsc --noEmit` clean; frontend `npm run build` clean.
+
+### Verified already-done (were stale on the ACTION REQUIRED list)
+- **Stripe migration** — `stripe_migration.sql` is byte-identical to `runMigrations()` lines 70-78; auto-applied on every boot. The manual `psql` is a no-op.
+- **Messages Firestore collection-group index** — already live in `tradeson-491518` (confirmed via `firebase firestore:indexes`). No deploy needed.
+- **`compliance.decided` push** — already wired in `admin.ts` `POST /compliance/:id/decision` (approved/rejected/more_docs copy, tradesperson `firebase_uid`).
+
+### Still blocked (needs Larry's console action)
+- **Firebase Storage** — no default Storage bucket exists on `tradeson-491518` yet. Must click **Get Started** in the Firebase console, then `firebase deploy --only storage`. The active firebase CLI login (larryfgordon89@gmail.com) can read the project but Storage isn't initialized.
+
+### Next steps
+- Kevin: wire `Scheduling.tsx` to `api.createAppointment()` (route is live after this deploy).
+- Larry: initialize Firebase Storage (console) → deploy storage rules; then #7 BigQuery.
+
+---
+
 ## 2026-06-02 -- Larry (Claude Opus 4.8) -- Deploy-trigger fix, item-6, perf indexes, storage rules, FCM UID contract fix (#2 Phase 1)
 
 ### What was done

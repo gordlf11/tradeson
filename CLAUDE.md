@@ -9,7 +9,7 @@
 | # | Priority | Item | Status (2026-06-02) |
 |---|---|---|---|
 | 1 | 🔴 CRITICAL | **Wire data layer** — JobBoard, dashboards, quote submit/accept, JobCreation | ✅ **Mostly done** — pages call `api.*`; the `mock`/`FALLBACK` refs are the demo/error fallback by design, not "still on mock". Verify quote submit/accept paths end-to-end. |
-| 2 | 🔴 CRITICAL | **FCM notifications** — push on new quote, accepted bid, new message, schedule change, compliance decision | 🟡 **Phase 1 + 2 DONE.** P1: fixed UID contract (PG UUID → Firebase UID) so quote/job/compliance pushes deliver; removed dead inline `device_tokens` blocks. P2: `message.sent` shipped via `functions/message-push` (Firestore-triggered, deployed). **Open:** `schedule change` — blocked, scheduling isn't persisted yet (see below). |
+| 2 | 🔴 CRITICAL | **FCM notifications** — push on new quote, accepted bid, new message, schedule change, compliance decision | ✅ **DONE (2026-06-04).** All five events wired. quote/accept/job/`compliance.decided` (admin.ts) deliver on the fixed UID contract; `message.sent` via `functions/message-push`. **Schedule change unblocked:** `appointments` route now persists slots and emits `schedule.confirmed` / `schedule.changed`. Kevin: wire `Scheduling.tsx` → `api.createAppointment()`. |
 | 3 | 🟠 HIGH | **Firebase Storage security rules** | 🟡 **Rules written + registered** (`firebase/storage.rules`). ⛔ Blocked: Firebase Storage not initialized — click **Get Started** in console, then `firebase deploy --only storage`. |
 | 4 | 🟠 HIGH | **Postgres indexes** | ✅ **DONE & LIVE** — in `runMigrations()`, confirmed `Migrations: performance indexes OK` in prod. |
 | 5 | 🟠 HIGH | **Payment history** — `GET /api/v1/payments/me` | 🟡 Backend route exists; remaining work is the **CustomerDashboard display** (Kevin). |
@@ -17,8 +17,10 @@
 | 7 | 🟡 MEDIUM | **BigQuery pipelines** | 🔲 Open (Larry — console). |
 | 8 | 🟡 MEDIUM | **Firestore query pagination** (`limit(20)` + Load More) | 🔲 Open (frontend). |
 
-**Larry's open queue:** build scheduling persistence (`appointments` route — unblocks the #2 schedule push) → enable Firebase Storage (console) → #7 BigQuery.
-**Kevin's queue:** enable `charge.dispute.created` in Stripe → confirm iOS scroll fix on device → #5 payment-history display → #8 pagination.
+**Larry's open queue:** ~~scheduling persistence~~ ✅ shipped 2026-06-04 → enable Firebase Storage (console — no default bucket exists yet, click **Get Started** then `firebase deploy --only storage`) → #7 BigQuery.
+**Kevin's queue:** wire `Scheduling.tsx` → `api.createAppointment()` (route is live) → enable `charge.dispute.created` in Stripe → confirm iOS scroll fix on device → #5 payment-history display → #8 pagination.
+
+> **Verified done 2026-06-04 (were stale on this list):** Stripe migration (`stripe_migration.sql` is byte-identical to `runMigrations()` — auto-applied on boot, no psql needed); messages Firestore collection-group index (already live in `tradeson-491518`); `compliance.decided` push (already wired in `admin.ts`).
 
 > **Note:** AI Job Analysis (Vertex AI / Gemini) has been **removed as a feature**. Do not implement it. Remove any Vertex AI wiring you encounter.
 > **Deploy note (2026-06-02):** API auto-deploys on `git push origin master:production` (the `tradesonapi` trigger glob was fixed from `api/***`→`api/**`). The Console "Edit & deploy new revision" button does NOT pick up new code — never use it.
