@@ -760,7 +760,7 @@ This section tracks every item required to take TradesOn from demo to a producti
 ### 🟢 LAUNCH ENHANCEMENTS — Nice-to-Have Before Full Rollout
 
 #### User Experience
-- [x] **Forgot password flow** — `ForgotPassword.tsx` wired with `sendPasswordResetEmail`; routed at `/forgot-password` · *Kevin*
+- [x] **Forgot password flow** — `ForgotPassword.tsx` wired with `sendPasswordResetEmail`; routed at `/forgot-password`. Hardened against account enumeration (user-not-found → success), verified end-to-end via Playwright + live Firebase email (2026-06-04) · *Kevin + Larry*
 - [ ] **Email verification** — send verification email on signup; block full access until verified · *Larry*
 - [ ] **Onboarding progress persistence** — save onboarding state to Firestore so users can resume if they close the app mid-flow · *Kevin/Larry*
 - [ ] **Review moderation** — admin can flag/hide reviews from the admin dashboard · *Kevin/Larry*
