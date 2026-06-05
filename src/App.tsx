@@ -10,6 +10,7 @@ import DemoNavigator from './components/DemoNavigator';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
+import AuthAction from './pages/AuthAction';
 import Demo from './pages/Demo';
 
 // All other pages — lazy loaded for code splitting
@@ -96,7 +97,7 @@ const BottomNav = () => {
   }, [firebaseUser?.uid]);
 
   // Hide nav on auth, onboarding, and admin screens
-  const hideNavPaths = ['/login', '/signup', '/forgot-password', '/onboarding', '/role-selection', '/dashboard/admin'];
+  const hideNavPaths = ['/login', '/signup', '/forgot-password', '/auth/action', '/onboarding', '/role-selection', '/dashboard/admin'];
   if (path === '/' || hideNavPaths.some(p => path.startsWith(p))) return null;
 
   const dashPath = getDashboardPath(userRole);
@@ -294,6 +295,7 @@ function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth/action" element={<AuthAction />} />
 
         {/* Onboarding — requires auth; already-onboarded users are redirected to their dashboard */}
         <Route path="/onboarding" element={<RequireAuth><RequireOnboarding><RoleSelection /></RequireOnboarding></RequireAuth>} />
