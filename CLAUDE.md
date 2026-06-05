@@ -22,6 +22,24 @@
 
 > **Verified done 2026-06-04 (were stale on this list):** Stripe migration (`stripe_migration.sql` is byte-identical to `runMigrations()` — auto-applied on boot, no psql needed); messages Firestore collection-group index (already live in `tradeson-491518`); `compliance.decided` push (already wired in `admin.ts`).
 
+### 🆕 2026-06-04 — Kevin pickup notes (Larry's session)
+
+**1. Scheduling is now persisted — wire the frontend.** New backend route is live in prod (`/api/v1/appointments`). `Scheduling.tsx` is still pure local state — wire its confirm action to:
+```ts
+await api.createAppointment({
+  job_id,                       // the job being scheduled
+  scheduled_date: 'YYYY-MM-DD', // e.g. '2026-06-10'
+  time_slot_start: '08:00',     // 'HH:MM' 24h (or '8:00 AM' — Postgres TIME parses both)
+  time_slot_end:   '08:30',
+  notes,                        // optional
+});
+```
+Also available: `api.updateAppointment(id, {...})` (reschedule), `api.listMyAppointments()`, `api.getJobAppointments(jobId)`. Creating/rescheduling auto-fires the `schedule.confirmed` / `schedule.changed` FCM push to the **other** participant — no notification code needed on your side. Server derives both parties + the accepted quote from the job, so only send the fields above.
+
+**2. Forgot-password** hardened against account enumeration + verified end-to-end (Playwright + live Firebase). No action needed.
+
+**3. Reset-email deliverability (in progress, Larry + Skylar).** Default Firebase sender (`team@tradeson-491518.firebaseapp.com`) lands in Gmail spam. Fix underway: custom sending domain **`mail.tradeson.io`** (DKIM/SPF via name.com, Skylar adding DNS). Until DNS verifies, auth emails may not reach inboxes — check spam when testing. No frontend change.
+
 > **Note:** AI Job Analysis (Vertex AI / Gemini) has been **removed as a feature**. Do not implement it. Remove any Vertex AI wiring you encounter.
 > **Deploy note (2026-06-02):** API auto-deploys on `git push origin master:production` (the `tradesonapi` trigger glob was fixed from `api/***`→`api/**`). The Console "Edit & deploy new revision" button does NOT pick up new code — never use it.
 
