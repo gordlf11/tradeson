@@ -22,7 +22,15 @@ export default function ForgotPassword() {
       await sendPasswordResetEmail(auth, email);
       setSent(true);
     } catch (err: any) {
-      setError(firebaseErrorMessage(err.code));
+      // Account-enumeration protection: never reveal whether an email is
+      // registered. user-not-found is treated as success — the response must
+      // be identical whether or not the account exists. Only surface errors
+      // that aren't enumeration signals (bad format, rate limiting).
+      if (err.code === 'auth/user-not-found') {
+        setSent(true);
+      } else {
+        setError(firebaseErrorMessage(err.code));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -128,7 +136,6 @@ export default function ForgotPassword() {
 function firebaseErrorMessage(code: string): string {
   switch (code) {
     case 'auth/invalid-email': return 'Invalid email address';
-    case 'auth/user-not-found': return 'No account found with this email';
     case 'auth/too-many-requests': return 'Too many attempts. Please try again later';
     default: return 'Could not send reset link. Please try again.';
   }
