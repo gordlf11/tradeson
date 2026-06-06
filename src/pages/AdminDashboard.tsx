@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth } from '../services/firebase';
 import {
   Shield, Users, Briefcase, DollarSign, AlertTriangle, CheckCircle,
   XCircle, FileText, TrendingUp, Eye,
@@ -1206,9 +1208,13 @@ export default function AdminDashboard() {
       .catch(() => {});
   }, []);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
+  const handleLogout = async () => {
+    // signOut() of Firebase Auth is required — clearing localStorage alone
+    // leaves the persisted Firebase session intact and the user stays logged in.
+    try { await signOut(auth); } finally {
+      localStorage.clear();
+      navigate('/login');
+    }
   };
 
   const sections: { key: AdminSection; label: string; icon: React.ReactNode; badge?: number }[] = [

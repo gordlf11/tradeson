@@ -57,7 +57,7 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { firebaseUser, userProfile } = useAuth();
+  const { firebaseUser, userProfile, logout } = useAuth();
 
   // Prefer the live profile from PG, then the Firebase auth user,
   // then localStorage breadcrumbs, then a generic placeholder.
@@ -76,7 +76,15 @@ export default function TopNav({ title, showMenu = true }: TopNavProps) {
     { id: 'dashboard', title: 'Dashboard', icon: <LayoutDashboard size={16} />, path: '/dashboard' },
     {
       id: 'logout', title: 'Sign Out', icon: <X size={16} />,
-      action: () => { localStorage.clear(); navigate('/login'); }
+      // Must sign out of Firebase Auth, not just clear localStorage —
+      // Firebase uses browserLocalPersistence, so without signOut() the
+      // session survives and onAuthStateChanged keeps the user logged in.
+      action: async () => {
+        try { await logout(); } finally {
+          localStorage.clear();
+          navigate('/login');
+        }
+      }
     }
   ];
 

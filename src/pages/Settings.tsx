@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth } from '../services/firebase';
 import { User, MapPin, CreditCard, Bell, Shield, LogOut, ChevronRight, Edit2, Plus, Check, RefreshCw, HelpCircle, Award } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { Card } from '../components/ui/Card';
@@ -45,9 +47,13 @@ export default function Settings() {
     window.location.href = '/dashboard';
   };
 
-  const handleSignOut = () => {
-    localStorage.clear();
-    navigate('/login');
+  const handleSignOut = async () => {
+    // signOut() of Firebase Auth is required — clearing localStorage alone
+    // leaves the persisted Firebase session intact and the user stays logged in.
+    try { await signOut(auth); } finally {
+      localStorage.clear();
+      navigate('/login');
+    }
   };
 
   const settingSections = [
